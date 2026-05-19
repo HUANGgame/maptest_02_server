@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>管理員後台 | 台北車站地下街拍照定位</title>
+  <link rel="stylesheet" href="/app.css">
+</head>
+<body>
+  <header>
+    <h1>管理員後台</h1>
+    <div class="top-actions">
+      <select id="langSelect" aria-label="Language">
+        <option value="zh">中文</option>
+        <option value="en">English</option>
+      </select>
+      <button id="logoutBtn" class="danger hidden" type="button">登出</button>
+    </div>
+  </header>
+
+  <main id="loginView" class="login-card panel">
+    <h2 data-i18n="adminLogin">管理員登入</h2>
+    <div class="field">
+      <label for="passwordInput" data-i18n="password">密碼</label>
+      <input id="passwordInput" type="password" autocomplete="current-password">
+    </div>
+    <button id="loginBtn" class="primary" type="button" data-i18n="login">登入</button>
+    <div id="loginStatus" class="status hidden"></div>
+    <p class="muted" data-i18n="passwordNote">預設開發密碼請看 README；正式部署請用 ADMIN_PASSWORD 環境變數設定。</p>
+  </main>
+
+  <main id="adminView" class="admin-layout hidden">
+    <section class="panel">
+      <h2 data-i18n="wallMaps">固定牆面地圖</h2>
+      <form id="boardForm">
+        <div class="field"><label for="boardId">ID</label><input id="boardId" value="M-B1-CENTER-01"></div>
+        <div class="field"><label for="boardNameZh">中文名稱</label><input id="boardNameZh" value="M 區中央牆面地圖"></div>
+        <div class="field"><label for="boardNameEn">English name</label><input id="boardNameEn" value="M Area Center Wall Map"></div>
+        <div class="row">
+          <div class="field"><label for="boardFloor" data-i18n="floor">樓層</label><select id="boardFloor"></select></div>
+          <div class="field"><label for="boardHeading" data-i18n="heading">面向角度</label><input id="boardHeading" type="number" min="0" max="359" value="0"></div>
+        </div>
+        <div class="row">
+          <div class="field"><label for="boardX">X</label><input id="boardX" type="number" min="0" max="1100" value="545"></div>
+          <div class="field"><label for="boardY">Y</label><input id="boardY" type="number" min="0" max="720" value="360"></div>
+        </div>
+        <div class="field"><label for="calibrationPhoto" data-i18n="calibrationPhoto">校正照片</label><input id="calibrationPhoto" type="file" accept="image/*" capture="environment"></div>
+        <div class="field"><label for="referenceHash" data-i18n="imageHash">影像指紋</label><textarea id="referenceHash"></textarea></div>
+        <div class="field"><label for="boardNote" data-i18n="note">備註</label><textarea id="boardNote"></textarea></div>
+        <button class="primary" type="submit" data-i18n="saveWallMap">儲存牆面地圖</button>
+      </form>
+    </section>
+
+    <section class="panel">
+      <div class="row" style="justify-content:space-between">
+        <h2 data-i18n="operations">營運狀態</h2>
+        <button id="refreshBtn" type="button" data-i18n="refresh">更新</button>
+      </div>
+
+      <h3 data-i18n="accessPoints">IP / Wi-Fi AP 位置</h3>
+      <form id="apForm">
+        <div class="row">
+          <input id="apId" placeholder="AP ID" value="AP-M-CENTER">
+          <input id="apName" placeholder="AP name" value="M Area Wi-Fi AP Center">
+        </div>
+        <div class="row">
+          <input id="apIp" placeholder="IP" value="10.10.20.11">
+          <input id="apSsid" placeholder="SSID" value="TPE-Free">
+        </div>
+        <div class="row">
+          <select id="apFloor"></select>
+          <input id="apX" type="number" placeholder="X" value="545">
+          <input id="apY" type="number" placeholder="Y" value="360">
+        </div>
+        <div class="field"><textarea id="apNote" placeholder="備註 / note"></textarea></div>
+        <button class="secondary" type="submit" data-i18n="saveAp">儲存 AP/IP 位置</button>
+      </form>
+
+      <div id="adminTables" class="hint"></div>
+    </section>
+  </main>
+
+  <script src="/admin.js"></script>
+</body>
+</html>

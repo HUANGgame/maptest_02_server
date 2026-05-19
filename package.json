@@ -1,0 +1,16 @@
+{
+  "name": "maptest-02-photo-location-server",
+  "version": "2.0.0",
+  "type": "module",
+  "description": "Indoor map navigation with fixed wall-map photo localization and admin monitoring.",
+  "main": "server.js",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node server.js",
+    "start:3015": "node start-3015.js",
+    "dev": "node --watch server.js"
+  },
+  "license": "MIT"
+}

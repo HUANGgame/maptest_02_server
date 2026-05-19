@@ -1,0 +1,17 @@
+node_modules/
+npm-debug.log*
+
+.env
+.DS_Store
+
+*.log
+cloudflared*.log
+server-live.log
+server.out.log
+server.err.log
+
+tools/
+.vs/
+.vscode/
+
+data/state.json
