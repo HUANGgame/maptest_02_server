@@ -55,7 +55,18 @@ const i18n = {
     nextToward: "\u8acb\u671d\u4e0b\u4e00\u500b\u7bad\u982d\u65b9\u5411\u524d\u9032\uff0c\u524d\u5f80",
     routeReady: "\u8def\u7dda\u5df2\u66f4\u65b0",
     photoLocatedSpeech: "\u62cd\u7167\u5b9a\u4f4d\u6210\u529f",
-    gpsUpdated: "GPS \u5df2\u66f4\u65b0"
+    gpsUpdated: "GPS \u5df2\u66f4\u65b0",
+    directionStraight: "\u76f4\u8d70",
+    directionSlightRight: "\u5f80\u53f3\u524d\u65b9",
+    directionRight: "\u5f80\u53f3\u908a",
+    directionBackRight: "\u5f80\u53f3\u5f8c\u65b9",
+    directionBack: "\u8acb\u56de\u982d",
+    directionBackLeft: "\u5f80\u5de6\u5f8c\u65b9",
+    directionLeft: "\u5f80\u5de6\u908a",
+    directionSlightLeft: "\u5f80\u5de6\u524d\u65b9",
+    nextDirection: "\u4e0b\u4e00\u6b65\u65b9\u5411",
+    vibrationReady: "\u624b\u6a5f\u9707\u52d5\u63d0\u793a\u5df2\u555f\u7528",
+    cameraHint: "\u628a\u93e1\u982d\u5c0d\u6e96\u7246\u4e0a\u5730\u5716\uff0c\u62cd\u5b8c\u5f8c\u7cfb\u7d71\u6703\u81ea\u52d5\u5b9a\u4f4d\u4e26\u6717\u8b80\u8def\u7dda\u3002"
   },
   en: {
     appTitle: "Taipei Station Underground Photo Navigation",
@@ -113,7 +124,18 @@ const i18n = {
     nextToward: "Follow the next arrow toward",
     routeReady: "Route updated",
     photoLocatedSpeech: "Photo location succeeded",
-    gpsUpdated: "GPS updated"
+    gpsUpdated: "GPS updated",
+    directionStraight: "go straight",
+    directionSlightRight: "go slightly right",
+    directionRight: "turn right",
+    directionBackRight: "turn back right",
+    directionBack: "turn around",
+    directionBackLeft: "turn back left",
+    directionLeft: "turn left",
+    directionSlightLeft: "go slightly left",
+    nextDirection: "Next direction",
+    vibrationReady: "Phone vibration cue is enabled",
+    cameraHint: "Point the camera at the wall map. After the photo is taken, the system will locate you and read the route automatically."
   }
 };
 
@@ -201,6 +223,15 @@ function applyI18n() {
     node.placeholder = t(node.dataset.i18nPlaceholder);
   });
   canvas.setAttribute("aria-label", `${t("appTitle")}. ${t("mapKeyboardHelp")}`);
+  photoInput.setAttribute("aria-describedby", "audioHelp");
+  locateBtn.setAttribute("aria-label", `${t("locateByPhoto")}. ${t("cameraHint")}`);
+  zoomInBtn.setAttribute("aria-label", lang === "en" ? "Zoom in map" : "\u653e\u5927\u5730\u5716");
+  zoomOutBtn.setAttribute("aria-label", lang === "en" ? "Zoom out map" : "\u7e2e\u5c0f\u5730\u5716");
+  centerBtn.setAttribute("aria-label", t("centerCurrent"));
+  readLocationBtn.setAttribute("aria-label", t("readLocation"));
+  readRouteBtn.setAttribute("aria-label", t("readRoute"));
+  speakCurrentBtn.setAttribute("aria-label", t("speakCurrentStep"));
+  repeatAllBtn.setAttribute("aria-label", t("repeatAll"));
   audioHelp.textContent = t("audioHelp");
 }
 
@@ -241,6 +272,10 @@ function announce(message, interrupt = false) {
   speak(textValue, interrupt);
 }
 
+function haptic(pattern = [80]) {
+  if (navigator.vibrate) navigator.vibrate(pattern);
+}
+
 async function api(url, options = {}) {
   const response = await fetch(url, {
     ...options,
@@ -264,7 +299,7 @@ async function init() {
     statusBox.textContent = `${health.message}\nSession: ${sessionId}`;
     draw();
     await requestRoute("init");
-    announce(`${t("audioHelp")} ${t("mapKeyboardHelp")}`, false);
+    announce(`${t("audioHelp")} ${t("cameraHint")} ${t("mapKeyboardHelp")} ${t("vibrationReady")}`, false);
   } catch (error) {
     statusBox.textContent = `${t("serverDown")}\n${error.message}`;
     announce(`${t("serverDown")} ${error.message}`, true);
@@ -537,9 +572,11 @@ async function locateFromPhoto() {
     statusBox.textContent = `${t("autoUpdated")}\n${t("confidence")}: ${Math.round(data.location.confidence * 100)}%`;
     updateLocationText();
     await requestRoute("photo-location");
+    haptic([80, 60, 160]);
     announce(`${t("photoLocatedSpeech")}。${locationSpeech()}。${routeSpeech()}`, true);
   } catch (error) {
     statusBox.textContent = `${t("failed")}: ${error.message}`;
+    haptic([250, 80, 250]);
     announce(`${t("failed")}: ${error.message}`, true);
   }
 }
@@ -561,6 +598,7 @@ async function requestRoute(reason) {
   } catch (error) {
     routeData = null;
     routeHint.textContent = `${t("routeFailed")}: ${error.message}`;
+    haptic([250, 80, 250]);
     announce(`${t("routeFailed")}: ${error.message}`, true);
   }
 }
@@ -572,7 +610,11 @@ function updateRouteText() {
   const intro = routeData.sameFloor
     ? `${t("routeTo")} ${text(dest)}.`
     : `${t("goVertical")} ${lang === "en" ? floor.nameEn : floor.nameZh}.`;
-  routeHint.innerHTML = `${intro}<br>${t("distance")} ${routeData.totalDistance}px, ${t("path")}: ${routeData.pathKeys.join(" -> ")}`;
+  const nextKey = routeData.pathKeys?.[1] || routeData.pathKeys?.[0];
+  const nextNode = nextKey ? config.graphNodes[nextKey] : null;
+  const direction = nextNode ? directionFromTo(currentPosition, nextNode) : "";
+  const directionLine = direction ? `<br>${t("nextDirection")}: ${direction}` : "";
+  routeHint.innerHTML = `${intro}${directionLine}<br>${t("distance")} ${routeData.totalDistance}px, ${t("path")}: ${routeData.pathKeys.join(" -> ")}`;
   const spoken = routeSpeech();
   if (spoken && spoken !== lastSpokenRoute) {
     lastSpokenRoute = spoken;
@@ -620,11 +662,29 @@ function routeSpeech() {
   const nextKey = routeData.pathKeys?.[1] || routeData.pathKeys?.[0];
   const nextNode = nextKey ? config.graphNodes[nextKey] : null;
   const nextText = nextNode ? text(nextNode) : destText;
+  const direction = nextNode ? directionFromTo(currentPosition, nextNode) : "";
   const intro = routeData.sameFloor
     ? `${t("routeTo")} ${destText}`
     : `${t("goVertical")} ${lang === "en" ? floor.nameEn : floor.nameZh}`;
   const step = distance(currentPosition, dest) < 35 ? t("arrivedNear") : `${t("nextToward")} ${nextText}`;
-  return `${intro}。${step}。${t("distance")} ${Math.round(routeData.totalDistance)} px。${t("path")}: ${routeData.pathKeys.join(" -> ")}`;
+  const directionText = direction ? `${t("nextDirection")}: ${direction}` : "";
+  return `${intro}。${directionText}。${step}。${t("distance")} ${Math.round(routeData.totalDistance)} px。${t("path")}: ${routeData.pathKeys.join(" -> ")}`;
+}
+
+function directionFromTo(from, to) {
+  const dx = to.x - from.x;
+  const dy = to.y - from.y;
+  if (Math.hypot(dx, dy) < 8) return "";
+  const angle = Math.atan2(dy, dx) * 180 / Math.PI;
+  const normalized = (angle + 360) % 360;
+  if (normalized >= 337.5 || normalized < 22.5) return t("directionRight");
+  if (normalized < 67.5) return t("directionBackRight");
+  if (normalized < 112.5) return t("directionBack");
+  if (normalized < 157.5) return t("directionBackLeft");
+  if (normalized < 202.5) return t("directionLeft");
+  if (normalized < 247.5) return t("directionSlightLeft");
+  if (normalized < 292.5) return t("directionStraight");
+  return t("directionSlightRight");
 }
 
 function formatGps() {
