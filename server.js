@@ -243,7 +243,8 @@ function locateByPhoto(body, req) {
     floor: best.board.floor,
     x: Number(best.board.x),
     y: Number(best.board.y),
-    heading: Number(best.board.heading || 0)
+    heading: Number(best.board.heading || 0),
+    accessPoint: nearestAccessPoint(best.board)
   };
   recordSession(sessionId, "photo-location", {
     location,
@@ -286,6 +287,7 @@ function route(body, req) {
     destFloor,
     destPlace,
     position,
+    accessPoint: nearestAccessPoint({ floor: currentFloor, x: position.x, y: position.y }),
     routeTarget,
     totalDistance: Math.round(result.totalDistance),
     clientIp: clientIp(req)
@@ -304,6 +306,30 @@ function route(body, req) {
     pathKeys: result.pathKeys,
     totalDistance: Math.round(result.totalDistance)
   });
+}
+
+function nearestAccessPoint(point) {
+  const candidates = state.accessPoints.filter(ap => ap.floor === point.floor);
+  if (candidates.length === 0) return null;
+  let best = candidates[0];
+  let bestDistance = distance(point, best);
+  for (const ap of candidates.slice(1)) {
+    const d = distance(point, ap);
+    if (d < bestDistance) {
+      best = ap;
+      bestDistance = d;
+    }
+  }
+  return {
+    id: best.id,
+    name: best.name,
+    ip: best.ip,
+    ssid: best.ssid,
+    floor: best.floor,
+    x: Number(best.x),
+    y: Number(best.y),
+    distance: Math.round(bestDistance)
+  };
 }
 
 function recordSession(sessionId, type, payload) {

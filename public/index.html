@@ -3,12 +3,12 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>台北車站地下街拍照定位</title>
+  <title>Taipei Station Photo Navigation</title>
   <link rel="stylesheet" href="/app.css">
 </head>
 <body>
   <header>
-    <h1 data-i18n="appTitle">台北車站地下街拍照定位</h1>
+    <h1 data-i18n="appTitle">Taipei Station Photo Navigation</h1>
     <div class="top-actions">
       <select id="langSelect" aria-label="Language">
         <option value="zh">中文</option>
@@ -21,34 +21,29 @@
     <section class="panel">
       <div class="map-shell">
         <canvas id="mapCanvas" width="1100" height="720"></canvas>
-        <div class="badge" id="mapBadge" data-i18n="waiting">等待定位</div>
+        <div class="badge" id="mapBadge" data-i18n="waiting">Waiting for location</div>
       </div>
-      <div class="hint" id="routeHint" data-i18n="photoHelp">拍攝牆上的固定地圖後，系統會比對已校正的地圖點位，更新手機地圖與目前座標。</div>
+      <div class="hint" id="routeHint" data-i18n="photoHelp">Take a wall-map photo to update the floor map, coordinates, AP/IP, and route.</div>
     </section>
 
     <aside class="panel">
       <div class="field">
-        <label for="floorSelect" data-i18n="currentFloorHint">目前樓層提示</label>
-        <select id="floorSelect"></select>
-      </div>
-      <div class="field">
-        <label for="destFloor" data-i18n="destinationFloor">目的樓層</label>
+        <label for="destFloor" data-i18n="destinationFloor">Destination floor</label>
         <select id="destFloor"></select>
       </div>
       <div class="field">
-        <label for="destPlace" data-i18n="destination">目的地</label>
+        <label for="destPlace" data-i18n="destination">Destination</label>
         <select id="destPlace"></select>
       </div>
       <div class="field">
-        <label for="photoInput" data-i18n="photoMap">拍攝牆上地圖</label>
+        <label for="photoInput" data-i18n="photoMap">Photo of wall map</label>
         <input id="photoInput" type="file" accept="image/*" capture="environment">
       </div>
       <div class="actions">
-        <button id="locateBtn" class="primary" type="button" data-i18n="locateByPhoto">拍照定位</button>
-        <button id="routeBtn" class="secondary" type="button" data-i18n="reroute">重新規劃</button>
-        <button id="testBtn" type="button" data-i18n="testPoint">測試點位</button>
+        <button id="locateBtn" class="primary" type="button" data-i18n="locateByPhoto">Locate by Photo</button>
       </div>
-      <p class="muted" data-i18n="publicNote">這是使用者介面，不含管理員功能。若拍照定位失敗，代表該牆面地圖尚未由管理員校正。</p>
+      <div class="status" id="locationBox">-</div>
+      <p class="muted" data-i18n="publicNote">After a successful photo match, the base map, position, AP/IP, and route update automatically.</p>
       <div class="status" id="statusBox">Server...</div>
     </aside>
   </main>
