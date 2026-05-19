@@ -161,11 +161,7 @@ const routeHint = document.getElementById("routeHint");
 const audioHelp = document.getElementById("audioHelp");
 const screenReaderSummary = document.getElementById("screenReaderSummary");
 const voiceToggleBtn = document.getElementById("voiceToggleBtn");
-const readLocationBtn = document.getElementById("readLocationBtn");
-const readRouteBtn = document.getElementById("readRouteBtn");
-const stopVoiceBtn = document.getElementById("stopVoiceBtn");
-const speakCurrentBtn = document.getElementById("speakCurrentBtn");
-const repeatAllBtn = document.getElementById("repeatAllBtn");
+const voiceToggleText = document.getElementById("voiceToggleText");
 const sessionId = localStorage.getItem("mapSessionId") || crypto.randomUUID();
 localStorage.setItem("mapSessionId", sessionId);
 
@@ -231,10 +227,6 @@ function applyI18n() {
   zoomInBtn.setAttribute("aria-label", lang === "en" ? "Zoom in map" : "\u653e\u5927\u5730\u5716");
   zoomOutBtn.setAttribute("aria-label", lang === "en" ? "Zoom out map" : "\u7e2e\u5c0f\u5730\u5716");
   centerBtn.setAttribute("aria-label", t("centerCurrent"));
-  readLocationBtn.setAttribute("aria-label", t("readLocation"));
-  readRouteBtn.setAttribute("aria-label", t("readRoute"));
-  speakCurrentBtn.setAttribute("aria-label", t("speakCurrentStep"));
-  repeatAllBtn.setAttribute("aria-label", t("repeatAll"));
   audioHelp.textContent = t("audioHelp");
 }
 
@@ -243,8 +235,11 @@ function speechLang() {
 }
 
 function updateVoiceButton() {
-  voiceToggleBtn.textContent = voiceEnabled ? t("voiceOn") : t("voiceOff");
+  voiceToggleText.textContent = voiceEnabled ? t("voiceOn") : t("voiceOff");
   voiceToggleBtn.setAttribute("aria-pressed", String(voiceEnabled));
+  voiceToggleBtn.setAttribute("aria-label", voiceEnabled ? t("voiceOn") : t("voiceOff"));
+  voiceToggleBtn.classList.toggle("is-on", voiceEnabled);
+  voiceToggleBtn.classList.toggle("is-off", !voiceEnabled);
 }
 
 function speak(message, interrupt = false) {
@@ -775,14 +770,6 @@ voiceToggleBtn.addEventListener("click", () => {
     screenReaderSummary.textContent = t("voiceDisabled");
   }
 });
-readLocationBtn.addEventListener("click", () => announce(locationSpeech(), true));
-readRouteBtn.addEventListener("click", () => announce(routeSpeech(), true));
-stopVoiceBtn.addEventListener("click", () => {
-  if ("speechSynthesis" in window) window.speechSynthesis.cancel();
-  screenReaderSummary.textContent = t("stopVoice");
-});
-speakCurrentBtn.addEventListener("click", () => announce(routeSpeech(), true));
-repeatAllBtn.addEventListener("click", () => announce(`${locationSpeech()}。${routeSpeech()}`, true));
 photoInput.addEventListener("change", () => {
   if (photoInput.files[0]) locateFromPhoto();
 });

@@ -15,10 +15,10 @@
         <option value="zh">中文</option>
         <option value="en">English</option>
       </select>
-      <button id="voiceToggleBtn" type="button" aria-pressed="true" data-i18n="voiceOn">Voice on</button>
-      <button id="readLocationBtn" type="button" data-i18n="readLocation">Read location</button>
-      <button id="readRouteBtn" type="button" data-i18n="readRoute">Read route</button>
-      <button id="stopVoiceBtn" type="button" data-i18n="stopVoice">Stop voice</button>
+      <button id="voiceToggleBtn" class="voice-toggle" type="button" aria-pressed="true">
+        <span class="voice-icon" aria-hidden="true"></span>
+        <span id="voiceToggleText" data-i18n="voiceOn">Voice on</span>
+      </button>
     </div>
   </header>
 
@@ -63,10 +63,6 @@
       </div>
       <div class="actions">
         <button id="locateBtn" class="primary" type="button" data-i18n="locateByPhoto">Locate by Photo</button>
-      </div>
-      <div class="voice-panel" aria-label="Voice guidance">
-        <button id="speakCurrentBtn" class="secondary" type="button" data-i18n="speakCurrentStep">Speak current step</button>
-        <button id="repeatAllBtn" type="button" data-i18n="repeatAll">Repeat all guidance</button>
       </div>
       <p class="muted" data-i18n="voiceQuietHint">Navigation voice only speaks for location, route changes, and errors, so it will not interrupt normal use. Turn it off when it is not needed.</p>
       <div class="status" id="locationBox" role="status" aria-live="polite">-</div>

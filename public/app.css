@@ -364,13 +364,6 @@ canvas {
   font-weight: 700;
 }
 
-.voice-panel {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
-  margin: 12px 0;
-}
-
 .hint, .status {
   margin-top: 12px;
   padding: 10px;
@@ -444,6 +437,66 @@ button.danger {
   color: #fff;
   background: var(--danger);
   border-color: var(--danger);
+}
+
+.voice-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 124px;
+  justify-content: center;
+  color: #fff;
+  border-color: transparent;
+  font-weight: 700;
+}
+
+.voice-toggle.is-on {
+  background: #0f766e;
+}
+
+.voice-toggle.is-off {
+  background: #b91c1c;
+}
+
+.voice-icon {
+  position: relative;
+  width: 18px;
+  height: 18px;
+  flex: 0 0 auto;
+}
+
+.voice-icon::before {
+  content: "";
+  position: absolute;
+  left: 1px;
+  top: 5px;
+  width: 6px;
+  height: 8px;
+  background: currentColor;
+  border-radius: 2px;
+}
+
+.voice-icon::after {
+  content: "";
+  position: absolute;
+  left: 7px;
+  top: 2px;
+  width: 9px;
+  height: 14px;
+  border: 2px solid currentColor;
+  border-left: 0;
+  border-radius: 0 14px 14px 0;
+}
+
+.voice-toggle.is-off .voice-icon::after {
+  width: 15px;
+  height: 2px;
+  left: 2px;
+  top: 8px;
+  border: 0;
+  border-radius: 1px;
+  background: currentColor;
+  transform: rotate(-40deg);
 }
 
 .button-link {
@@ -549,10 +602,6 @@ a {
   }
 
   .stat-grid, .quick-grid, .admin-grid, .easy-form {
-    grid-template-columns: 1fr;
-  }
-
-  .voice-panel {
     grid-template-columns: 1fr;
   }
 
