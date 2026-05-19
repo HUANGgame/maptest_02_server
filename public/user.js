@@ -151,7 +151,6 @@ const langSelect = document.getElementById("langSelect");
 const categorySelect = document.getElementById("categorySelect");
 const destinationSearch = document.getElementById("destinationSearch");
 const destinationSuggestions = document.getElementById("destinationSuggestions");
-const destFloor = document.getElementById("destFloor");
 const destPlace = document.getElementById("destPlace");
 const photoInput = document.getElementById("photoInput");
 const locateBtn = document.getElementById("locateBtn");
@@ -373,12 +372,11 @@ async function init() {
 
 function fillSelects() {
   if (!config) return;
-  categorySelect.innerHTML = config.destinationCategories
-    .map(category => `<option value="${category.id}" ${category.id === currentCategory ? "selected" : ""}>${lang === "en" ? category.labelEn : category.labelZh}</option>`)
-    .join("");
-  destFloor.innerHTML = Object.values(config.floors)
-    .map(floor => `<option value="${floor.id}" ${floor.id === currentFloor ? "selected" : ""}>${lang === "en" ? floor.nameEn : floor.nameZh}</option>`)
-    .join("");
+  if (categorySelect) {
+    categorySelect.innerHTML = config.destinationCategories
+      .map(category => `<option value="${category.id}" ${category.id === currentCategory ? "selected" : ""}>${lang === "en" ? category.labelEn : category.labelZh}</option>`)
+      .join("");
+  }
   const places = filteredPlaces();
   const selected = places.some(([id]) => id === destPlace.value) ? destPlace.value : (places[0]?.[0] || "M3");
   destPlace.innerHTML = places
@@ -397,6 +395,11 @@ function filteredPlaces() {
   const entries = Object.entries(config.places);
   if (currentCategory === "all") return entries;
   return entries.filter(([, place]) => place.category === currentCategory);
+}
+
+function resolveDestinationFloor() {
+  const place = config?.places?.[destPlace.value];
+  return place?.floor || currentFloor || "B1";
 }
 
 function activeBaseMap() {
@@ -671,9 +674,7 @@ async function locateFromPhoto() {
     currentPosition = { x: data.location.x, y: data.location.y };
     currentAccessPoint = data.location.accessPoint || null;
     switchBaseMap(data.location.boardId);
-    destFloor.value = currentFloor;
     fillSelects();
-    destFloor.value = currentFloor;
     mapBadge.textContent = `${t("located")}: ${lang === "en" ? data.location.boardNameEn : data.location.boardNameZh}\n${t("baseMap")}: ${baseMapName()}`;
     statusBox.textContent = `${t("baseMapSwitched")}: ${baseMapName()}\n${t("autoUpdated")}\n${t("confidence")}: ${Math.round(data.location.confidence * 100)}%`;
     updateLocationText();
@@ -694,7 +695,7 @@ async function requestRoute(reason) {
       body: JSON.stringify({
         sessionId,
         currentFloor,
-        destFloor: destFloor.value,
+        destFloor: resolveDestinationFloor(),
         destPlace: destPlace.value,
         position: currentPosition,
         reason
@@ -864,16 +865,14 @@ voiceToggleBtn.addEventListener("click", () => {
 photoInput.addEventListener("change", () => {
   if (photoInput.files[0]) locateFromPhoto();
 });
-destFloor.addEventListener("change", () => {
-  requestRoute("destination-floor");
-  liveOnly(`${t("destinationFloor")}: ${destFloor.options[destFloor.selectedIndex]?.textContent || ""}`);
-});
-categorySelect.addEventListener("change", () => {
-  currentCategory = categorySelect.value;
-  fillSelects();
-  requestRoute("destination-category");
-  liveOnly(`${t("destinationCategory")}: ${categorySelect.options[categorySelect.selectedIndex]?.textContent || ""}`);
-});
+if (categorySelect) {
+  categorySelect.addEventListener("change", () => {
+    currentCategory = categorySelect.value;
+    fillSelects();
+    requestRoute("destination-category");
+    liveOnly(`${t("destinationCategory")}: ${categorySelect.options[categorySelect.selectedIndex]?.textContent || ""}`);
+  });
+}
 destinationSearch.addEventListener("input", () => {
   clearTimeout(searchTimer);
   searchTimer = setTimeout(resolveDestinationSearch, 280);

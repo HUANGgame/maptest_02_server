@@ -24,7 +24,7 @@
 
   <main class="layout">
     <section class="panel">
-      <div class="accessibility-help" id="audioHelp" role="status" aria-live="polite" data-i18n="audioHelp">
+      <div class="sr-only" id="audioHelp" role="status" aria-live="polite" data-i18n="audioHelp">
         Voice guidance is ready. Choose a destination, take a wall-map photo, then follow the spoken route.
       </div>
       <div class="map-shell">
@@ -41,17 +41,9 @@
 
     <aside class="panel" id="controlsPanel">
       <div class="field">
-        <label for="categorySelect" data-i18n="destinationCategory">Destination category</label>
-        <select id="categorySelect"></select>
-      </div>
-      <div class="field">
         <label for="destinationSearch" data-i18n="destinationSearch">Search destination</label>
         <input id="destinationSearch" list="destinationSuggestions" autocomplete="off" data-i18n-placeholder="destinationSearchPlaceholder">
         <datalist id="destinationSuggestions"></datalist>
-      </div>
-      <div class="field">
-        <label for="destFloor" data-i18n="destinationFloor">Destination floor</label>
-        <select id="destFloor"></select>
       </div>
       <div class="field">
         <label for="destPlace" data-i18n="destination">Destination</label>
@@ -64,9 +56,7 @@
       <div class="actions">
         <button id="locateBtn" class="primary" type="button" data-i18n="locateByPhoto">Locate by Photo</button>
       </div>
-      <p class="muted" data-i18n="voiceQuietHint">Navigation voice only speaks for location, route changes, and errors, so it will not interrupt normal use. Turn it off when it is not needed.</p>
       <div class="status" id="locationBox" role="status" aria-live="polite">-</div>
-      <p class="muted" data-i18n="publicNote">After a successful photo match, the base map, position, AP/IP, and route update automatically.</p>
       <div class="status" id="statusBox" role="status" aria-live="polite">Server...</div>
       <div class="sr-only" id="screenReaderSummary" aria-live="assertive"></div>
     </aside>
