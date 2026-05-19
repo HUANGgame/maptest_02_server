@@ -35,7 +35,27 @@ const i18n = {
     gps: "GPS",
     gpsWaiting: "\u7b49\u5f85 GPS \u6b0a\u9650\u6216\u8cc7\u6599",
     gpsUnavailable: "GPS \u7121\u6cd5\u4f7f\u7528",
-    view: "\u8996\u91ce"
+    view: "\u8996\u91ce",
+    skipToControls: "\u8df3\u5230\u64cd\u4f5c\u5340",
+    audioHelp: "\u8a9e\u97f3\u5c0e\u89bd\u5df2\u5c31\u7dd2\u3002\u9078\u64c7\u76ee\u7684\u5730\u3001\u62cd\u651d\u7246\u4e0a\u5730\u5716\uff0c\u518d\u6839\u64da\u8a9e\u97f3\u8def\u7dda\u524d\u9032\u3002",
+    voiceOn: "\u8a9e\u97f3\u958b\u555f",
+    voiceOff: "\u8a9e\u97f3\u95dc\u9589",
+    readLocation: "\u6717\u8b80\u4f4d\u7f6e",
+    readRoute: "\u6717\u8b80\u8def\u7dda",
+    stopVoice: "\u505c\u6b62\u6717\u8b80",
+    speakCurrentStep: "\u6717\u8b80\u4e0b\u4e00\u6b65",
+    repeatAll: "\u91cd\u8907\u5168\u90e8\u5c0e\u89bd",
+    voiceEnabled: "\u8a9e\u97f3\u5c0e\u89bd\u5df2\u958b\u555f",
+    voiceDisabled: "\u8a9e\u97f3\u5c0e\u89bd\u5df2\u95dc\u9589",
+    voiceUnsupported: "\u9019\u500b\u700f\u89bd\u5668\u4e0d\u652f\u63f4\u8a9e\u97f3\u6717\u8b80",
+    mapKeyboardHelp: "\u5730\u5716\u53ef\u4ee5\u7528\u9375\u76e4\u64cd\u4f5c\uff1a\u65b9\u5411\u9375\u79fb\u52d5\uff0c\u52a0\u865f\u653e\u5927\uff0c\u6e1b\u865f\u7e2e\u5c0f\uff0c\u6578\u5b57 0 \u56de\u5230\u76ee\u524d\u4f4d\u7f6e\u3002",
+    currentStep: "\u76ee\u524d\u5c0e\u822a",
+    noRouteYet: "\u5c1a\u672a\u7522\u751f\u8def\u7dda\u3002\u8acb\u5148\u9078\u64c7\u76ee\u7684\u5730\u4e26\u62cd\u651d\u7246\u4e0a\u5730\u5716\u3002",
+    arrivedNear: "\u4f60\u5df2\u63a5\u8fd1\u76ee\u7684\u5730",
+    nextToward: "\u8acb\u671d\u4e0b\u4e00\u500b\u7bad\u982d\u65b9\u5411\u524d\u9032\uff0c\u524d\u5f80",
+    routeReady: "\u8def\u7dda\u5df2\u66f4\u65b0",
+    photoLocatedSpeech: "\u62cd\u7167\u5b9a\u4f4d\u6210\u529f",
+    gpsUpdated: "GPS \u5df2\u66f4\u65b0"
   },
   en: {
     appTitle: "Taipei Station Underground Photo Navigation",
@@ -73,7 +93,27 @@ const i18n = {
     gps: "GPS",
     gpsWaiting: "Waiting for GPS permission or data",
     gpsUnavailable: "GPS unavailable",
-    view: "View"
+    view: "View",
+    skipToControls: "Skip to controls",
+    audioHelp: "Voice guidance is ready. Choose a destination, take a wall-map photo, then follow the spoken route.",
+    voiceOn: "Voice on",
+    voiceOff: "Voice off",
+    readLocation: "Read location",
+    readRoute: "Read route",
+    stopVoice: "Stop voice",
+    speakCurrentStep: "Speak current step",
+    repeatAll: "Repeat all guidance",
+    voiceEnabled: "Voice guidance is on",
+    voiceDisabled: "Voice guidance is off",
+    voiceUnsupported: "This browser does not support speech output",
+    mapKeyboardHelp: "The map supports keyboard controls: arrow keys move the map, plus zooms in, minus zooms out, and zero returns to current position.",
+    currentStep: "Current navigation",
+    noRouteYet: "No route yet. Choose a destination and take a wall-map photo first.",
+    arrivedNear: "You are near the destination",
+    nextToward: "Follow the next arrow toward",
+    routeReady: "Route updated",
+    photoLocatedSpeech: "Photo location succeeded",
+    gpsUpdated: "GPS updated"
   }
 };
 
@@ -94,6 +134,14 @@ const statusBox = document.getElementById("statusBox");
 const locationBox = document.getElementById("locationBox");
 const mapBadge = document.getElementById("mapBadge");
 const routeHint = document.getElementById("routeHint");
+const audioHelp = document.getElementById("audioHelp");
+const screenReaderSummary = document.getElementById("screenReaderSummary");
+const voiceToggleBtn = document.getElementById("voiceToggleBtn");
+const readLocationBtn = document.getElementById("readLocationBtn");
+const readRouteBtn = document.getElementById("readRouteBtn");
+const stopVoiceBtn = document.getElementById("stopVoiceBtn");
+const speakCurrentBtn = document.getElementById("speakCurrentBtn");
+const repeatAllBtn = document.getElementById("repeatAllBtn");
 const sessionId = localStorage.getItem("mapSessionId") || crypto.randomUUID();
 localStorage.setItem("mapSessionId", sessionId);
 
@@ -112,6 +160,9 @@ let dragging = false;
 let dragStart = { x: 0, y: 0, viewX: 0, viewY: 0 };
 let lastTouchDistance = null;
 let lastTouchCenter = null;
+let voiceEnabled = localStorage.getItem("voiceEnabled") !== "false";
+let lastGpsSpeechAt = 0;
+let lastSpokenRoute = "";
 
 const floorStyles = {
   B1: { bg: "#edf7f3", band: "#cde7df", label: "#0f766e" },
@@ -124,9 +175,11 @@ langSelect.addEventListener("change", () => {
   lang = langSelect.value;
   localStorage.setItem("lang", lang);
   applyI18n();
+  updateVoiceButton();
   fillSelects();
   updateLocationText();
   updateRouteText();
+  announce(`${t("voiceEnabled")}. ${t("audioHelp")}`, true);
 });
 
 function t(key) {
@@ -147,6 +200,45 @@ function applyI18n() {
   document.querySelectorAll("[data-i18n-placeholder]").forEach(node => {
     node.placeholder = t(node.dataset.i18nPlaceholder);
   });
+  canvas.setAttribute("aria-label", `${t("appTitle")}. ${t("mapKeyboardHelp")}`);
+  audioHelp.textContent = t("audioHelp");
+}
+
+function speechLang() {
+  return lang === "en" ? "en-US" : "zh-TW";
+}
+
+function updateVoiceButton() {
+  voiceToggleBtn.textContent = voiceEnabled ? t("voiceOn") : t("voiceOff");
+  voiceToggleBtn.setAttribute("aria-pressed", String(voiceEnabled));
+}
+
+function speak(message, interrupt = false) {
+  const textValue = String(message || "").replace(/\s+/g, " ").trim();
+  if (!textValue || !voiceEnabled) return;
+  if (!("speechSynthesis" in window) || !("SpeechSynthesisUtterance" in window)) {
+    screenReaderSummary.textContent = t("voiceUnsupported");
+    return;
+  }
+  if (interrupt) window.speechSynthesis.cancel();
+  const utterance = new SpeechSynthesisUtterance(textValue);
+  utterance.lang = speechLang();
+  utterance.rate = lang === "en" ? 0.95 : 0.9;
+  utterance.pitch = 1;
+  const voices = window.speechSynthesis.getVoices();
+  const preferred = voices.find(voice => voice.lang === speechLang()) || voices.find(voice => voice.lang.startsWith(lang === "en" ? "en" : "zh"));
+  if (preferred) utterance.voice = preferred;
+  window.speechSynthesis.speak(utterance);
+}
+
+function announce(message, interrupt = false) {
+  const textValue = String(message || "").replace(/\s+/g, " ").trim();
+  if (!textValue) return;
+  screenReaderSummary.textContent = "";
+  setTimeout(() => {
+    screenReaderSummary.textContent = textValue;
+  }, 20);
+  speak(textValue, interrupt);
 }
 
 async function api(url, options = {}) {
@@ -161,6 +253,7 @@ async function api(url, options = {}) {
 
 async function init() {
   applyI18n();
+  updateVoiceButton();
   try {
     const health = await api("/api/health");
     config = await api("/api/config");
@@ -171,8 +264,10 @@ async function init() {
     statusBox.textContent = `${health.message}\nSession: ${sessionId}`;
     draw();
     await requestRoute("init");
+    announce(`${t("audioHelp")} ${t("mapKeyboardHelp")}`, false);
   } catch (error) {
     statusBox.textContent = `${t("serverDown")}\n${error.message}`;
+    announce(`${t("serverDown")} ${error.message}`, true);
   }
 }
 
@@ -396,6 +491,7 @@ function centerOnCurrent() {
   view.y = sy - currentPosition.y * view.scale;
   clampView();
   updateLocationText();
+  announce(locationSpeech(), true);
 }
 
 async function imageHash(file) {
@@ -419,9 +515,11 @@ async function locateFromPhoto() {
   const file = photoInput.files[0];
   if (!file) {
     statusBox.textContent = t("choosePhoto");
+    announce(t("choosePhoto"), true);
     return;
   }
   statusBox.textContent = t("analyzing");
+  announce(t("analyzing"), true);
   try {
     const photoHash = await imageHash(file);
     const data = await api("/api/location/photo", {
@@ -439,8 +537,10 @@ async function locateFromPhoto() {
     statusBox.textContent = `${t("autoUpdated")}\n${t("confidence")}: ${Math.round(data.location.confidence * 100)}%`;
     updateLocationText();
     await requestRoute("photo-location");
+    announce(`${t("photoLocatedSpeech")}。${locationSpeech()}。${routeSpeech()}`, true);
   } catch (error) {
     statusBox.textContent = `${t("failed")}: ${error.message}`;
+    announce(`${t("failed")}: ${error.message}`, true);
   }
 }
 
@@ -461,6 +561,7 @@ async function requestRoute(reason) {
   } catch (error) {
     routeData = null;
     routeHint.textContent = `${t("routeFailed")}: ${error.message}`;
+    announce(`${t("routeFailed")}: ${error.message}`, true);
   }
 }
 
@@ -472,6 +573,11 @@ function updateRouteText() {
     ? `${t("routeTo")} ${text(dest)}.`
     : `${t("goVertical")} ${lang === "en" ? floor.nameEn : floor.nameZh}.`;
   routeHint.innerHTML = `${intro}<br>${t("distance")} ${routeData.totalDistance}px, ${t("path")}: ${routeData.pathKeys.join(" -> ")}`;
+  const spoken = routeSpeech();
+  if (spoken && spoken !== lastSpokenRoute) {
+    lastSpokenRoute = spoken;
+    announce(`${t("routeReady")}。${spoken}`, false);
+  }
 }
 
 function updateLocationText() {
@@ -489,6 +595,36 @@ function updateLocationText() {
     `<strong>${t("gps")}:</strong> ${formatGps()}`,
     `<strong>${t("view")}:</strong> ${Math.round(view.scale * 100)}%`
   ].join("<br>");
+}
+
+function locationSpeech() {
+  const floor = config?.floors?.[currentFloor];
+  const floorName = floor ? (lang === "en" ? floor.nameEn : floor.nameZh) : currentFloor;
+  const boardName = currentBoard ? (lang === "en" ? currentBoard.boardNameEn : currentBoard.boardNameZh) : "-";
+  const ap = currentAccessPoint;
+  const parts = [
+    `${t("floor")}: ${floorName}`,
+    `${t("coordinate")}: X ${Math.round(currentPosition.x)}, Y ${Math.round(currentPosition.y)}`,
+    `${t("board")}: ${boardName}`,
+    ap ? `${t("apIp")}: ${ap.name}, ${ap.ip}. ${t("ssid")}: ${ap.ssid}` : `${t("apIp")}: ${t("noAp")}`,
+    `${t("gps")}: ${formatGps()}`
+  ];
+  return parts.join("。");
+}
+
+function routeSpeech() {
+  if (!routeData || !config) return t("noRouteYet");
+  const dest = routeData.destination;
+  const floor = config.floors[routeData.destFloor];
+  const destText = text(dest);
+  const nextKey = routeData.pathKeys?.[1] || routeData.pathKeys?.[0];
+  const nextNode = nextKey ? config.graphNodes[nextKey] : null;
+  const nextText = nextNode ? text(nextNode) : destText;
+  const intro = routeData.sameFloor
+    ? `${t("routeTo")} ${destText}`
+    : `${t("goVertical")} ${lang === "en" ? floor.nameEn : floor.nameZh}`;
+  const step = distance(currentPosition, dest) < 35 ? t("arrivedNear") : `${t("nextToward")} ${nextText}`;
+  return `${intro}。${step}。${t("distance")} ${Math.round(routeData.totalDistance)} px。${t("path")}: ${routeData.pathKeys.join(" -> ")}`;
 }
 
 function formatGps() {
@@ -511,10 +647,16 @@ function startGpsWatch() {
         accuracy: position.coords.accuracy
       };
       updateLocationText();
+      const now = Date.now();
+      if (now - lastGpsSpeechAt > 60000) {
+        lastGpsSpeechAt = now;
+        screenReaderSummary.textContent = `${t("gpsUpdated")}: ${formatGps()}`;
+      }
     },
     error => {
       latestGps = { error: error.message || String(error.code) };
       updateLocationText();
+      announce(`${t("gpsUnavailable")}: ${latestGps.error}`, false);
     },
     { enableHighAccuracy: true, maximumAge: 3000, timeout: 12000 }
   );
@@ -524,14 +666,36 @@ locateBtn.addEventListener("click", locateFromPhoto);
 zoomInBtn.addEventListener("click", () => zoomAt(1.25));
 zoomOutBtn.addEventListener("click", () => zoomAt(0.8));
 centerBtn.addEventListener("click", centerOnCurrent);
+voiceToggleBtn.addEventListener("click", () => {
+  voiceEnabled = !voiceEnabled;
+  localStorage.setItem("voiceEnabled", String(voiceEnabled));
+  updateVoiceButton();
+  if (voiceEnabled) announce(`${t("voiceEnabled")}。${t("audioHelp")}`, true);
+  else {
+    if ("speechSynthesis" in window) window.speechSynthesis.cancel();
+    screenReaderSummary.textContent = t("voiceDisabled");
+  }
+});
+readLocationBtn.addEventListener("click", () => announce(locationSpeech(), true));
+readRouteBtn.addEventListener("click", () => announce(routeSpeech(), true));
+stopVoiceBtn.addEventListener("click", () => {
+  if ("speechSynthesis" in window) window.speechSynthesis.cancel();
+  screenReaderSummary.textContent = t("stopVoice");
+});
+speakCurrentBtn.addEventListener("click", () => announce(routeSpeech(), true));
+repeatAllBtn.addEventListener("click", () => announce(`${locationSpeech()}。${routeSpeech()}`, true));
 photoInput.addEventListener("change", () => {
   if (photoInput.files[0]) locateFromPhoto();
 });
-destFloor.addEventListener("change", () => requestRoute("destination-floor"));
+destFloor.addEventListener("change", () => {
+  requestRoute("destination-floor");
+  announce(`${t("destinationFloor")}: ${destFloor.options[destFloor.selectedIndex]?.textContent || ""}`, true);
+});
 categorySelect.addEventListener("change", () => {
   currentCategory = categorySelect.value;
   fillSelects();
   requestRoute("destination-category");
+  announce(`${t("destinationCategory")}: ${categorySelect.options[categorySelect.selectedIndex]?.textContent || ""}`, true);
 });
 destinationSearch.addEventListener("input", () => {
   clearTimeout(searchTimer);
@@ -545,6 +709,7 @@ destinationSearch.addEventListener("keydown", event => {
   }
 });
 destPlace.addEventListener("change", () => requestRoute("destination-place"));
+destPlace.addEventListener("change", () => announce(`${t("destination")}: ${destPlace.options[destPlace.selectedIndex]?.textContent || ""}`, true));
 canvas.addEventListener("wheel", event => {
   event.preventDefault();
   zoomAt(event.deltaY < 0 ? 1.12 : 0.9, event.clientX, event.clientY);
@@ -574,6 +739,21 @@ canvas.addEventListener("pointerup", event => {
 
 canvas.addEventListener("pointercancel", () => {
   dragging = false;
+});
+
+canvas.addEventListener("keydown", event => {
+  const step = 40;
+  if (event.key === "ArrowLeft") view.x += step;
+  else if (event.key === "ArrowRight") view.x -= step;
+  else if (event.key === "ArrowUp") view.y += step;
+  else if (event.key === "ArrowDown") view.y -= step;
+  else if (event.key === "+" || event.key === "=") zoomAt(1.2);
+  else if (event.key === "-" || event.key === "_") zoomAt(0.85);
+  else if (event.key === "0") centerOnCurrent();
+  else return;
+  event.preventDefault();
+  clampView();
+  updateLocationText();
 });
 
 canvas.addEventListener("touchstart", event => {
@@ -629,8 +809,10 @@ async function resolveDestinationSearch() {
     destinationSearch.value = text(match);
     statusBox.textContent = `${t("matchedDestination")}: ${text(match)}`;
     await requestRoute("destination-search");
+    announce(`${t("matchedDestination")}: ${text(match)}。${routeSpeech()}`, true);
   } catch {
     statusBox.textContent = t("noDestinationMatch");
+    announce(t("noDestinationMatch"), true);
   }
 }
 

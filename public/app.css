@@ -23,6 +23,34 @@ body {
   font-family: "Microsoft JhengHei", "PingFang TC", "Noto Sans TC", Arial, sans-serif;
 }
 
+.skip-link {
+  position: absolute;
+  left: 12px;
+  top: -80px;
+  z-index: 20;
+  padding: 10px 14px;
+  border-radius: 6px;
+  background: #111827;
+  color: #fff;
+  text-decoration: none;
+}
+
+.skip-link:focus {
+  top: 12px;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 body.admin-page {
   background: #eef2f5;
 }
@@ -325,6 +353,24 @@ canvas {
   box-shadow: 0 2px 8px rgba(15, 23, 42, .12);
 }
 
+.accessibility-help {
+  margin-bottom: 12px;
+  padding: 12px;
+  border: 2px solid #0f766e;
+  border-radius: 8px;
+  background: #ecfdf5;
+  color: #134e4a;
+  line-height: 1.55;
+  font-weight: 700;
+}
+
+.voice-panel {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin: 12px 0;
+}
+
 .hint, .status {
   margin-top: 12px;
   padding: 10px;
@@ -375,6 +421,11 @@ button {
   background: #fff;
   color: var(--text);
   cursor: pointer;
+}
+
+button:focus-visible, input:focus-visible, select:focus-visible, canvas:focus-visible, a:focus-visible {
+  outline: 3px solid #f59e0b;
+  outline-offset: 3px;
 }
 
 button.primary {
@@ -498,6 +549,10 @@ a {
   }
 
   .stat-grid, .quick-grid, .admin-grid, .easy-form {
+    grid-template-columns: 1fr;
+  }
+
+  .voice-panel {
     grid-template-columns: 1fr;
   }
 

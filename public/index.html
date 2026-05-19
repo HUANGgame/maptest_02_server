@@ -7,6 +7,7 @@
   <link rel="stylesheet" href="/app.css">
 </head>
 <body>
+  <a class="skip-link" href="#controlsPanel" data-i18n="skipToControls">Skip to controls</a>
   <header>
     <h1 data-i18n="appTitle">Taipei Station Photo Navigation</h1>
     <div class="top-actions">
@@ -14,24 +15,31 @@
         <option value="zh">中文</option>
         <option value="en">English</option>
       </select>
+      <button id="voiceToggleBtn" type="button" aria-pressed="true" data-i18n="voiceOn">Voice on</button>
+      <button id="readLocationBtn" type="button" data-i18n="readLocation">Read location</button>
+      <button id="readRouteBtn" type="button" data-i18n="readRoute">Read route</button>
+      <button id="stopVoiceBtn" type="button" data-i18n="stopVoice">Stop voice</button>
     </div>
   </header>
 
   <main class="layout">
     <section class="panel">
+      <div class="accessibility-help" id="audioHelp" role="status" aria-live="polite" data-i18n="audioHelp">
+        Voice guidance is ready. Choose a destination, take a wall-map photo, then follow the spoken route.
+      </div>
       <div class="map-shell">
-        <canvas id="mapCanvas" width="1100" height="720"></canvas>
-        <div class="badge" id="mapBadge" data-i18n="waiting">Waiting for location</div>
+        <canvas id="mapCanvas" width="1100" height="720" tabindex="0" role="img" aria-label="Taipei Station underground navigation map"></canvas>
+        <div class="badge" id="mapBadge" role="status" aria-live="polite" data-i18n="waiting">Waiting for location</div>
         <div class="map-tools">
           <button id="zoomInBtn" type="button" aria-label="Zoom in">+</button>
           <button id="zoomOutBtn" type="button" aria-label="Zoom out">-</button>
           <button id="centerBtn" type="button" data-i18n="centerCurrent">Center</button>
         </div>
       </div>
-      <div class="hint" id="routeHint" data-i18n="photoHelp">Take a wall-map photo to update the floor map, coordinates, AP/IP, and route.</div>
+      <div class="hint" id="routeHint" role="status" aria-live="polite" data-i18n="photoHelp">Take a wall-map photo to update the floor map, coordinates, AP/IP, and route.</div>
     </section>
 
-    <aside class="panel">
+    <aside class="panel" id="controlsPanel">
       <div class="field">
         <label for="categorySelect" data-i18n="destinationCategory">Destination category</label>
         <select id="categorySelect"></select>
@@ -56,9 +64,14 @@
       <div class="actions">
         <button id="locateBtn" class="primary" type="button" data-i18n="locateByPhoto">Locate by Photo</button>
       </div>
-      <div class="status" id="locationBox">-</div>
+      <div class="voice-panel" aria-label="Voice guidance">
+        <button id="speakCurrentBtn" class="secondary" type="button" data-i18n="speakCurrentStep">Speak current step</button>
+        <button id="repeatAllBtn" type="button" data-i18n="repeatAll">Repeat all guidance</button>
+      </div>
+      <div class="status" id="locationBox" role="status" aria-live="polite">-</div>
       <p class="muted" data-i18n="publicNote">After a successful photo match, the base map, position, AP/IP, and route update automatically.</p>
-      <div class="status" id="statusBox">Server...</div>
+      <div class="status" id="statusBox" role="status" aria-live="polite">Server...</div>
+      <div class="sr-only" id="screenReaderSummary" aria-live="assertive"></div>
     </aside>
   </main>
 
