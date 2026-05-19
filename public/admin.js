@@ -1,75 +1,162 @@
 const dict = {
   zh: {
+    title: "台北車站地下街定位後台",
+    subtitle: "維護牆面地圖、IP/AP 點位與目的地資料",
+    openUser: "開啟使用者頁",
+    logout: "登出",
     adminLogin: "管理員登入",
+    loginHint: "請輸入管理員密碼後再維護資料。",
     password: "密碼",
     login: "登入",
-    passwordNote: "預設開發密碼請看 README；正式部署請用 ADMIN_PASSWORD 環境變數設定。",
-    wallMaps: "固定牆面地圖",
+    dashboard: "總覽",
+    wallMaps: "牆面地圖",
+    network: "IP / AP 點位",
+    destinations: "目的地分類",
+    activity: "使用者紀錄",
+    refresh: "重新整理",
+    quickActions: "快速維護",
+    addWallMap: "新增或校正牆面地圖",
+    addWallMapHint: "現場拍一張牆上地圖，填入位置後儲存。",
+    addNetwork: "維護 IP / AP 點位",
+    addNetworkHint: "更新每個區域的 IP、SSID 與地圖座標。",
+    checkDestinations: "查看目的地分類",
+    checkDestinationsHint: "確認使用者搜尋能對到正確區域。",
+    wallMapHelp: "每一張固定牆面地圖都要先在這裡存座標與校正照片。使用者拍照後會自動切換底圖、更新位置與 IP。",
+    newWallMap: "新增牆面地圖",
+    basicInfo: "基本資料",
+    nameZh: "中文名稱",
+    nameEn: "英文名稱",
     floor: "樓層",
-    heading: "面向角度",
+    heading: "地圖面向",
+    locationOnMap: "地圖座標",
+    note: "備註",
+    photoCalibration: "拍照校正",
+    photoHelp: "現場對著牆面地圖拍照，系統會產生影像指紋。之後使用者拍到同一張地圖，就能自動定位。",
     calibrationPhoto: "校正照片",
     imageHash: "影像指紋",
-    note: "備註",
     saveWallMap: "儲存牆面地圖",
-    operations: "營運狀態",
-    refresh: "更新",
-    accessPoints: "IP / Wi-Fi AP 位置",
-    saveAp: "儲存 AP/IP 位置",
+    networkHelp: "把現場網路設備的位置記在這裡，使用者定位後會顯示最近的 IP/AP。",
+    newAp: "新增 AP/IP",
+    apName: "設備名稱",
+    saveAp: "儲存 AP/IP",
+    destinationHelp: "這裡列出目前使用者可以搜尋的地點與分類，方便你確認中英文辨識結果。",
+    searchDestination: "搜尋目的地",
     loginFailed: "登入失敗",
     saved: "已儲存",
     loadFailed: "讀取失敗",
-    noSessions: "尚無使用者活動",
-    noEvents: "尚無事件",
-    sources: "公開圖資參考",
+    noSessions: "還沒有使用者紀錄",
+    noEvents: "還沒有事件",
+    noData: "目前沒有資料",
     calibrated: "已校正",
     notCalibrated: "未校正",
-    edit: "編輯"
+    edit: "編輯",
+    recentUsers: "近期使用者",
+    recentEvents: "近期事件",
+    publicSources: "公開地圖來源",
+    boardsStat: "牆面地圖",
+    calibratedStat: "已校正",
+    apsStat: "AP/IP 點位",
+    usersStat: "使用者",
+    category: "分類",
+    aliases: "可辨識關鍵字",
+    lastSeen: "最後活動",
+    currentLocation: "目前位置"
   },
   en: {
+    title: "Taipei Station Photo Navigation Admin",
+    subtitle: "Maintain wall maps, IP/AP locations, and destination data",
+    openUser: "Open User Page",
+    logout: "Logout",
     adminLogin: "Admin Login",
+    loginHint: "Enter the admin password before editing data.",
     password: "Password",
     login: "Login",
-    passwordNote: "See README for the default development password. Use ADMIN_PASSWORD for production.",
-    wallMaps: "Fixed Wall Maps",
+    dashboard: "Dashboard",
+    wallMaps: "Wall Maps",
+    network: "IP / AP Locations",
+    destinations: "Destination Categories",
+    activity: "User Activity",
+    refresh: "Refresh",
+    quickActions: "Quick Maintenance",
+    addWallMap: "Add or Calibrate Wall Map",
+    addWallMapHint: "Take a wall-map photo on site, enter its position, and save.",
+    addNetwork: "Maintain IP / AP Locations",
+    addNetworkHint: "Update each area IP, SSID, and map coordinate.",
+    checkDestinations: "Review Destination Categories",
+    checkDestinationsHint: "Confirm search terms resolve to the right area.",
+    wallMapHelp: "Save each fixed wall-map coordinate and calibration photo here. After a user takes a photo, the app switches the base map and updates position and IP.",
+    newWallMap: "New Wall Map",
+    basicInfo: "Basic Info",
+    nameZh: "Chinese Name",
+    nameEn: "English Name",
     floor: "Floor",
     heading: "Heading",
-    calibrationPhoto: "Calibration Photo",
-    imageHash: "Image Hash",
+    locationOnMap: "Map Coordinate",
     note: "Note",
+    photoCalibration: "Photo Calibration",
+    photoHelp: "Take a photo of the fixed wall map. The system creates an image fingerprint so future user photos can match it.",
+    calibrationPhoto: "Calibration Photo",
+    imageHash: "Image Fingerprint",
     saveWallMap: "Save Wall Map",
-    operations: "Operations",
-    refresh: "Refresh",
-    accessPoints: "IP / Wi-Fi AP Locations",
-    saveAp: "Save AP/IP Location",
+    networkHelp: "Register network-device locations here. After positioning, users see the nearest IP/AP.",
+    newAp: "New AP/IP",
+    apName: "Device Name",
+    saveAp: "Save AP/IP",
+    destinationHelp: "Current searchable destinations and categories are listed here for Chinese/English recognition checks.",
+    searchDestination: "Search Destination",
     loginFailed: "Login failed",
     saved: "Saved",
     loadFailed: "Load failed",
-    noSessions: "No visitor activity yet",
+    noSessions: "No user activity yet",
     noEvents: "No events yet",
-    sources: "Public Map References",
+    noData: "No data",
     calibrated: "Calibrated",
     notCalibrated: "Not calibrated",
-    edit: "Edit"
+    edit: "Edit",
+    recentUsers: "Recent Users",
+    recentEvents: "Recent Events",
+    publicSources: "Public Map Sources",
+    boardsStat: "Wall Maps",
+    calibratedStat: "Calibrated",
+    apsStat: "AP/IP Points",
+    usersStat: "Users",
+    category: "Category",
+    aliases: "Recognized Keywords",
+    lastSeen: "Last seen",
+    currentLocation: "Current location"
   }
 };
 
-const langSelect = document.getElementById("langSelect");
-const loginView = document.getElementById("loginView");
-const adminView = document.getElementById("adminView");
-const passwordInput = document.getElementById("passwordInput");
-const loginBtn = document.getElementById("loginBtn");
-const logoutBtn = document.getElementById("logoutBtn");
-const loginStatus = document.getElementById("loginStatus");
-const boardForm = document.getElementById("boardForm");
-const calibrationPhoto = document.getElementById("calibrationPhoto");
-const referenceHash = document.getElementById("referenceHash");
-const refreshBtn = document.getElementById("refreshBtn");
-const adminTables = document.getElementById("adminTables");
-const apForm = document.getElementById("apForm");
+const elements = {
+  langSelect: document.getElementById("langSelect"),
+  loginView: document.getElementById("loginView"),
+  adminView: document.getElementById("adminView"),
+  passwordInput: document.getElementById("passwordInput"),
+  loginBtn: document.getElementById("loginBtn"),
+  logoutBtn: document.getElementById("logoutBtn"),
+  loginStatus: document.getElementById("loginStatus"),
+  refreshBtn: document.getElementById("refreshBtn"),
+  statCards: document.getElementById("statCards"),
+  dashboardLists: document.getElementById("dashboardLists"),
+  boardForm: document.getElementById("boardForm"),
+  calibrationPhoto: document.getElementById("calibrationPhoto"),
+  referenceHash: document.getElementById("referenceHash"),
+  boardList: document.getElementById("boardList"),
+  apForm: document.getElementById("apForm"),
+  apList: document.getElementById("apList"),
+  destinationFilter: document.getElementById("destinationFilter"),
+  destinationList: document.getElementById("destinationList"),
+  activityPanel: document.getElementById("activityPanel"),
+  newBoardBtn: document.getElementById("newBoardBtn"),
+  newApBtn: document.getElementById("newApBtn")
+};
 
 let lang = localStorage.getItem("lang") || "zh";
 let config = null;
-langSelect.value = lang;
+let summary = null;
+let activeTab = "dashboard";
+
+elements.langSelect.value = lang;
 
 function t(key) {
   return dict[lang][key] || dict.zh[key] || key;
@@ -80,19 +167,20 @@ function applyI18n() {
   document.querySelectorAll("[data-i18n]").forEach(node => {
     node.textContent = t(node.dataset.i18n);
   });
-  logoutBtn.textContent = lang === "en" ? "Logout" : "登出";
 }
 
-langSelect.addEventListener("change", () => {
-  lang = langSelect.value;
-  localStorage.setItem("lang", lang);
-  applyI18n();
-  fillFloorSelects();
-  loadAdmin();
-});
+function setTab(tabName) {
+  activeTab = tabName;
+  document.querySelectorAll(".nav-tab").forEach(button => {
+    button.classList.toggle("active", button.dataset.tab === tabName);
+  });
+  document.querySelectorAll(".admin-tab").forEach(section => section.classList.add("hidden"));
+  document.getElementById(`${tabName}Tab`).classList.remove("hidden");
+}
 
 async function api(url, options = {}) {
-  const response = await fetch(url, { ...options, headers: { "Content-Type": "application/json", ...(options.headers || {}) } });
+  const headers = options.body instanceof FormData ? options.headers : { "Content-Type": "application/json", ...(options.headers || {}) };
+  const response = await fetch(url, { ...options, headers });
   const data = await response.json();
   if (!response.ok) throw new Error(data.error || response.statusText);
   return data;
@@ -100,15 +188,44 @@ async function api(url, options = {}) {
 
 async function init() {
   applyI18n();
+  bindEvents();
   config = await api("/api/config");
   fillFloorSelects();
   await loadAdmin();
 }
 
+function bindEvents() {
+  elements.langSelect.addEventListener("change", async () => {
+    lang = elements.langSelect.value;
+    localStorage.setItem("lang", lang);
+    applyI18n();
+    fillFloorSelects();
+    renderAll();
+  });
+  elements.loginBtn.addEventListener("click", login);
+  elements.passwordInput.addEventListener("keydown", event => {
+    if (event.key === "Enter") login();
+  });
+  elements.logoutBtn.addEventListener("click", logout);
+  elements.refreshBtn.addEventListener("click", loadAdmin);
+  document.querySelectorAll(".nav-tab").forEach(button => {
+    button.addEventListener("click", () => setTab(button.dataset.tab));
+  });
+  document.querySelectorAll("[data-jump]").forEach(button => {
+    button.addEventListener("click", () => setTab(button.dataset.jump));
+  });
+  elements.calibrationPhoto.addEventListener("change", handleCalibrationPhoto);
+  elements.boardForm.addEventListener("submit", saveBoard);
+  elements.apForm.addEventListener("submit", saveAp);
+  elements.destinationFilter.addEventListener("input", renderDestinations);
+  elements.newBoardBtn.addEventListener("click", resetBoardForm);
+  elements.newApBtn.addEventListener("click", resetApForm);
+}
+
 function fillFloorSelects() {
   if (!config) return;
   const options = Object.values(config.floors).map(floor =>
-    `<option value="${floor.id}">${lang === "en" ? floor.nameEn : floor.nameZh}</option>`
+    `<option value="${floor.id}">${escapeHtml(lang === "en" ? floor.nameEn : floor.nameZh)}</option>`
   ).join("");
   document.getElementById("boardFloor").innerHTML = options;
   document.getElementById("apFloor").innerHTML = options;
@@ -116,27 +233,196 @@ function fillFloorSelects() {
 
 async function login() {
   try {
-    await api("/api/admin/login", { method: "POST", body: JSON.stringify({ password: passwordInput.value }) });
+    await api("/api/admin/login", { method: "POST", body: JSON.stringify({ password: elements.passwordInput.value }) });
+    elements.loginStatus.classList.add("hidden");
     await loadAdmin();
   } catch (error) {
-    loginStatus.classList.remove("hidden");
-    loginStatus.textContent = `${t("loginFailed")}: ${error.message}`;
+    elements.loginStatus.classList.remove("hidden");
+    elements.loginStatus.textContent = `${t("loginFailed")}: ${error.message}`;
   }
 }
 
 async function logout() {
   await api("/api/admin/logout", { method: "POST", body: "{}" });
-  loginView.classList.remove("hidden");
-  adminView.classList.add("hidden");
-  logoutBtn.classList.add("hidden");
+  elements.loginView.classList.remove("hidden");
+  elements.adminView.classList.add("hidden");
+  elements.logoutBtn.classList.add("hidden");
 }
 
-loginBtn.addEventListener("click", login);
-passwordInput.addEventListener("keydown", event => {
-  if (event.key === "Enter") login();
-});
-logoutBtn.addEventListener("click", logout);
-refreshBtn.addEventListener("click", loadAdmin);
+async function loadAdmin() {
+  try {
+    summary = await api("/api/admin/summary");
+    config = await api("/api/config");
+    fillFloorSelects();
+    elements.loginView.classList.add("hidden");
+    elements.adminView.classList.remove("hidden");
+    elements.logoutBtn.classList.remove("hidden");
+    renderAll();
+  } catch (error) {
+    elements.loginView.classList.remove("hidden");
+    elements.adminView.classList.add("hidden");
+    elements.logoutBtn.classList.add("hidden");
+    if (error.message && !error.message.includes("required")) {
+      elements.loginStatus.classList.remove("hidden");
+      elements.loginStatus.textContent = `${t("loadFailed")}: ${error.message}`;
+    }
+  }
+}
+
+function renderAll() {
+  if (!summary || !config) return;
+  renderDashboard();
+  renderBoards();
+  renderAccessPoints();
+  renderDestinations();
+  renderActivity();
+  setTab(activeTab);
+}
+
+function renderDashboard() {
+  const calibrated = summary.boards.filter(board => board.referenceHash).length;
+  const sessions = summary.sessions.length;
+  elements.statCards.innerHTML = [
+    statCard(t("boardsStat"), summary.boards.length),
+    statCard(t("calibratedStat"), `${calibrated}/${summary.boards.length}`),
+    statCard(t("apsStat"), summary.accessPoints.length),
+    statCard(t("usersStat"), sessions)
+  ].join("");
+
+  elements.dashboardLists.innerHTML = `
+    <div class="panel">
+      <h2>${t("wallMaps")}</h2>
+      ${compactList(summary.boards.slice(0, 5).map(board => ({
+        title: localName(board),
+        detail: `${board.floor} · X ${Math.round(board.x)}, Y ${Math.round(board.y)} · ${board.referenceHash ? t("calibrated") : t("notCalibrated")}`
+      })))}
+    </div>
+    <div class="panel">
+      <h2>${t("recentUsers")}</h2>
+      ${compactList(summary.sessions.slice(0, 5).map(session => ({
+        title: session.id,
+        detail: `${t("lastSeen")}: ${formatTime(session.lastSeen)} · ${session.eventCount} events`
+      })), t("noSessions"))}
+    </div>
+  `;
+}
+
+function renderBoards() {
+  elements.boardList.innerHTML = `
+    <div class="section-head">
+      <h2>${t("wallMaps")}</h2>
+      <span class="muted">${summary.boards.length} items</span>
+    </div>
+    <div class="data-list">
+      ${summary.boards.map(board => `
+        <article class="data-row">
+          <div>
+            <strong>${escapeHtml(localName(board))}</strong>
+            <div class="muted">${escapeHtml(board.id)} · ${escapeHtml(board.floor)} · X ${Math.round(board.x)}, Y ${Math.round(board.y)}</div>
+            <div class="small ${board.referenceHash ? "ok-text" : "warn-text"}">${board.referenceHash ? t("calibrated") : t("notCalibrated")}</div>
+          </div>
+          <button type="button" data-edit-board="${escapeHtml(board.id)}">${t("edit")}</button>
+        </article>
+      `).join("") || `<p class="muted">${t("noData")}</p>`}
+    </div>
+  `;
+  elements.boardList.querySelectorAll("[data-edit-board]").forEach(button => {
+    button.addEventListener("click", () => {
+      editBoard(summary.boards.find(board => board.id === button.dataset.editBoard));
+      setTab("boards");
+    });
+  });
+}
+
+function renderAccessPoints() {
+  elements.apList.innerHTML = `
+    <div class="section-head">
+      <h2>${t("network")}</h2>
+      <span class="muted">${summary.accessPoints.length} items</span>
+    </div>
+    <div class="data-list">
+      ${summary.accessPoints.map(ap => `
+        <article class="data-row">
+          <div>
+            <strong>${escapeHtml(ap.name)}</strong>
+            <div class="muted">${escapeHtml(ap.id)} · ${escapeHtml(ap.ip)} · ${escapeHtml(ap.ssid)}</div>
+            <div class="small">${escapeHtml(ap.floor)} · X ${Math.round(ap.x)}, Y ${Math.round(ap.y)}</div>
+          </div>
+          <button type="button" data-edit-ap="${escapeHtml(ap.id)}">${t("edit")}</button>
+        </article>
+      `).join("") || `<p class="muted">${t("noData")}</p>`}
+    </div>
+  `;
+  elements.apList.querySelectorAll("[data-edit-ap]").forEach(button => {
+    button.addEventListener("click", () => editAp(summary.accessPoints.find(ap => ap.id === button.dataset.editAp)));
+  });
+}
+
+function renderDestinations() {
+  const keyword = normalize(elements.destinationFilter.value);
+  const places = Object.entries(config.places).map(([id, place]) => ({ id, ...place }));
+  const filtered = places.filter(place => {
+    const haystack = normalize([place.id, place.labelZh, place.labelEn, place.category, ...(place.aliases || [])].join(" "));
+    return !keyword || haystack.includes(keyword);
+  });
+  const categories = Object.fromEntries(config.destinationCategories.map(category => [category.id, category]));
+  elements.destinationList.innerHTML = `
+    <div class="destination-chips">
+      ${config.destinationCategories.map(category => `<span>${escapeHtml(localCategory(category))}</span>`).join("")}
+    </div>
+    <div class="data-list">
+      ${filtered.map(place => `
+        <article class="data-row destination-row">
+          <div>
+            <strong>${escapeHtml(lang === "en" ? place.labelEn : place.labelZh)}</strong>
+            <div class="muted">${t("category")}: ${escapeHtml(localCategory(categories[place.category]) || place.category)}</div>
+            <div class="small">${t("aliases")}: ${escapeHtml((place.aliases || []).join(", ") || "-")}</div>
+          </div>
+          <span class="pill">${escapeHtml(place.id)}</span>
+        </article>
+      `).join("") || `<p class="muted">${t("noData")}</p>`}
+    </div>
+  `;
+}
+
+function renderActivity() {
+  elements.activityPanel.innerHTML = `
+    <h2>${t("activity")}</h2>
+    <h3>${t("recentUsers")}</h3>
+    <div class="data-list">
+      ${summary.sessions.slice(0, 20).map(session => `
+        <article class="data-row">
+          <div>
+            <strong>${escapeHtml(session.id)}</strong>
+            <div class="muted">${t("lastSeen")}: ${formatTime(session.lastSeen)} · ${session.eventCount} events</div>
+            <pre class="muted">${escapeHtml(JSON.stringify(session.current || {}, null, 2))}</pre>
+          </div>
+        </article>
+      `).join("") || `<p class="muted">${t("noSessions")}</p>`}
+    </div>
+    <h3>${t("recentEvents")}</h3>
+    <div class="data-list">
+      ${summary.events.slice(0, 30).map(event => `
+        <article class="data-row">
+          <div>
+            <strong>${escapeHtml(event.type)}</strong>
+            <div class="muted">${formatTime(event.at)}</div>
+            <pre class="muted">${escapeHtml(JSON.stringify(event.payload || {}, null, 2))}</pre>
+          </div>
+        </article>
+      `).join("") || `<p class="muted">${t("noEvents")}</p>`}
+    </div>
+    <h3>${t("publicSources")}</h3>
+    <ul class="source-list">${summary.sources.map(source => `
+      <li><a href="${escapeHtml(source.url)}" target="_blank" rel="noreferrer">${escapeHtml(source.title)}</a><br>
+      <span class="muted">${escapeHtml(lang === "en" ? source.noteEn : source.noteZh)}</span></li>`).join("")}</ul>
+  `;
+}
+
+async function handleCalibrationPhoto() {
+  const file = elements.calibrationPhoto.files[0];
+  if (file) elements.referenceHash.value = await imageHash(file);
+}
 
 async function imageHash(file) {
   const bitmap = await createImageBitmap(file);
@@ -153,129 +439,141 @@ async function imageHash(file) {
   return values.map(value => value >= avg ? "1" : "0").join("");
 }
 
-calibrationPhoto.addEventListener("change", async () => {
-  const file = calibrationPhoto.files[0];
-  if (file) referenceHash.value = await imageHash(file);
-});
-
-boardForm.addEventListener("submit", async event => {
+async function saveBoard(event) {
   event.preventDefault();
   const board = {
-    id: document.getElementById("boardId").value,
-    nameZh: document.getElementById("boardNameZh").value,
-    nameEn: document.getElementById("boardNameEn").value,
-    floor: document.getElementById("boardFloor").value,
-    x: document.getElementById("boardX").value,
-    y: document.getElementById("boardY").value,
-    heading: document.getElementById("boardHeading").value,
-    referenceHash: referenceHash.value,
-    note: document.getElementById("boardNote").value
+    id: value("boardId"),
+    nameZh: value("boardNameZh"),
+    nameEn: value("boardNameEn"),
+    floor: value("boardFloor"),
+    x: value("boardX"),
+    y: value("boardY"),
+    heading: value("boardHeading"),
+    referenceHash: elements.referenceHash.value,
+    note: value("boardNote")
   };
   await api("/api/admin/boards", { method: "POST", body: JSON.stringify(board) });
-  config = await api("/api/config");
   await loadAdmin();
   alert(t("saved"));
-});
-
-apForm.addEventListener("submit", async event => {
-  event.preventDefault();
-  const ap = {
-    id: document.getElementById("apId").value,
-    name: document.getElementById("apName").value,
-    ip: document.getElementById("apIp").value,
-    ssid: document.getElementById("apSsid").value,
-    floor: document.getElementById("apFloor").value,
-    x: document.getElementById("apX").value,
-    y: document.getElementById("apY").value,
-    note: document.getElementById("apNote").value
-  };
-  await api("/api/admin/access-points", { method: "POST", body: JSON.stringify(ap) });
-  config = await api("/api/config");
-  await loadAdmin();
-  alert(t("saved"));
-});
-
-async function loadAdmin() {
-  try {
-    const data = await api("/api/admin/summary");
-    loginView.classList.add("hidden");
-    adminView.classList.remove("hidden");
-    logoutBtn.classList.remove("hidden");
-    renderTables(data);
-  } catch (error) {
-    loginView.classList.remove("hidden");
-    adminView.classList.add("hidden");
-    logoutBtn.classList.add("hidden");
-    if (error.message && !error.message.includes("required")) {
-      loginStatus.classList.remove("hidden");
-      loginStatus.textContent = `${t("loadFailed")}: ${error.message}`;
-    }
-  }
 }
 
-function renderTables(data) {
-  adminTables.innerHTML = `
-    <h3>${t("wallMaps")}</h3>
-    <table><thead><tr><th>ID</th><th>${t("floor")}</th><th>XY</th><th>${t("imageHash")}</th><th></th></tr></thead>
-    <tbody>${data.boards.map(board => `
-      <tr>
-        <td>${escapeHtml(lang === "en" ? board.nameEn : board.nameZh)}<br><span class="muted">${escapeHtml(board.id)}</span></td>
-        <td>${escapeHtml(board.floor)}</td>
-        <td>${Number(board.x).toFixed(0)}, ${Number(board.y).toFixed(0)}</td>
-        <td>${board.referenceHash ? t("calibrated") : t("notCalibrated")}</td>
-        <td><button type="button" data-board="${escapeHtml(board.id)}">${t("edit")}</button></td>
-      </tr>`).join("")}</tbody></table>
-
-    <h3>${t("accessPoints")}</h3>
-    <table><thead><tr><th>ID</th><th>IP / SSID</th><th>${t("floor")}</th><th>XY</th></tr></thead>
-    <tbody>${data.accessPoints.map(ap => `
-      <tr>
-        <td>${escapeHtml(ap.name)}<br><span class="muted">${escapeHtml(ap.id)}</span></td>
-        <td>${escapeHtml(ap.ip)}<br><span class="muted">${escapeHtml(ap.ssid)}</span></td>
-        <td>${escapeHtml(ap.floor)}</td>
-        <td>${Number(ap.x).toFixed(0)}, ${Number(ap.y).toFixed(0)}</td>
-      </tr>`).join("")}</tbody></table>
-
-    <h3>Sessions</h3>
-    <table><thead><tr><th>Session</th><th>Last seen</th><th>Current</th></tr></thead>
-    <tbody>${data.sessions.map(session => `
-      <tr>
-        <td>${escapeHtml(session.id)}<br><span class="muted">${session.eventCount} events</span></td>
-        <td>${escapeHtml(session.lastSeen)}</td>
-        <td><pre class="muted">${escapeHtml(JSON.stringify(session.current, null, 2))}</pre></td>
-      </tr>`).join("") || `<tr><td colspan="3">${t("noSessions")}</td></tr>`}</tbody></table>
-
-    <h3>${t("sources")}</h3>
-    <ul class="source-list">${data.sources.map(source => `
-      <li><a href="${escapeHtml(source.url)}" target="_blank" rel="noreferrer">${escapeHtml(source.title)}</a><br>
-      <span class="muted">${escapeHtml(lang === "en" ? source.noteEn : source.noteZh)}</span></li>`).join("")}</ul>
-
-    <h3>Events</h3>
-    <table><thead><tr><th>Time</th><th>Type</th><th>Payload</th></tr></thead>
-    <tbody>${data.events.slice(0, 40).map(event => `
-      <tr><td>${escapeHtml(event.at)}</td><td>${escapeHtml(event.type)}</td><td><pre class="muted">${escapeHtml(JSON.stringify(event.payload, null, 2))}</pre></td></tr>`).join("") || `<tr><td colspan="3">${t("noEvents")}</td></tr>`}</tbody></table>
-  `;
-  adminTables.querySelectorAll("[data-board]").forEach(button => {
-    button.addEventListener("click", () => editBoard(data.boards.find(board => board.id === button.dataset.board)));
-  });
+async function saveAp(event) {
+  event.preventDefault();
+  const ap = {
+    id: value("apId"),
+    name: value("apName"),
+    ip: value("apIp"),
+    ssid: value("apSsid"),
+    floor: value("apFloor"),
+    x: value("apX"),
+    y: value("apY"),
+    note: value("apNote")
+  };
+  await api("/api/admin/access-points", { method: "POST", body: JSON.stringify(ap) });
+  await loadAdmin();
+  alert(t("saved"));
 }
 
 function editBoard(board) {
   if (!board) return;
-  document.getElementById("boardId").value = board.id;
-  document.getElementById("boardNameZh").value = board.nameZh;
-  document.getElementById("boardNameEn").value = board.nameEn;
-  document.getElementById("boardFloor").value = board.floor;
-  document.getElementById("boardX").value = board.x;
-  document.getElementById("boardY").value = board.y;
-  document.getElementById("boardHeading").value = board.heading || 0;
-  referenceHash.value = board.referenceHash || "";
-  document.getElementById("boardNote").value = board.note || "";
+  setValue("boardId", board.id);
+  setValue("boardNameZh", board.nameZh);
+  setValue("boardNameEn", board.nameEn);
+  setValue("boardFloor", board.floor);
+  setValue("boardX", board.x);
+  setValue("boardY", board.y);
+  setValue("boardHeading", board.heading || 0);
+  elements.referenceHash.value = board.referenceHash || "";
+  setValue("boardNote", board.note || "");
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
-function escapeHtml(value) {
-  return String(value ?? "").replace(/[&<>"']/g, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[char]));
+function editAp(ap) {
+  if (!ap) return;
+  setValue("apId", ap.id);
+  setValue("apName", ap.name);
+  setValue("apIp", ap.ip);
+  setValue("apSsid", ap.ssid);
+  setValue("apFloor", ap.floor);
+  setValue("apX", ap.x);
+  setValue("apY", ap.y);
+  setValue("apNote", ap.note || "");
+  setTab("network");
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+function resetBoardForm() {
+  const id = `MAP-${Date.now().toString().slice(-6)}`;
+  elements.boardForm.reset();
+  setValue("boardId", id);
+  setValue("boardNameZh", "新牆面地圖");
+  setValue("boardNameEn", "New Wall Map");
+  setValue("boardFloor", "B1");
+  setValue("boardX", 545);
+  setValue("boardY", 360);
+  setValue("boardHeading", 0);
+  elements.referenceHash.value = "";
+}
+
+function resetApForm() {
+  const id = `AP-${Date.now().toString().slice(-6)}`;
+  elements.apForm.reset();
+  setValue("apId", id);
+  setValue("apName", "New AP");
+  setValue("apIp", "");
+  setValue("apSsid", "");
+  setValue("apFloor", "B1");
+  setValue("apX", 545);
+  setValue("apY", 360);
+}
+
+function statCard(label, valueText) {
+  return `<article class="stat-card"><span>${escapeHtml(label)}</span><strong>${escapeHtml(valueText)}</strong></article>`;
+}
+
+function compactList(items, emptyText = t("noData")) {
+  if (!items.length) return `<p class="muted">${emptyText}</p>`;
+  return `<div class="compact-list">${items.map(item => `
+    <div>
+      <strong>${escapeHtml(item.title)}</strong>
+      <span>${escapeHtml(item.detail)}</span>
+    </div>
+  `).join("")}</div>`;
+}
+
+function localName(board) {
+  return lang === "en" ? board.nameEn : board.nameZh;
+}
+
+function localCategory(category) {
+  if (!category) return "";
+  return lang === "en" ? category.labelEn : category.labelZh;
+}
+
+function value(id) {
+  return document.getElementById(id).value.trim();
+}
+
+function setValue(id, nextValue) {
+  document.getElementById(id).value = nextValue ?? "";
+}
+
+function normalize(valueText) {
+  return String(valueText || "").trim().toLowerCase();
+}
+
+function formatTime(valueText) {
+  if (!valueText) return "-";
+  return new Intl.DateTimeFormat(lang === "en" ? "en-US" : "zh-TW", {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit"
+  }).format(new Date(valueText));
+}
+
+function escapeHtml(valueText) {
+  return String(valueText ?? "").replace(/[&<>"']/g, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[char]));
 }
 
 init();
