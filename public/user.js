@@ -26,6 +26,8 @@ const i18n = {
     coordinate: "\u5ea7\u6a19",
     floor: "\u6a13\u5c64",
     board: "\u7246\u9762\u5730\u5716",
+    baseMap: "\u76ee\u524d\u5e95\u5716",
+    baseMapSwitched: "\u5df2\u5207\u63db\u5230\u5c0d\u61c9\u5e95\u5716",
     apIp: "AP/IP",
     ssid: "SSID",
     noAp: "\u672a\u627e\u5230\u540c\u6a13\u5c64 AP/IP",
@@ -96,6 +98,8 @@ const i18n = {
     coordinate: "Coordinate",
     floor: "Floor",
     board: "Wall map",
+    baseMap: "Current base map",
+    baseMapSwitched: "Switched to matched base map",
     apIp: "AP/IP",
     ssid: "SSID",
     noAp: "No AP/IP found on this floor",
@@ -170,6 +174,7 @@ let config = null;
 let currentFloor = "B1";
 let currentPosition = { x: 545, y: 360 };
 let currentBoard = null;
+let currentBaseMapId = "M-B1-CENTER-01";
 let currentAccessPoint = null;
 let routeData = null;
 let currentCategory = "all";
@@ -189,6 +194,49 @@ const floorStyles = {
   B1: { bg: "#edf7f3", band: "#cde7df", label: "#0f766e" },
   B2: { bg: "#eef4ff", band: "#cfdef8", label: "#2f5f9f" },
   B3: { bg: "#fff4e8", band: "#f7d8af", label: "#b45309" }
+};
+
+const baseMapProfiles = {
+  "M-B1-CENTER-01": {
+    id: "M-B1-CENTER-01",
+    labelZh: "M \u5340\u4e2d\u592e\u5e95\u5716",
+    labelEn: "M Area Center Base Map",
+    bg: "#edf7f3",
+    band: "#cde7df",
+    accent: "#0f766e",
+    focus: { x: 470, y: 250, w: 300, h: 250 },
+    view: { scale: 1.2, x: 0, y: 0 }
+  },
+  "M-B1-EAST-01": {
+    id: "M-B1-EAST-01",
+    labelZh: "M3 / M7 \u6771\u5074\u5e95\u5716",
+    labelEn: "M3 / M7 East Base Map",
+    bg: "#eef7ff",
+    band: "#cfe5f7",
+    accent: "#2f5f9f",
+    focus: { x: 650, y: 280, w: 300, h: 310 },
+    view: { scale: 1.35, x: -170, y: -80 }
+  },
+  "M-B1-SOUTH-01": {
+    id: "M-B1-SOUTH-01",
+    labelZh: "\u7ad9\u524d\u5730\u4e0b\u8857\u9023\u901a\u5e95\u5716",
+    labelEn: "Station Front Link Base Map",
+    bg: "#fff4e8",
+    band: "#f7d8af",
+    accent: "#b45309",
+    focus: { x: 410, y: 470, w: 360, h: 210 },
+    view: { scale: 1.3, x: -80, y: -220 }
+  },
+  "M-B1-WEST-01": {
+    id: "M-B1-WEST-01",
+    labelZh: "Y \u5340\u897f\u5074\u5e95\u5716",
+    labelEn: "Y Area West Base Map",
+    bg: "#f1f5ff",
+    band: "#d7defa",
+    accent: "#4f46e5",
+    focus: { x: 80, y: 250, w: 330, h: 170 },
+    view: { scale: 1.45, x: 80, y: -80 }
+  }
 };
 
 langSelect.value = lang;
@@ -351,6 +399,23 @@ function filteredPlaces() {
   return entries.filter(([, place]) => place.category === currentCategory);
 }
 
+function activeBaseMap() {
+  return baseMapProfiles[currentBaseMapId] || baseMapProfiles["M-B1-CENTER-01"];
+}
+
+function baseMapName(profile = activeBaseMap()) {
+  return lang === "en" ? profile.labelEn : profile.labelZh;
+}
+
+function switchBaseMap(boardId) {
+  currentBaseMapId = baseMapProfiles[boardId] ? boardId : "M-B1-CENTER-01";
+  const profile = activeBaseMap();
+  view.scale = profile.view.scale;
+  view.x = profile.view.x;
+  view.y = profile.view.y;
+  centerOnCurrent(false);
+}
+
 function draw() {
   if (!config) return;
   ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -367,13 +432,17 @@ function draw() {
 }
 
 function drawBaseMap() {
-  const style = floorStyles[currentFloor] || floorStyles.B1;
+  const floorStyle = floorStyles[currentFloor] || floorStyles.B1;
+  const profile = activeBaseMap();
+  const style = currentFloor === "B1" ? profile : floorStyle;
   ctx.fillStyle = style.bg;
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
   ctx.fillStyle = style.band;
   ctx.fillRect(0, 0, canvas.width, 112);
   ctx.fillRect(0, canvas.height - 74, canvas.width, 74);
+
+  drawBaseMapFocus(profile);
 
   ctx.strokeStyle = "#c4ced8";
   ctx.lineWidth = 16;
@@ -408,6 +477,25 @@ function drawBaseMap() {
   ctx.fillStyle = style.label;
   ctx.font = "bold 48px Microsoft JhengHei, Arial";
   ctx.fillText(floor ? (lang === "en" ? floor.nameEn : floor.nameZh) : currentFloor, 38, 72);
+  ctx.font = "bold 20px Microsoft JhengHei, Arial";
+  ctx.fillText(`${t("baseMap")}: ${baseMapName(profile)}`, 38, 104);
+}
+
+function drawBaseMapFocus(profile) {
+  if (!profile?.focus) return;
+  const { x, y, w, h } = profile.focus;
+  ctx.save();
+  ctx.fillStyle = "rgba(255, 255, 255, .38)";
+  ctx.fillRect(x, y, w, h);
+  ctx.strokeStyle = profile.accent;
+  ctx.lineWidth = 5;
+  ctx.setLineDash([14, 10]);
+  ctx.strokeRect(x, y, w, h);
+  ctx.setLineDash([]);
+  ctx.fillStyle = profile.accent;
+  ctx.font = "bold 18px Microsoft JhengHei, Arial";
+  ctx.fillText(baseMapName(profile), x + 14, y + 30);
+  ctx.restore();
 }
 
 function drawBoards() {
@@ -535,7 +623,7 @@ function zoomAt(factor, clientX, clientY) {
   if (oldScale !== view.scale) updateLocationText();
 }
 
-function centerOnCurrent() {
+function centerOnCurrent(shouldAnnounce = true) {
   const rect = canvas.getBoundingClientRect();
   const sx = rect.width / 2 * (canvas.width / rect.width);
   const sy = rect.height / 2 * (canvas.height / rect.height);
@@ -543,7 +631,7 @@ function centerOnCurrent() {
   view.y = sy - currentPosition.y * view.scale;
   clampView();
   updateLocationText();
-  announce(locationSpeech(), true);
+  if (shouldAnnounce) announce(locationSpeech(), true);
 }
 
 async function imageHash(file) {
@@ -582,15 +670,16 @@ async function locateFromPhoto() {
     currentFloor = data.location.floor;
     currentPosition = { x: data.location.x, y: data.location.y };
     currentAccessPoint = data.location.accessPoint || null;
+    switchBaseMap(data.location.boardId);
     destFloor.value = currentFloor;
     fillSelects();
     destFloor.value = currentFloor;
-    mapBadge.textContent = `${t("located")}: ${lang === "en" ? data.location.boardNameEn : data.location.boardNameZh}`;
-    statusBox.textContent = `${t("autoUpdated")}\n${t("confidence")}: ${Math.round(data.location.confidence * 100)}%`;
+    mapBadge.textContent = `${t("located")}: ${lang === "en" ? data.location.boardNameEn : data.location.boardNameZh}\n${t("baseMap")}: ${baseMapName()}`;
+    statusBox.textContent = `${t("baseMapSwitched")}: ${baseMapName()}\n${t("autoUpdated")}\n${t("confidence")}: ${Math.round(data.location.confidence * 100)}%`;
     updateLocationText();
     await requestRoute("photo-location");
     haptic([80, 60, 160]);
-    autoNavigateSpeak(`${t("photoLocatedSpeech")}。${shortLocationSpeech()}。${currentStepSpeech()}`, true);
+    autoNavigateSpeak(`${t("photoLocatedSpeech")}。${t("baseMapSwitched")}: ${baseMapName()}。${shortLocationSpeech()}。${currentStepSpeech()}`, true);
   } catch (error) {
     statusBox.textContent = `${t("failed")}: ${error.message}`;
     haptic([250, 80, 250]);
@@ -646,6 +735,7 @@ function updateLocationText() {
   const ap = currentAccessPoint;
   locationBox.innerHTML = [
     `<strong>${t("floor")}:</strong> ${floorName}`,
+    `<strong>${t("baseMap")}:</strong> ${baseMapName()}`,
     `<strong>${t("coordinate")}:</strong> x=${Math.round(currentPosition.x)}, y=${Math.round(currentPosition.y)}`,
     `<strong>${t("board")}:</strong> ${boardName}`,
     ap
@@ -663,6 +753,7 @@ function locationSpeech() {
   const ap = currentAccessPoint;
   const parts = [
     `${t("floor")}: ${floorName}`,
+    `${t("baseMap")}: ${baseMapName()}`,
     `${t("coordinate")}: X ${Math.round(currentPosition.x)}, Y ${Math.round(currentPosition.y)}`,
     `${t("board")}: ${boardName}`,
     ap ? `${t("apIp")}: ${ap.name}, ${ap.ip}. ${t("ssid")}: ${ap.ssid}` : `${t("apIp")}: ${t("noAp")}`,
