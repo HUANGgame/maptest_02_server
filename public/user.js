@@ -4,6 +4,9 @@ const i18n = {
     waiting: "\u7b49\u5f85\u62cd\u7167\u5b9a\u4f4d",
     photoHelp: "\u62cd\u651d\u7246\u4e0a\u56fa\u5b9a\u5730\u5716\u5f8c\uff0c\u7cfb\u7d71\u6703\u81ea\u52d5\u5207\u63db\u5e95\u5716\u3001\u66f4\u65b0\u5ea7\u6a19\u3001AP/IP \u8207\u8def\u7dda\u3002",
     destinationFloor: "\u76ee\u7684\u6a13\u5c64",
+    destinationCategory: "\u76ee\u7684\u5730\u5206\u985e",
+    destinationSearch: "\u8f38\u5165\u5730\u9ede",
+    destinationSearchPlaceholder: "\u4f8b\uff1aM3\u3001Y\u5340\u3001\u52d5\u6f2b\u3001\u7f8e\u98df\u3001\u5ec1\u6240\u3001\u96fb\u68af",
     destination: "\u76ee\u7684\u5730",
     photoMap: "\u62cd\u651d\u7246\u4e0a\u5730\u5716",
     locateByPhoto: "\u62cd\u7167\u5b9a\u4f4d",
@@ -27,6 +30,8 @@ const i18n = {
     ssid: "SSID",
     noAp: "\u672a\u627e\u5230\u540c\u6a13\u5c64 AP/IP",
     autoUpdated: "\u5df2\u81ea\u52d5\u66f4\u65b0\u5e95\u5716\u8207\u8def\u7dda",
+    matchedDestination: "\u5df2\u8fa8\u8b58\u76ee\u7684\u5730",
+    noDestinationMatch: "\u627e\u4e0d\u5230\u76ee\u7684\u5730\uff0c\u8acb\u8a66\u8a66 M3\u3001Y\u5340\u3001\u7f8e\u98df\u3001\u5ec1\u6240\u7b49\u95dc\u9375\u5b57",
     gps: "GPS",
     gpsWaiting: "\u7b49\u5f85 GPS \u6b0a\u9650\u6216\u8cc7\u6599",
     gpsUnavailable: "GPS \u7121\u6cd5\u4f7f\u7528",
@@ -37,6 +42,9 @@ const i18n = {
     waiting: "Waiting for photo location",
     photoHelp: "Take a photo of a fixed wall map. The base map, coordinates, AP/IP, and route update automatically.",
     destinationFloor: "Destination floor",
+    destinationCategory: "Destination category",
+    destinationSearch: "Search destination",
+    destinationSearchPlaceholder: "e.g. M3, Y area, anime, food, restroom, elevator",
     destination: "Destination",
     photoMap: "Photo of wall map",
     locateByPhoto: "Locate by Photo",
@@ -60,6 +68,8 @@ const i18n = {
     ssid: "SSID",
     noAp: "No AP/IP found on this floor",
     autoUpdated: "Base map and route updated",
+    matchedDestination: "Destination recognized",
+    noDestinationMatch: "No destination matched. Try M3, Y area, food, restroom, or elevator.",
     gps: "GPS",
     gpsWaiting: "Waiting for GPS permission or data",
     gpsUnavailable: "GPS unavailable",
@@ -70,6 +80,9 @@ const i18n = {
 const canvas = document.getElementById("mapCanvas");
 const ctx = canvas.getContext("2d");
 const langSelect = document.getElementById("langSelect");
+const categorySelect = document.getElementById("categorySelect");
+const destinationSearch = document.getElementById("destinationSearch");
+const destinationSuggestions = document.getElementById("destinationSuggestions");
 const destFloor = document.getElementById("destFloor");
 const destPlace = document.getElementById("destPlace");
 const photoInput = document.getElementById("photoInput");
@@ -91,6 +104,8 @@ let currentPosition = { x: 545, y: 360 };
 let currentBoard = null;
 let currentAccessPoint = null;
 let routeData = null;
+let currentCategory = "all";
+let searchTimer = null;
 let latestGps = null;
 let view = { scale: 1, x: 0, y: 0 };
 let dragging = false;
@@ -129,6 +144,9 @@ function applyI18n() {
   document.querySelectorAll("[data-i18n]").forEach(node => {
     node.textContent = t(node.dataset.i18n);
   });
+  document.querySelectorAll("[data-i18n-placeholder]").forEach(node => {
+    node.placeholder = t(node.dataset.i18nPlaceholder);
+  });
 }
 
 async function api(url, options = {}) {
@@ -160,12 +178,30 @@ async function init() {
 
 function fillSelects() {
   if (!config) return;
+  categorySelect.innerHTML = config.destinationCategories
+    .map(category => `<option value="${category.id}" ${category.id === currentCategory ? "selected" : ""}>${lang === "en" ? category.labelEn : category.labelZh}</option>`)
+    .join("");
   destFloor.innerHTML = Object.values(config.floors)
     .map(floor => `<option value="${floor.id}" ${floor.id === currentFloor ? "selected" : ""}>${lang === "en" ? floor.nameEn : floor.nameZh}</option>`)
     .join("");
-  destPlace.innerHTML = Object.entries(config.places)
-    .map(([id, place]) => `<option value="${id}" ${id === "M3" ? "selected" : ""}>${text(place)}</option>`)
+  const places = filteredPlaces();
+  const selected = places.some(([id]) => id === destPlace.value) ? destPlace.value : (places[0]?.[0] || "M3");
+  destPlace.innerHTML = places
+    .map(([id, place]) => `<option value="${id}" ${id === selected ? "selected" : ""}>${text(place)}</option>`)
     .join("");
+  destPlace.value = selected;
+  destinationSuggestions.innerHTML = Object.entries(config.places)
+    .map(([id, place]) => {
+      const aliases = (place.aliases || []).slice(0, 4).join(", ");
+      return `<option value="${escapeHtml(text(place))}" label="${escapeHtml(`${id}${aliases ? ` / ${aliases}` : ""}`)}"></option>`;
+    })
+    .join("");
+}
+
+function filteredPlaces() {
+  const entries = Object.entries(config.places);
+  if (currentCategory === "all") return entries;
+  return entries.filter(([, place]) => place.category === currentCategory);
 }
 
 function draw() {
@@ -492,6 +528,22 @@ photoInput.addEventListener("change", () => {
   if (photoInput.files[0]) locateFromPhoto();
 });
 destFloor.addEventListener("change", () => requestRoute("destination-floor"));
+categorySelect.addEventListener("change", () => {
+  currentCategory = categorySelect.value;
+  fillSelects();
+  requestRoute("destination-category");
+});
+destinationSearch.addEventListener("input", () => {
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(resolveDestinationSearch, 280);
+});
+destinationSearch.addEventListener("keydown", event => {
+  if (event.key === "Enter") {
+    event.preventDefault();
+    clearTimeout(searchTimer);
+    resolveDestinationSearch();
+  }
+});
 destPlace.addEventListener("change", () => requestRoute("destination-place"));
 canvas.addEventListener("wheel", event => {
   event.preventDefault();
@@ -560,6 +612,30 @@ function touchCenter(touches) {
     x: (touches[0].clientX + touches[1].clientX) / 2,
     y: (touches[0].clientY + touches[1].clientY) / 2
   };
+}
+
+async function resolveDestinationSearch() {
+  const query = destinationSearch.value.trim();
+  if (!query) return;
+  try {
+    const result = await api("/api/destination/resolve", {
+      method: "POST",
+      body: JSON.stringify({ query })
+    });
+    const match = result.best;
+    currentCategory = match.category || "all";
+    fillSelects();
+    destPlace.value = match.id;
+    destinationSearch.value = text(match);
+    statusBox.textContent = `${t("matchedDestination")}: ${text(match)}`;
+    await requestRoute("destination-search");
+  } catch {
+    statusBox.textContent = t("noDestinationMatch");
+  }
+}
+
+function escapeHtml(value) {
+  return String(value ?? "").replace(/[&<>"']/g, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[char]));
 }
 
 init();

@@ -16,86 +16,117 @@ const CANVAS_WIDTH = 1100;
 const CANVAS_HEIGHT = 720;
 
 const floors = {
-  B1: { id: "B1", nameZh: "B1 地下街層", nameEn: "B1 Underground Mall", order: 1 },
-  B2: { id: "B2", nameZh: "B2 捷運大廳", nameEn: "B2 MRT Concourse", order: 2 },
-  B3: { id: "B3", nameZh: "B3 捷運轉乘層", nameEn: "B3 MRT Transfer", order: 3 }
+  B1: { id: "B1", nameZh: "\u5730\u4e0b\u8857\u5c64", nameEn: "Underground Mall", order: 1 },
+  B2: { id: "B2", nameZh: "\u6377\u904b\u5927\u5ef3", nameEn: "MRT Concourse", order: 2 },
+  B3: { id: "B3", nameZh: "\u6377\u904b\u8f49\u4e58\u5c64", nameEn: "MRT Transfer", order: 3 }
 };
 
 const graphNodes = {
-  M1: { x: 590, y: 125, labelZh: "M1/M2 北側通道", labelEn: "M1/M2 North Passage" },
-  NORTH: { x: 540, y: 220, labelZh: "北側通廊", labelEn: "North Passage" },
-  WEST: { x: 245, y: 355, labelZh: "西側通廊", labelEn: "West Passage" },
-  CENTER: { x: 545, y: 360, labelZh: "台北車站 M 區中央", labelEn: "Taipei Station M Area Center" },
-  EAST: { x: 745, y: 350, labelZh: "東側通廊", labelEn: "East Passage" },
-  SOUTH: { x: 555, y: 535, labelZh: "站前地下街連通", labelEn: "Station Front Mall Link" },
-  M3: { x: 790, y: 545, labelZh: "M3 出口", labelEn: "Exit M3" },
-  M4: { x: 675, y: 585, labelZh: "M4 出口", labelEn: "Exit M4" },
-  M5: { x: 430, y: 595, labelZh: "M5 出口", labelEn: "Exit M5" },
-  M6: { x: 520, y: 650, labelZh: "M6 出口", labelEn: "Exit M6" },
-  M7: { x: 910, y: 565, labelZh: "M7 出口", labelEn: "Exit M7" },
-  M8: { x: 680, y: 665, labelZh: "M8 出口", labelEn: "Exit M8" },
-  ELEVATOR: { x: 630, y: 505, labelZh: "電梯 / 樓梯", labelEn: "Elevator / Stairs" },
-  Y_LINK: { x: 120, y: 355, labelZh: "台北地下街 Y 區方向", labelEn: "Taipei City Mall Y Area" },
-  Z_LINK: { x: 560, y: 690, labelZh: "站前地下街 Z 區方向", labelEn: "Station Front Mall Z Area" }
+  M1: { x: 590, y: 125, labelZh: "M1/M2 \u5317\u5074\u901a\u9053", labelEn: "M1/M2 North Passage" },
+  NORTH: { x: 540, y: 220, labelZh: "\u5317\u5074\u901a\u5eca", labelEn: "North Passage" },
+  WEST: { x: 245, y: 355, labelZh: "\u897f\u5074\u901a\u5eca", labelEn: "West Passage" },
+  CENTER: { x: 545, y: 360, labelZh: "\u53f0\u5317\u8eca\u7ad9 M \u5340\u4e2d\u592e", labelEn: "Taipei Station M Area Center" },
+  EAST: { x: 745, y: 350, labelZh: "\u6771\u5074\u901a\u5eca", labelEn: "East Passage" },
+  SOUTH: { x: 555, y: 535, labelZh: "\u7ad9\u524d\u5730\u4e0b\u8857\u9023\u901a", labelEn: "Station Front Mall Link" },
+  M3: { x: 790, y: 545, labelZh: "M3 \u51fa\u53e3", labelEn: "Exit M3" },
+  M4: { x: 675, y: 585, labelZh: "M4 \u51fa\u53e3", labelEn: "Exit M4" },
+  M5: { x: 430, y: 595, labelZh: "M5 \u51fa\u53e3", labelEn: "Exit M5" },
+  M6: { x: 520, y: 650, labelZh: "M6 \u51fa\u53e3", labelEn: "Exit M6" },
+  M7: { x: 910, y: 565, labelZh: "M7 \u51fa\u53e3", labelEn: "Exit M7" },
+  M8: { x: 680, y: 665, labelZh: "M8 \u51fa\u53e3", labelEn: "Exit M8" },
+  ELEVATOR: { x: 630, y: 505, labelZh: "\u96fb\u68af / \u6a13\u68af", labelEn: "Elevator / Stairs" },
+  RESTROOM: { x: 610, y: 455, labelZh: "\u5ec1\u6240", labelEn: "Restroom" },
+  INFO: { x: 520, y: 320, labelZh: "\u670d\u52d9\u53f0 / \u8cc7\u8a0a", labelEn: "Information Desk" },
+  Y_LINK: { x: 120, y: 355, labelZh: "\u53f0\u5317\u5730\u4e0b\u8857 Y \u5340", labelEn: "Taipei City Mall Y Area" },
+  Z_LINK: { x: 560, y: 690, labelZh: "\u7ad9\u524d\u5730\u4e0b\u8857 Z \u5340", labelEn: "Station Front Mall Z Area" },
+  K_LINK: { x: 760, y: 650, labelZh: "K \u5340 / \u7ad9\u524d\u5546\u5834", labelEn: "K Area / Taipei New World" },
+  R_LINK: { x: 430, y: 125, labelZh: "\u4e2d\u5c71\u5730\u4e0b\u8857 R \u5340", labelEn: "Zhongshan Metro Mall R Area" }
 };
 
 const graphEdges = [
   ["M1", "NORTH"], ["NORTH", "CENTER"], ["WEST", "CENTER"], ["CENTER", "EAST"],
   ["CENTER", "SOUTH"], ["SOUTH", "M5"], ["SOUTH", "M6"], ["SOUTH", "M4"],
   ["SOUTH", "ELEVATOR"], ["ELEVATOR", "M3"], ["EAST", "M3"], ["M3", "M7"],
-  ["M4", "M8"], ["WEST", "Y_LINK"], ["SOUTH", "Z_LINK"]
+  ["M4", "M8"], ["WEST", "Y_LINK"], ["SOUTH", "Z_LINK"], ["M4", "K_LINK"],
+  ["NORTH", "R_LINK"], ["CENTER", "INFO"], ["ELEVATOR", "RESTROOM"]
 ];
 
 const places = {
-  M1: { x: 590, y: 125, labelZh: "M1 / M2 出口", labelEn: "Exit M1 / M2", node: "M1" },
-  M3: { x: 790, y: 545, labelZh: "M3 出口", labelEn: "Exit M3", node: "M3" },
-  M4: { x: 675, y: 585, labelZh: "M4 出口", labelEn: "Exit M4", node: "M4" },
-  M5: { x: 430, y: 595, labelZh: "M5 出口", labelEn: "Exit M5", node: "M5" },
-  M6: { x: 520, y: 650, labelZh: "M6 出口", labelEn: "Exit M6", node: "M6" },
-  M7: { x: 910, y: 565, labelZh: "M7 出口", labelEn: "Exit M7", node: "M7" },
-  M8: { x: 680, y: 665, labelZh: "M8 出口", labelEn: "Exit M8", node: "M8" },
-  elevator: { x: 630, y: 505, labelZh: "電梯 / 樓梯", labelEn: "Elevator / Stairs", node: "ELEVATOR" },
-  yMall: { x: 120, y: 355, labelZh: "台北地下街 Y 區方向", labelEn: "Taipei City Mall Y Area", node: "Y_LINK" },
-  zMall: { x: 560, y: 690, labelZh: "站前地下街 Z 區方向", labelEn: "Station Front Mall Z Area", node: "Z_LINK" }
+  M1: place(590, 125, "M1 / M2 \u51fa\u53e3", "Exit M1 / M2", "M1", "M", ["m1", "m2", "\u6377\u904b"]),
+  M3: place(790, 545, "M3 \u51fa\u53e3", "Exit M3", "M3", "M", ["m3"]),
+  M4: place(675, 585, "M4 \u51fa\u53e3", "Exit M4", "M4", "M", ["m4"]),
+  M5: place(430, 595, "M5 \u51fa\u53e3", "Exit M5", "M5", "M", ["m5"]),
+  M6: place(520, 650, "M6 \u51fa\u53e3", "Exit M6", "M6", "M", ["m6"]),
+  M7: place(910, 565, "M7 \u51fa\u53e3", "Exit M7", "M7", "M", ["m7"]),
+  M8: place(680, 665, "M8 \u51fa\u53e3", "Exit M8", "M8", "M", ["m8"]),
+  yMall: place(120, 355, "\u53f0\u5317\u5730\u4e0b\u8857 Y \u5340", "Taipei City Mall Y Area", "Y_LINK", "Y", ["y", "y\u5340", "\u53f0\u5317\u5730\u4e0b\u8857", "\u52d5\u6f2b", "\u96fb\u73a9", "\u6a21\u578b", "anime", "game"]),
+  zMall: place(560, 690, "\u7ad9\u524d\u5730\u4e0b\u8857 Z \u5340", "Station Front Mall Z Area", "Z_LINK", "Z", ["z", "z\u5340", "\u7ad9\u524d", "\u7ad9\u524d\u5730\u4e0b\u8857", "station front"]),
+  kMall: place(760, 650, "K \u5340 / \u7ad9\u524d\u5546\u5834", "K Area / Taipei New World", "K_LINK", "K", ["k", "k\u5340", "\u6771\u68ee", "\u7ad9\u524d\u5546\u5834", "\u65b0\u4e16\u754c"]),
+  rMall: place(430, 125, "\u4e2d\u5c71\u5730\u4e0b\u8857 R \u5340", "Zhongshan Metro Mall R Area", "R_LINK", "R", ["r", "r\u5340", "\u4e2d\u5c71", "\u4e2d\u5c71\u5730\u4e0b\u8857", "zhongshan"]),
+  food: place(555, 535, "\u7f8e\u98df / \u9910\u98f2", "Food / Dining", "SOUTH", "food", ["\u7f8e\u98df", "\u9910\u98f2", "\u5403\u98ef", "\u98df\u7269", "food", "dining"]),
+  shopping: place(245, 355, "\u8cfc\u7269 / \u670d\u98fe\u96dc\u8ca8", "Shopping / Fashion", "WEST", "shopping", ["\u8cfc\u7269", "\u670d\u98fe", "\u96dc\u8ca8", "\u8cb7\u6771\u897f", "shopping", "fashion"]),
+  elevator: place(630, 505, "\u96fb\u68af / \u6a13\u68af", "Elevator / Stairs", "ELEVATOR", "facility", ["\u96fb\u68af", "\u6a13\u68af", "elevator", "stairs"]),
+  restroom: place(610, 455, "\u5ec1\u6240", "Restroom", "RESTROOM", "facility", ["\u5ec1\u6240", "\u6d17\u624b\u9593", "toilet", "restroom", "wc"]),
+  info: place(520, 320, "\u670d\u52d9\u53f0 / \u8cc7\u8a0a", "Information Desk", "INFO", "facility", ["\u670d\u52d9\u53f0", "\u8cc7\u8a0a", "\u8a62\u554f\u8655", "info", "information"])
 };
+
+const destinationCategories = [
+  category("all", "\u5168\u90e8", "All"),
+  category("M", "M \u5340\uff1a\u6377\u904b\u5730\u4e0b\u5546\u5834 / M \u51fa\u53e3", "M Area: MRT Mall / M exits"),
+  category("Y", "Y \u5340\uff1a\u53f0\u5317\u5730\u4e0b\u8857", "Y Area: Taipei City Mall"),
+  category("Z", "Z \u5340\uff1a\u7ad9\u524d\u5730\u4e0b\u8857", "Z Area: Station Front Mall"),
+  category("K", "K \u5340\uff1aK \u5340\u5730\u4e0b\u8857 / \u7ad9\u524d\u5546\u5834", "K Area: K Underground Mall"),
+  category("R", "R \u5340\uff1a\u4e2d\u5c71\u5730\u4e0b\u8857", "R Area: Zhongshan Metro Mall"),
+  category("food", "\u7f8e\u98df / \u9910\u98f2", "Food / Dining"),
+  category("shopping", "\u8cfc\u7269 / \u670d\u98fe / \u52d5\u6f2b", "Shopping / Fashion / Anime"),
+  category("facility", "\u8a2d\u65bd\uff1a\u5ec1\u6240\u3001\u96fb\u68af\u3001\u670d\u52d9\u53f0", "Facilities")
+];
 
 const mapSources = [
   {
-    title: "台北車站地下商場 / M 區說明",
-    url: "https://zh.wikipedia.org/wiki/%E5%8F%B0%E5%8C%97%E8%BB%8A%E7%AB%99%E5%9C%B0%E4%B8%8B%E5%95%86%E5%A0%B4",
-    noteZh: "公開資料指出台北車站地下商場又稱 M 區，主要連接 M3 至 M8 出入口；M1/M2 主要供捷運台北車站使用。",
-    noteEn: "Public references describe the M area and exits M3-M8; M1/M2 mainly serve the MRT station area."
-  },
-  {
-    title: "台北車站地下街配置圖",
+    title: "Taipei Station underground mall layout",
     url: "https://commons.wikimedia.org/wiki/File:%E5%8F%B0%E5%8C%97%E8%BB%8A%E7%AB%99%E5%9C%B0%E4%B8%8B%E8%A1%97%E9%85%8D%E7%BD%AE%E5%9C%96.png",
-    noteZh: "可作為原型地圖配置參考；正式部署請使用授權明確的站內平面圖或自行繪製圖資。",
-    noteEn: "Useful as a prototype reference; production should use properly licensed or self-drawn map assets."
+    noteZh: "\u516c\u958b\u914d\u7f6e\u5716\u6a19\u793a R\u3001Y\u3001Z\u3001K\u3001M \u5404\u5340\u76f8\u5c0d\u4f4d\u7f6e\u3002",
+    noteEn: "Public layout map showing R, Y, Z, K, and M areas."
   },
   {
-    title: "台北車站 Y/Z/K/M/R 地下街互動地圖",
-    url: "https://ju0520.github.io/Taipei_Station/",
-    noteZh: "民間整理的互動圖，可輔助確認 Y、Z、K、M、R 區相對關係。",
-    noteEn: "Community interactive map for the relative layout of Y, Z, K, M, and R areas."
+    title: "Taipei City Government area-code note",
+    url: "https://www.gov.taipei/News_Content.aspx?n=EEC70A4186D4C828&s=5B692574C86ACDF3&sms=87415A8B9CE81B16",
+    noteZh: "\u81fa\u5317\u5e02\u8cc7\u6599\u8aaa\u660e\u5317\u8eca\u7279\u5b9a\u5340\u6709 Y\u3001Z\u3001R\u3001K \u7b49\u5730\u4e0b\u8857\u4ee3\u865f\u3002",
+    noteEn: "Taipei City note describing Y, Z, R, and K underground-street codes."
+  },
+  {
+    title: "Taipei City Mall",
+    url: "https://zh.wikipedia.org/wiki/%E5%8F%B0%E5%8C%97%E5%9C%B0%E4%B8%8B%E8%A1%97",
+    noteZh: "\u53f0\u5317\u5730\u4e0b\u8857\u53c8\u7a31 Y \u5340\uff0c\u51fa\u53e3\u4ee5 Y \u70ba\u7de8\u865f\u3002",
+    noteEn: "Taipei City Mall is also known as the Y area."
   }
 ];
 
 const defaultState = {
   mapBoards: [
-    { id: "M-B1-CENTER-01", nameZh: "M 區中央牆面地圖", nameEn: "M Area Center Wall Map", floor: "B1", x: 545, y: 360, heading: 0, referenceHash: "", note: "台北車站地下街 M 區中央" },
-    { id: "M-B1-EAST-01", nameZh: "M3/M7 方向牆面地圖", nameEn: "M3/M7 Side Wall Map", floor: "B1", x: 745, y: 350, heading: 270, referenceHash: "", note: "靠近 M3/M7 方向" },
-    { id: "M-B1-SOUTH-01", nameZh: "站前地下街連通地圖", nameEn: "Station Front Link Wall Map", floor: "B1", x: 555, y: 535, heading: 180, referenceHash: "", note: "通往 Z 區/站前地下街方向" },
-    { id: "M-B1-WEST-01", nameZh: "Y 區方向牆面地圖", nameEn: "Y Area Side Wall Map", floor: "B1", x: 245, y: 355, heading: 90, referenceHash: "", note: "通往台北地下街 Y 區方向" }
+    { id: "M-B1-CENTER-01", nameZh: "M \u5340\u4e2d\u592e\u7246\u9762\u5730\u5716", nameEn: "M Area Center Wall Map", floor: "B1", x: 545, y: 360, heading: 0, referenceHash: "", note: "\u53f0\u5317\u8eca\u7ad9\u5730\u4e0b\u8857 M \u5340\u4e2d\u592e" },
+    { id: "M-B1-EAST-01", nameZh: "M3/M7 \u65b9\u5411\u7246\u9762\u5730\u5716", nameEn: "M3/M7 Side Wall Map", floor: "B1", x: 745, y: 350, heading: 270, referenceHash: "", note: "\u9760\u8fd1 M3/M7 \u65b9\u5411" },
+    { id: "M-B1-SOUTH-01", nameZh: "\u7ad9\u524d\u5730\u4e0b\u8857\u9023\u901a\u5730\u5716", nameEn: "Station Front Link Wall Map", floor: "B1", x: 555, y: 535, heading: 180, referenceHash: "", note: "\u901a\u5f80 Z \u5340 / \u7ad9\u524d\u5730\u4e0b\u8857" },
+    { id: "M-B1-WEST-01", nameZh: "Y \u5340\u65b9\u5411\u7246\u9762\u5730\u5716", nameEn: "Y Area Side Wall Map", floor: "B1", x: 245, y: 355, heading: 90, referenceHash: "", note: "\u901a\u5f80\u53f0\u5317\u5730\u4e0b\u8857 Y \u5340" }
   ],
   accessPoints: [
-    { id: "AP-M-CENTER", name: "M Area Wi-Fi AP Center", ip: "10.10.20.11", ssid: "TPE-Free", floor: "B1", x: 545, y: 360, note: "示範資料，請用現場 AP/IP 清冊替換" },
-    { id: "AP-M-EAST", name: "M Area Wi-Fi AP East", ip: "10.10.20.12", ssid: "TPE-Free", floor: "B1", x: 745, y: 350, note: "示範資料，非公開精確位置" }
+    { id: "AP-M-CENTER", name: "M Area Wi-Fi AP Center", ip: "10.10.20.11", ssid: "TPE-Free", floor: "B1", x: 545, y: 360, note: "Demo data. Replace with real AP inventory." },
+    { id: "AP-M-EAST", name: "M Area Wi-Fi AP East", ip: "10.10.20.12", ssid: "TPE-Free", floor: "B1", x: 745, y: 350, note: "Demo data. Replace with real AP inventory." }
   ],
   sessions: {},
   events: []
 };
 
 let state = structuredClone(defaultState);
+
+function place(x, y, labelZh, labelEn, node, categoryId, aliases = []) {
+  return { x, y, labelZh, labelEn, node, category: categoryId, aliases };
+}
+
+function category(id, labelZh, labelEn) {
+  return { id, labelZh, labelEn };
+}
 
 function distance(a, b) {
   return Math.hypot(a.x - b.x, a.y - b.y);
@@ -226,14 +257,11 @@ function locateByPhoto(body, req) {
       return { board, diff, score, method: hasHash ? "photo-hash" : "floor-fallback" };
     })
     .sort((a, b) => b.score - a.score || a.diff - b.diff);
-
   const best = candidates[0];
   if (!best) return jsonError(404, "No registered wall maps.");
-
   const confidence = Number(best.score.toFixed(3));
   const usable = (best.method === "photo-hash" && confidence >= 0.72) || (best.method === "floor-fallback" && hintedFloor);
   if (!usable) return jsonError(422, "Photo does not match a calibrated wall map. Please calibrate it in admin first.");
-
   const location = {
     source: best.method,
     confidence,
@@ -246,24 +274,16 @@ function locateByPhoto(body, req) {
     heading: Number(best.board.heading || 0),
     accessPoint: nearestAccessPoint(best.board)
   };
-  recordSession(sessionId, "photo-location", {
-    location,
-    clientIp: clientIp(req),
-    userAgent: clean(body.userAgent, 180)
-  });
-  return jsonOk({
-    sessionId,
-    location,
-    candidates: candidates.slice(0, 5).map(item => ({
-      id: item.board.id,
-      nameZh: item.board.nameZh,
-      nameEn: item.board.nameEn,
-      floor: item.board.floor,
-      confidence: Number(item.score.toFixed(3)),
-      hashDiff: item.diff,
-      method: item.method
-    }))
-  });
+  recordSession(sessionId, "photo-location", { location, clientIp: clientIp(req), userAgent: clean(body.userAgent, 180) });
+  return jsonOk({ sessionId, location, candidates: candidates.slice(0, 5).map(item => ({
+    id: item.board.id,
+    nameZh: item.board.nameZh,
+    nameEn: item.board.nameEn,
+    floor: item.board.floor,
+    confidence: Number(item.score.toFixed(3)),
+    hashDiff: item.diff,
+    method: item.method
+  })) });
 }
 
 function route(body, req) {
@@ -272,7 +292,6 @@ function route(body, req) {
   const destPlace = places[body.destPlace] ? body.destPlace : "M3";
   const position = { x: Number(body.position?.x), y: Number(body.position?.y) };
   if (!Number.isFinite(position.x) || !Number.isFinite(position.y)) return jsonError(400, "position.x and position.y must be numbers.");
-
   const sameFloor = currentFloor === destFloor;
   const routeTarget = sameFloor ? destPlace : "elevator";
   const destination = places[routeTarget];
@@ -292,7 +311,6 @@ function route(body, req) {
     totalDistance: Math.round(result.totalDistance),
     clientIp: clientIp(req)
   });
-
   return jsonOk({
     currentFloor,
     destFloor,
@@ -320,16 +338,29 @@ function nearestAccessPoint(point) {
       bestDistance = d;
     }
   }
-  return {
-    id: best.id,
-    name: best.name,
-    ip: best.ip,
-    ssid: best.ssid,
-    floor: best.floor,
-    x: Number(best.x),
-    y: Number(best.y),
-    distance: Math.round(bestDistance)
-  };
+  return { id: best.id, name: best.name, ip: best.ip, ssid: best.ssid, floor: best.floor, x: Number(best.x), y: Number(best.y), distance: Math.round(bestDistance) };
+}
+
+function resolveDestination(body) {
+  const query = normalizeSearch(body.query);
+  if (!query) return jsonError(400, "query is required.");
+  const candidates = Object.entries(places).map(([id, placeData]) => {
+    const tokens = [id, placeData.labelZh, placeData.labelEn, placeData.category, ...(placeData.aliases || [])].map(normalizeSearch);
+    let score = 0;
+    for (const token of tokens) {
+      if (!token) continue;
+      if (token === query) score = Math.max(score, 100);
+      else if (token.includes(query)) score = Math.max(score, 80);
+      else if (query.includes(token)) score = Math.max(score, 65);
+    }
+    return { id, place: placeData, score };
+  }).filter(item => item.score > 0).sort((a, b) => b.score - a.score);
+  if (candidates.length === 0) return jsonError(404, "No destination matched.");
+  return jsonOk({ best: { id: candidates[0].id, ...candidates[0].place, score: candidates[0].score }, matches: candidates.slice(0, 8).map(item => ({ id: item.id, ...item.place, score: item.score })) });
+}
+
+function normalizeSearch(value) {
+  return clean(value, 120).toLowerCase().replace(/\s+/g, "").replace(/[()（）/／_-]/g, "");
 }
 
 function recordSession(sessionId, type, payload) {
@@ -345,13 +376,7 @@ function recordSession(sessionId, type, payload) {
 }
 
 function adminSummary() {
-  return {
-    boards: state.mapBoards,
-    accessPoints: state.accessPoints,
-    sessions: Object.values(state.sessions).sort((a, b) => b.lastSeen.localeCompare(a.lastSeen)),
-    events: state.events.slice(-150).reverse(),
-    sources: mapSources
-  };
+  return { boards: state.mapBoards, accessPoints: state.accessPoints, sessions: Object.values(state.sessions).sort((a, b) => b.lastSeen.localeCompare(a.lastSeen)), events: state.events.slice(-150).reverse(), sources: mapSources };
 }
 
 function updateBoard(body) {
@@ -396,16 +421,7 @@ function updateAccessPoint(body) {
 }
 
 function config() {
-  return {
-    canvas: { width: CANVAS_WIDTH, height: CANVAS_HEIGHT },
-    floors,
-    places,
-    graphNodes,
-    graphEdges,
-    mapBoards: state.mapBoards,
-    accessPoints: state.accessPoints,
-    sources: mapSources
-  };
+  return { canvas: { width: CANVAS_WIDTH, height: CANVAS_HEIGHT }, floors, places, destinationCategories, graphNodes, graphEdges, mapBoards: state.mapBoards, accessPoints: state.accessPoints, sources: mapSources };
 }
 
 function login(body) {
@@ -415,10 +431,8 @@ function login(body) {
 }
 
 function isAdmin(req) {
-  const cookie = req.headers.cookie || "";
-  const match = cookie.match(/(?:^|;\s*)admin_token=([^;]+)/);
-  if (!match) return false;
-  return safeEqual(match[1], ADMIN_TOKEN);
+  const match = (req.headers.cookie || "").match(/(?:^|;\s*)admin_token=([^;]+)/);
+  return Boolean(match && safeEqual(match[1], ADMIN_TOKEN));
 }
 
 function requireAdmin(req, res) {
@@ -434,8 +448,7 @@ function hash(value) {
 function safeEqual(a, b) {
   const left = Buffer.isBuffer(a) ? a : Buffer.from(String(a));
   const right = Buffer.isBuffer(b) ? b : Buffer.from(String(b));
-  if (left.length !== right.length) return false;
-  return timingSafeEqual(left, right);
+  return left.length === right.length && timingSafeEqual(left, right);
 }
 
 function clientIp(req) {
@@ -449,8 +462,7 @@ function clean(value, max = 200) {
 
 function clamp(value, min, max, fallback) {
   const n = Number(value);
-  if (!Number.isFinite(n)) return fallback;
-  return Math.max(min, Math.min(max, n));
+  return Number.isFinite(n) ? Math.max(min, Math.min(max, n)) : fallback;
 }
 
 function jsonOk(data) {
@@ -462,11 +474,7 @@ function jsonError(status, message) {
 }
 
 function sendJson(res, status, data, headers = {}) {
-  res.writeHead(status, {
-    "Content-Type": "application/json; charset=utf-8",
-    "Cache-Control": "no-store",
-    ...headers
-  });
+  res.writeHead(status, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store", ...headers });
   res.end(JSON.stringify(data, null, 2));
 }
 
@@ -482,26 +490,13 @@ async function readJson(req) {
     });
     req.on("end", () => {
       if (!raw) return resolve({});
-      try {
-        resolve(JSON.parse(raw));
-      } catch {
-        reject(new Error("Invalid JSON body."));
-      }
+      try { resolve(JSON.parse(raw)); } catch { reject(new Error("Invalid JSON body.")); }
     });
   });
 }
 
 function typeFor(filePath) {
-  return {
-    ".html": "text/html; charset=utf-8",
-    ".css": "text/css; charset=utf-8",
-    ".js": "text/javascript; charset=utf-8",
-    ".json": "application/json; charset=utf-8",
-    ".png": "image/png",
-    ".jpg": "image/jpeg",
-    ".jpeg": "image/jpeg",
-    ".svg": "image/svg+xml"
-  }[path.extname(filePath).toLowerCase()] || "application/octet-stream";
+  return { ".html": "text/html; charset=utf-8", ".css": "text/css; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".json": "application/json; charset=utf-8", ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".svg": "image/svg+xml" }[path.extname(filePath).toLowerCase()] || "application/octet-stream";
 }
 
 async function serveStatic(res, pathname) {
@@ -529,9 +524,7 @@ await loadState();
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url || "/", `http://${req.headers.host || "localhost"}`);
   try {
-    if (req.method === "GET" && url.pathname === "/api/health") {
-      return sendJson(res, 200, { ok: true, message: "Taipei Station photo navigation server is running.", port: PORT });
-    }
+    if (req.method === "GET" && url.pathname === "/api/health") return sendJson(res, 200, { ok: true, message: "Taipei Station photo navigation server is running.", port: PORT });
     if (req.method === "GET" && url.pathname === "/api/config") return sendJson(res, 200, config());
     if (req.method === "POST" && url.pathname === "/api/location/photo") {
       const result = locateByPhoto(await readJson(req), req);
@@ -541,11 +534,13 @@ const server = http.createServer(async (req, res) => {
       const result = route(await readJson(req), req);
       return sendJson(res, result.status, result.data);
     }
+    if (req.method === "POST" && url.pathname === "/api/destination/resolve") {
+      const result = resolveDestination(await readJson(req));
+      return sendJson(res, result.status, result.data);
+    }
     if (req.method === "POST" && url.pathname === "/api/admin/login") {
       const result = login(await readJson(req));
-      const headers = result.status === 200
-        ? { "Set-Cookie": `admin_token=${ADMIN_TOKEN}; HttpOnly; SameSite=Lax; Path=/; Max-Age=28800` }
-        : {};
+      const headers = result.status === 200 ? { "Set-Cookie": `admin_token=${ADMIN_TOKEN}; HttpOnly; SameSite=Lax; Path=/; Max-Age=28800` } : {};
       return sendJson(res, result.status, result.data, headers);
     }
     if (req.method === "POST" && url.pathname === "/api/admin/logout") {

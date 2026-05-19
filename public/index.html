@@ -33,6 +33,15 @@
 
     <aside class="panel">
       <div class="field">
+        <label for="categorySelect" data-i18n="destinationCategory">Destination category</label>
+        <select id="categorySelect"></select>
+      </div>
+      <div class="field">
+        <label for="destinationSearch" data-i18n="destinationSearch">Search destination</label>
+        <input id="destinationSearch" list="destinationSuggestions" autocomplete="off" data-i18n-placeholder="destinationSearchPlaceholder">
+        <datalist id="destinationSuggestions"></datalist>
+      </div>
+      <div class="field">
         <label for="destFloor" data-i18n="destinationFloor">Destination floor</label>
         <select id="destFloor"></select>
       </div>
