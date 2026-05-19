@@ -38,8 +38,8 @@ const i18n = {
     view: "\u8996\u91ce",
     skipToControls: "\u8df3\u5230\u64cd\u4f5c\u5340",
     audioHelp: "\u8a9e\u97f3\u5c0e\u89bd\u5df2\u5c31\u7dd2\u3002\u9078\u64c7\u76ee\u7684\u5730\u3001\u62cd\u651d\u7246\u4e0a\u5730\u5716\uff0c\u518d\u6839\u64da\u8a9e\u97f3\u8def\u7dda\u524d\u9032\u3002",
-    voiceOn: "\u8a9e\u97f3\u958b\u555f",
-    voiceOff: "\u8a9e\u97f3\u95dc\u9589",
+    voiceOn: "\u5c0e\u822a\u8a9e\u97f3\u958b",
+    voiceOff: "\u5c0e\u822a\u8a9e\u97f3\u95dc",
     readLocation: "\u6717\u8b80\u4f4d\u7f6e",
     readRoute: "\u6717\u8b80\u8def\u7dda",
     stopVoice: "\u505c\u6b62\u6717\u8b80",
@@ -47,6 +47,7 @@ const i18n = {
     repeatAll: "\u91cd\u8907\u5168\u90e8\u5c0e\u89bd",
     voiceEnabled: "\u8a9e\u97f3\u5c0e\u89bd\u5df2\u958b\u555f",
     voiceDisabled: "\u8a9e\u97f3\u5c0e\u89bd\u5df2\u95dc\u9589",
+    voiceQuietHint: "\u5c0e\u822a\u8a9e\u97f3\u53ea\u6703\u5728\u5b9a\u4f4d\u3001\u8def\u7dda\u8b8a\u66f4\u6216\u932f\u8aa4\u6642\u63d0\u793a\uff0c\u4e0d\u6703\u5e72\u64fe\u4e00\u822c\u64cd\u4f5c\u3002\u4e0d\u9700\u8981\u6642\u53ef\u4ee5\u6309\u5c0e\u822a\u8a9e\u97f3\u95dc\u3002",
     voiceUnsupported: "\u9019\u500b\u700f\u89bd\u5668\u4e0d\u652f\u63f4\u8a9e\u97f3\u6717\u8b80",
     mapKeyboardHelp: "\u5730\u5716\u53ef\u4ee5\u7528\u9375\u76e4\u64cd\u4f5c\uff1a\u65b9\u5411\u9375\u79fb\u52d5\uff0c\u52a0\u865f\u653e\u5927\uff0c\u6e1b\u865f\u7e2e\u5c0f\uff0c\u6578\u5b57 0 \u56de\u5230\u76ee\u524d\u4f4d\u7f6e\u3002",
     currentStep: "\u76ee\u524d\u5c0e\u822a",
@@ -107,8 +108,8 @@ const i18n = {
     view: "View",
     skipToControls: "Skip to controls",
     audioHelp: "Voice guidance is ready. Choose a destination, take a wall-map photo, then follow the spoken route.",
-    voiceOn: "Voice on",
-    voiceOff: "Voice off",
+    voiceOn: "Navigation voice on",
+    voiceOff: "Navigation voice off",
     readLocation: "Read location",
     readRoute: "Read route",
     stopVoice: "Stop voice",
@@ -116,6 +117,7 @@ const i18n = {
     repeatAll: "Repeat all guidance",
     voiceEnabled: "Voice guidance is on",
     voiceDisabled: "Voice guidance is off",
+    voiceQuietHint: "Navigation voice only speaks for location, route changes, and errors, so it will not interrupt normal use. Turn it off when it is not needed.",
     voiceUnsupported: "This browser does not support speech output",
     mapKeyboardHelp: "The map supports keyboard controls: arrow keys move the map, plus zooms in, minus zooms out, and zero returns to current position.",
     currentStep: "Current navigation",
@@ -185,6 +187,7 @@ let lastTouchCenter = null;
 let voiceEnabled = localStorage.getItem("voiceEnabled") !== "false";
 let lastGpsSpeechAt = 0;
 let lastSpokenRoute = "";
+let lastAutoSpeechAt = 0;
 
 const floorStyles = {
   B1: { bg: "#edf7f3", band: "#cde7df", label: "#0f766e" },
@@ -272,6 +275,25 @@ function announce(message, interrupt = false) {
   speak(textValue, interrupt);
 }
 
+function liveOnly(message) {
+  const textValue = String(message || "").replace(/\s+/g, " ").trim();
+  if (!textValue) return;
+  screenReaderSummary.textContent = "";
+  setTimeout(() => {
+    screenReaderSummary.textContent = textValue;
+  }, 20);
+}
+
+function autoNavigateSpeak(message, interrupt = false) {
+  const now = Date.now();
+  if (!interrupt && now - lastAutoSpeechAt < 5000) {
+    liveOnly(message);
+    return;
+  }
+  lastAutoSpeechAt = now;
+  announce(message, interrupt);
+}
+
 function haptic(pattern = [80]) {
   if (navigator.vibrate) navigator.vibrate(pattern);
 }
@@ -299,7 +321,7 @@ async function init() {
     statusBox.textContent = `${health.message}\nSession: ${sessionId}`;
     draw();
     await requestRoute("init");
-    announce(`${t("audioHelp")} ${t("cameraHint")} ${t("mapKeyboardHelp")} ${t("vibrationReady")}`, false);
+    liveOnly(`${t("audioHelp")} ${t("voiceQuietHint")} ${t("cameraHint")} ${t("mapKeyboardHelp")} ${t("vibrationReady")}`);
   } catch (error) {
     statusBox.textContent = `${t("serverDown")}\n${error.message}`;
     announce(`${t("serverDown")} ${error.message}`, true);
@@ -573,11 +595,11 @@ async function locateFromPhoto() {
     updateLocationText();
     await requestRoute("photo-location");
     haptic([80, 60, 160]);
-    announce(`${t("photoLocatedSpeech")}。${locationSpeech()}。${routeSpeech()}`, true);
+    autoNavigateSpeak(`${t("photoLocatedSpeech")}。${shortLocationSpeech()}。${currentStepSpeech()}`, true);
   } catch (error) {
     statusBox.textContent = `${t("failed")}: ${error.message}`;
     haptic([250, 80, 250]);
-    announce(`${t("failed")}: ${error.message}`, true);
+    autoNavigateSpeak(`${t("failed")}: ${error.message}`, true);
   }
 }
 
@@ -599,7 +621,7 @@ async function requestRoute(reason) {
     routeData = null;
     routeHint.textContent = `${t("routeFailed")}: ${error.message}`;
     haptic([250, 80, 250]);
-    announce(`${t("routeFailed")}: ${error.message}`, true);
+    autoNavigateSpeak(`${t("routeFailed")}: ${error.message}`, true);
   }
 }
 
@@ -618,7 +640,7 @@ function updateRouteText() {
   const spoken = routeSpeech();
   if (spoken && spoken !== lastSpokenRoute) {
     lastSpokenRoute = spoken;
-    announce(`${t("routeReady")}。${spoken}`, false);
+    autoNavigateSpeak(`${t("routeReady")}。${currentStepSpeech()}`, false);
   }
 }
 
@@ -652,6 +674,23 @@ function locationSpeech() {
     `${t("gps")}: ${formatGps()}`
   ];
   return parts.join("。");
+}
+
+function shortLocationSpeech() {
+  const floor = config?.floors?.[currentFloor];
+  const floorName = floor ? (lang === "en" ? floor.nameEn : floor.nameZh) : currentFloor;
+  return `${t("located")}。${t("floor")}: ${floorName}。${t("coordinate")}: X ${Math.round(currentPosition.x)}, Y ${Math.round(currentPosition.y)}`;
+}
+
+function currentStepSpeech() {
+  if (!routeData || !config) return t("noRouteYet");
+  const dest = routeData.destination;
+  const nextKey = routeData.pathKeys?.[1] || routeData.pathKeys?.[0];
+  const nextNode = nextKey ? config.graphNodes[nextKey] : null;
+  if (distance(currentPosition, dest) < 35) return `${t("arrivedNear")}: ${text(dest)}`;
+  const nextText = nextNode ? text(nextNode) : text(dest);
+  const direction = nextNode ? directionFromTo(currentPosition, nextNode) : "";
+  return `${t("nextDirection")}: ${direction || t("directionStraight")}。${t("nextToward")} ${nextText}`;
 }
 
 function routeSpeech() {
@@ -730,7 +769,7 @@ voiceToggleBtn.addEventListener("click", () => {
   voiceEnabled = !voiceEnabled;
   localStorage.setItem("voiceEnabled", String(voiceEnabled));
   updateVoiceButton();
-  if (voiceEnabled) announce(`${t("voiceEnabled")}。${t("audioHelp")}`, true);
+  if (voiceEnabled) announce(`${t("voiceEnabled")}。${t("voiceQuietHint")}`, true);
   else {
     if ("speechSynthesis" in window) window.speechSynthesis.cancel();
     screenReaderSummary.textContent = t("voiceDisabled");
@@ -749,13 +788,13 @@ photoInput.addEventListener("change", () => {
 });
 destFloor.addEventListener("change", () => {
   requestRoute("destination-floor");
-  announce(`${t("destinationFloor")}: ${destFloor.options[destFloor.selectedIndex]?.textContent || ""}`, true);
+  liveOnly(`${t("destinationFloor")}: ${destFloor.options[destFloor.selectedIndex]?.textContent || ""}`);
 });
 categorySelect.addEventListener("change", () => {
   currentCategory = categorySelect.value;
   fillSelects();
   requestRoute("destination-category");
-  announce(`${t("destinationCategory")}: ${categorySelect.options[categorySelect.selectedIndex]?.textContent || ""}`, true);
+  liveOnly(`${t("destinationCategory")}: ${categorySelect.options[categorySelect.selectedIndex]?.textContent || ""}`);
 });
 destinationSearch.addEventListener("input", () => {
   clearTimeout(searchTimer);
@@ -769,7 +808,7 @@ destinationSearch.addEventListener("keydown", event => {
   }
 });
 destPlace.addEventListener("change", () => requestRoute("destination-place"));
-destPlace.addEventListener("change", () => announce(`${t("destination")}: ${destPlace.options[destPlace.selectedIndex]?.textContent || ""}`, true));
+destPlace.addEventListener("change", () => liveOnly(`${t("destination")}: ${destPlace.options[destPlace.selectedIndex]?.textContent || ""}`));
 canvas.addEventListener("wheel", event => {
   event.preventDefault();
   zoomAt(event.deltaY < 0 ? 1.12 : 0.9, event.clientX, event.clientY);
@@ -869,10 +908,10 @@ async function resolveDestinationSearch() {
     destinationSearch.value = text(match);
     statusBox.textContent = `${t("matchedDestination")}: ${text(match)}`;
     await requestRoute("destination-search");
-    announce(`${t("matchedDestination")}: ${text(match)}。${routeSpeech()}`, true);
+    liveOnly(`${t("matchedDestination")}: ${text(match)}`);
   } catch {
     statusBox.textContent = t("noDestinationMatch");
-    announce(t("noDestinationMatch"), true);
+    autoNavigateSpeak(t("noDestinationMatch"), true);
   }
 }
 
