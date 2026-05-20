@@ -145,6 +145,7 @@ const elements = {
   apForm: document.getElementById("apForm"),
   apList: document.getElementById("apList"),
   destinationFilter: document.getElementById("destinationFilter"),
+  destinationEditor: document.getElementById("destinationEditor"),
   destinationList: document.getElementById("destinationList"),
   activityPanel: document.getElementById("activityPanel"),
   newBoardBtn: document.getElementById("newBoardBtn"),
@@ -155,6 +156,7 @@ let lang = localStorage.getItem("lang") || "zh";
 let config = null;
 let summary = null;
 let activeTab = "dashboard";
+let selectedDestinationId = "";
 
 elements.langSelect.value = lang;
 
@@ -368,6 +370,7 @@ function renderDestinations() {
   const categories = Object.fromEntries(config.destinationCategories.map(category => [category.id, category]));
   const storeCount = (config.storeDirectory || []).length;
   const exitCount = (config.areaExitDirectory || []).length;
+  renderDestinationEditor(places, categories);
   elements.destinationList.innerHTML = `
     <p class="muted">${lang === "en" ? "Shop directory" : "\u5e97\u92ea\u76ee\u9304"}: ${storeCount} ${lang === "en" ? "shops" : "\u7b46"}</p>
     <p class="muted">${lang === "en" ? "Exit directory" : "\u51fa\u53e3\u76ee\u9304"}: ${exitCount} ${lang === "en" ? "exits / area points" : "\u7b46"}</p>
@@ -384,11 +387,148 @@ function renderDestinations() {
             ${place.exitCode ? `<div class="small">${lang === "en" ? "Exit" : "\u51fa\u53e3"}: ${escapeHtml(place.exitCode)} · ${lang === "en" ? "Area" : "\u5340\u57df"}: ${escapeHtml(place.area || "-")}</div>` : ""}
             <div class="small">${t("aliases")}: ${escapeHtml((place.aliases || []).join(", ") || "-")}</div>
           </div>
-          <span class="pill">${escapeHtml(place.id)}</span>
+          <div class="row narrow-actions">
+            <span class="pill">${escapeHtml(place.id)}</span>
+            <button type="button" class="secondary" data-edit-destination="${escapeHtml(place.id)}">${lang === "en" ? "Edit on map" : "地圖校正"}</button>
+          </div>
         </article>
       `).join("") || `<p class="muted">${t("noData")}</p>`}
     </div>
   `;
+  elements.destinationList.querySelectorAll("[data-edit-destination]").forEach(button => {
+    button.addEventListener("click", () => {
+      selectedDestinationId = button.dataset.editDestination;
+      renderDestinations();
+      document.getElementById("destinationEditor")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  });
+}
+
+function renderDestinationEditor(places, categories) {
+  if (!places.length || !elements.destinationEditor) return;
+  if (!selectedDestinationId || !config.places[selectedDestinationId]) selectedDestinationId = places[0].id;
+  const place = config.places[selectedDestinationId] || places[0];
+  const floorOptions = Object.values(config.floors).map(floor =>
+    `<option value="${floor.id}" ${floor.id === (place.floor || "B1") ? "selected" : ""}>${escapeHtml(lang === "en" ? floor.nameEn : floor.nameZh)}</option>`
+  ).join("");
+  const categoryOptions = config.destinationCategories.map(category =>
+    `<option value="${category.id}" ${category.id === place.category ? "selected" : ""}>${escapeHtml(localCategory(category))}</option>`
+  ).join("");
+  elements.destinationEditor.innerHTML = `
+    <div class="destination-editor">
+      <div class="section-head">
+        <div>
+          <h3>${lang === "en" ? "Precise destination position" : "目的地精準位置"}</h3>
+          <p class="muted">${lang === "en" ? "Click the map to move this destination. Save after checking the floor and coordinates." : "直接點地圖移動目的地位置，確認樓層與座標後儲存。"}</p>
+        </div>
+        <span class="pill">${escapeHtml(selectedDestinationId)}</span>
+      </div>
+      <div class="easy-form destination-edit-form">
+        <div class="field">
+          <label for="destinationEditorSelect">${lang === "en" ? "Destination" : "目的地"}</label>
+          <select id="destinationEditorSelect">
+            ${places.map(item => `<option value="${escapeHtml(item.id)}" ${item.id === selectedDestinationId ? "selected" : ""}>${escapeHtml(lang === "en" ? item.labelEn : item.labelZh)}</option>`).join("")}
+          </select>
+        </div>
+        <div class="field"><label for="destinationEditZh">中文名稱</label><input id="destinationEditZh" value="${escapeHtml(place.labelZh || "")}"></div>
+        <div class="field"><label for="destinationEditEn">English name</label><input id="destinationEditEn" value="${escapeHtml(place.labelEn || "")}"></div>
+        <div class="field"><label for="destinationEditCategory">${t("category")}</label><select id="destinationEditCategory">${categoryOptions}</select></div>
+        <div class="field"><label for="destinationEditFloor">${t("floor")}</label><select id="destinationEditFloor">${floorOptions}</select></div>
+        <div class="field"><label for="destinationEditX">X</label><input id="destinationEditX" type="number" value="${Math.round(place.x)}"></div>
+        <div class="field"><label for="destinationEditY">Y</label><input id="destinationEditY" type="number" value="${Math.round(place.y)}"></div>
+        <div class="field wide"><label for="destinationEditAliases">${t("aliases")}</label><input id="destinationEditAliases" value="${escapeHtml((place.aliases || []).join(", "))}"></div>
+        <div class="actions wide">
+          <button id="saveDestinationBtn" class="primary" type="button">${lang === "en" ? "Save destination" : "儲存目的地"}</button>
+          <button id="centerDestinationBtn" class="secondary" type="button">${lang === "en" ? "Center marker" : "回到標記"}</button>
+        </div>
+      </div>
+      <div class="admin-map-shell">
+        <canvas id="adminMapCanvas" width="${config.canvas.width}" height="${config.canvas.height}" aria-label="destination map editor"></canvas>
+      </div>
+    </div>
+  `;
+  document.getElementById("destinationEditorSelect").addEventListener("change", event => {
+    selectedDestinationId = event.target.value;
+    renderDestinations();
+  });
+  document.getElementById("saveDestinationBtn").addEventListener("click", saveDestination);
+  document.getElementById("centerDestinationBtn").addEventListener("click", () => drawAdminMap());
+  const canvas = document.getElementById("adminMapCanvas");
+  canvas.addEventListener("click", event => {
+    const rect = canvas.getBoundingClientRect();
+    const x = Math.round((event.clientX - rect.left) * (canvas.width / rect.width));
+    const y = Math.round((event.clientY - rect.top) * (canvas.height / rect.height));
+    document.getElementById("destinationEditX").value = x;
+    document.getElementById("destinationEditY").value = y;
+    drawAdminMap();
+  });
+  drawAdminMap();
+}
+
+function drawAdminMap() {
+  const canvas = document.getElementById("adminMapCanvas");
+  if (!canvas || !config) return;
+  const ctx = canvas.getContext("2d");
+  const selected = {
+    x: Number(document.getElementById("destinationEditX")?.value || 0),
+    y: Number(document.getElementById("destinationEditY")?.value || 0)
+  };
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = "#f8fafc";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.strokeStyle = "#dbe3ec";
+  ctx.lineWidth = 1;
+  for (let x = 0; x <= canvas.width; x += 50) {
+    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, canvas.height); ctx.stroke();
+  }
+  for (let y = 0; y <= canvas.height; y += 50) {
+    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(canvas.width, y); ctx.stroke();
+  }
+  ctx.strokeStyle = "#7aa39c";
+  ctx.lineWidth = 2;
+  for (const edge of config.graphEdges) {
+    const a = config.graphNodes[edge[0]];
+    const b = config.graphNodes[edge[1]];
+    if (!a || !b) continue;
+    ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+  }
+  for (const [id, place] of Object.entries(config.places)) {
+    ctx.fillStyle = id === selectedDestinationId ? "#e11d48" : "rgba(30, 41, 59, .36)";
+    ctx.beginPath();
+    ctx.arc(place.x, place.y, id === selectedDestinationId ? 5 : 2.5, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.save();
+  ctx.translate(selected.x, selected.y);
+  ctx.fillStyle = "#e11d48";
+  ctx.strokeStyle = "#fff";
+  ctx.lineWidth = 4;
+  ctx.beginPath();
+  ctx.moveTo(0, 0);
+  ctx.bezierCurveTo(-14, -16, -14, -38, 0, -48);
+  ctx.bezierCurveTo(14, -38, 14, -16, 0, 0);
+  ctx.fill();
+  ctx.stroke();
+  ctx.fillStyle = "#fff";
+  ctx.beginPath(); ctx.arc(0, -29, 7, 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
+}
+
+async function saveDestination() {
+  const id = selectedDestinationId;
+  const payload = {
+    id,
+    labelZh: document.getElementById("destinationEditZh").value.trim(),
+    labelEn: document.getElementById("destinationEditEn").value.trim(),
+    category: document.getElementById("destinationEditCategory").value,
+    floor: document.getElementById("destinationEditFloor").value,
+    x: document.getElementById("destinationEditX").value,
+    y: document.getElementById("destinationEditY").value,
+    aliases: document.getElementById("destinationEditAliases").value.split(",").map(item => item.trim()).filter(Boolean)
+  };
+  await api("/api/admin/destinations", { method: "POST", body: JSON.stringify(payload) });
+  await loadAdmin();
+  alert(t("saved"));
 }
 
 function renderActivity() {

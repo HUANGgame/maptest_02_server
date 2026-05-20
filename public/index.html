@@ -44,7 +44,10 @@
     <aside class="panel" id="controlsPanel">
       <div class="field">
         <label for="destinationSearch" data-i18n="destinationSearch">Search or choose destination</label>
-        <input id="destinationSearch" list="destinationSuggestions" autocomplete="off" data-i18n-placeholder="destinationSearchPlaceholder">
+        <div class="destination-input-row">
+          <input id="destinationSearch" list="destinationSuggestions" autocomplete="off" data-i18n-placeholder="destinationSearchPlaceholder">
+          <button id="clearDestinationBtn" class="secondary clear-destination" type="button" aria-label="Clear destination" data-i18n="clearDestination">Clear</button>
+        </div>
         <datalist id="destinationSuggestions"></datalist>
       </div>
       <div class="field sr-only">

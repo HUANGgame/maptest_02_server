@@ -15,6 +15,12 @@ const ADMIN_TOKEN = randomBytes(32).toString("hex");
 const CANVAS_WIDTH = 1100;
 const CANVAS_HEIGHT = 720;
 const METERS_PER_PIXEL = 0.6;
+const GEO_MAP_BOUNDS = {
+  north: 25.0526,
+  south: 25.0442,
+  west: 121.5106,
+  east: 121.5228
+};
 
 const floors = {
   B1: { id: "B1", nameZh: "\u5730\u4e0b\u8857\u5c64", nameEn: "Underground Mall", order: 1 },
@@ -232,7 +238,8 @@ const defaultState = {
   events: [],
   learnedNodes: {},
   learnedEdges: [],
-  lastPositions: {}
+  lastPositions: {},
+  destinationOverrides: {}
 };
 
 let state = structuredClone(defaultState);
@@ -315,6 +322,32 @@ function distance(a, b) {
   return Math.hypot(a.x - b.x, a.y - b.y);
 }
 
+function mapToGeo(point) {
+  const lon = GEO_MAP_BOUNDS.west + (Number(point.x) / CANVAS_WIDTH) * (GEO_MAP_BOUNDS.east - GEO_MAP_BOUNDS.west);
+  const lat = GEO_MAP_BOUNDS.north - (Number(point.y) / CANVAS_HEIGHT) * (GEO_MAP_BOUNDS.north - GEO_MAP_BOUNDS.south);
+  return { lat, lon };
+}
+
+function geoMeters(a, b) {
+  const earthRadius = 6371000;
+  const left = mapToGeo(a);
+  const right = mapToGeo(b);
+  const dLat = (right.lat - left.lat) * Math.PI / 180;
+  const dLon = (right.lon - left.lon) * Math.PI / 180;
+  const lat1 = left.lat * Math.PI / 180;
+  const lat2 = right.lat * Math.PI / 180;
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) ** 2;
+  return 2 * earthRadius * Math.asin(Math.min(1, Math.sqrt(h)));
+}
+
+function pathMeters(points) {
+  let total = 0;
+  for (let i = 1; i < points.length; i += 1) {
+    total += geoMeters(points[i - 1], points[i]);
+  }
+  return Math.max(1, Math.round(total));
+}
+
 function tinyWalkModel(edge, baseDistance) {
   const count = Math.max(0, Number(edge.count || 0));
   const normalizedDistance = Math.min(1, baseDistance / 180);
@@ -351,7 +384,8 @@ async function loadState() {
       events: Array.isArray(saved.events) ? saved.events : [],
       learnedNodes: saved.learnedNodes && typeof saved.learnedNodes === "object" ? saved.learnedNodes : {},
       learnedEdges: Array.isArray(saved.learnedEdges) ? saved.learnedEdges : [],
-      lastPositions: saved.lastPositions && typeof saved.lastPositions === "object" ? saved.lastPositions : {}
+      lastPositions: saved.lastPositions && typeof saved.lastPositions === "object" ? saved.lastPositions : {},
+      destinationOverrides: saved.destinationOverrides && typeof saved.destinationOverrides === "object" ? saved.destinationOverrides : {}
     };
   } catch {
     await saveState();
@@ -534,19 +568,21 @@ function locateByPhoto(body, req) {
 }
 
 function route(body, req) {
+  const allPlaces = resolvedPlaces();
   const currentFloor = floors[body.currentFloor] ? body.currentFloor : "B1";
   const destFloor = floors[body.destFloor] ? body.destFloor : currentFloor;
-  const destPlace = places[body.destPlace] ? body.destPlace : "M3";
+  const destPlace = allPlaces[body.destPlace] ? body.destPlace : "M3";
   const position = { floor: currentFloor, x: Number(body.position?.x), y: Number(body.position?.y) };
   if (!Number.isFinite(position.x) || !Number.isFinite(position.y)) return jsonError(400, "position.x and position.y must be numbers.");
   const sameFloor = currentFloor === destFloor;
   const routeTarget = sameFloor ? destPlace : "elevator";
-  const destination = places[routeTarget];
+  const destination = allPlaces[routeTarget];
   const routing = learnedGraph();
   const adjacencyForRoute = buildAdjacency(routing.nodes, routing.edges);
   const snap = nearestNode(position, routing.nodes);
   const result = shortestPath(snap.key, destination.node, routing.nodes, adjacencyForRoute);
   if (!Number.isFinite(result.totalDistance) || result.pathKeys.length === 0) {
+    const fallbackPath = [position, destination];
     return jsonOk({
       currentFloor,
       destFloor,
@@ -559,13 +595,15 @@ function route(body, req) {
       path: [destination],
       pathKeys: [destination.node],
       totalDistance: Math.round(distance(position, destination)),
-      totalMeters: Math.round(distance(position, destination) * METERS_PER_PIXEL),
+      totalMeters: pathMeters(fallbackPath),
       learnedEdges: state.learnedEdges.length,
       learnedNodes: Object.keys(state.learnedNodes).length,
       model: "tiny-walk-v1-fallback"
     });
   }
   const path = result.pathKeys.map(key => ({ id: key, ...routing.nodes[key] })).filter(item => Number.isFinite(item.x));
+  const routePoints = [position, ...path, destination];
+  const totalMeters = pathMeters(routePoints);
   const verticalDiff = floors[destFloor].order - floors[currentFloor].order;
   const verticalDirection = verticalDiff > 0 ? "down" : verticalDiff < 0 ? "up" : "same";
   const sessionId = clean(body.sessionId, 80);
@@ -577,7 +615,7 @@ function route(body, req) {
     accessPoint: nearestAccessPoint({ floor: currentFloor, x: position.x, y: position.y }),
     routeTarget,
     totalDistance: Math.round(result.rawDistance),
-    totalMeters: Math.round(result.rawDistance * METERS_PER_PIXEL),
+    totalMeters,
     clientIp: clientIp(req)
   });
   return jsonOk({
@@ -592,7 +630,7 @@ function route(body, req) {
     path,
     pathKeys: result.pathKeys,
     totalDistance: Math.round(result.rawDistance),
-    totalMeters: Math.round(result.rawDistance * METERS_PER_PIXEL),
+    totalMeters,
     learnedEdges: state.learnedEdges.length,
     learnedNodes: Object.keys(state.learnedNodes).length,
     model: "tiny-walk-v1"
@@ -666,10 +704,26 @@ function nearestAccessPoint(point) {
   return { id: best.id, name: best.name, ip: best.ip, ssid: best.ssid, floor: best.floor, x: Number(best.x), y: Number(best.y), distance: Math.round(bestDistance) };
 }
 
+function resolvedPlaces() {
+  const overrides = state.destinationOverrides || {};
+  return Object.fromEntries(Object.entries(places).map(([id, placeData]) => {
+    const override = overrides[id] || {};
+    return [id, {
+      ...placeData,
+      ...override,
+      aliases: Array.isArray(override.aliases) ? override.aliases : placeData.aliases,
+      edited: Boolean(overrides[id]?.updatedAt),
+      baseX: placeData.x,
+      baseY: placeData.y,
+      baseFloor: placeData.floor || "B1"
+    }];
+  }));
+}
+
 function resolveDestination(body) {
   const query = normalizeSearch(body.query);
   if (!query) return jsonError(400, "query is required.");
-  const candidates = Object.entries(places).map(([id, placeData]) => {
+  const candidates = Object.entries(resolvedPlaces()).map(([id, placeData]) => {
     const tokens = [id, placeData.labelZh, placeData.labelEn, placeData.category, ...(placeData.aliases || [])].map(normalizeSearch);
     let score = 0;
     for (const token of tokens) {
@@ -704,6 +758,7 @@ function adminSummary() {
   return {
     boards: state.mapBoards,
     accessPoints: state.accessPoints,
+    destinationOverrides: state.destinationOverrides || {},
     storeDirectory,
     areaExitDirectory,
     sessions: Object.values(state.sessions).sort((a, b) => b.lastSeen.localeCompare(a.lastSeen)),
@@ -758,8 +813,39 @@ function updateAccessPoint(body) {
   return jsonOk({ accessPoint: ap, accessPoints: state.accessPoints });
 }
 
+function updateDestination(body) {
+  const allPlaces = resolvedPlaces();
+  const id = clean(body.id, 120);
+  if (!id || !allPlaces[id]) return jsonError(400, "Known destination id is required.");
+  const base = places[id];
+  const current = allPlaces[id];
+  const aliases = Array.isArray(body.aliases)
+    ? body.aliases.map(item => clean(item, 80)).filter(Boolean).slice(0, 30)
+    : current.aliases || [];
+  const node = graphNodes[body.node] ? body.node : current.node;
+  const destination = {
+    labelZh: clean(body.labelZh, 160) || current.labelZh || base.labelZh,
+    labelEn: clean(body.labelEn, 160) || current.labelEn || base.labelEn,
+    category: destinationCategories.some(categoryItem => categoryItem.id === body.category) ? body.category : current.category,
+    floor: floors[body.floor] ? body.floor : current.floor || "B1",
+    x: clamp(body.x, 0, CANVAS_WIDTH, current.x),
+    y: clamp(body.y, 0, CANVAS_HEIGHT, current.y),
+    node,
+    aliases,
+    updatedAt: new Date().toISOString()
+  };
+  if (current.shopNo) destination.shopNo = current.shopNo;
+  if (current.storeNameZh) destination.storeNameZh = current.storeNameZh;
+  if (current.storeNameEn) destination.storeNameEn = current.storeNameEn;
+  if (current.exitCode) destination.exitCode = current.exitCode;
+  if (current.area) destination.area = current.area;
+  state.destinationOverrides[id] = destination;
+  void saveState();
+  return jsonOk({ destination: { id, ...destination }, places: resolvedPlaces() });
+}
+
 function config() {
-  return { canvas: { width: CANVAS_WIDTH, height: CANVAS_HEIGHT }, floors, places, destinationCategories, storeDirectory, areaExitDirectory, graphNodes, graphEdges, mapBoards: state.mapBoards, accessPoints: state.accessPoints, sources: mapSources };
+  return { canvas: { width: CANVAS_WIDTH, height: CANVAS_HEIGHT }, floors, places: resolvedPlaces(), destinationCategories, storeDirectory, areaExitDirectory, graphNodes, graphEdges, mapBoards: state.mapBoards, accessPoints: state.accessPoints, sources: mapSources, geoMapBounds: GEO_MAP_BOUNDS };
 }
 
 function login(body) {
@@ -897,6 +983,10 @@ const server = http.createServer(async (req, res) => {
       }
       if (req.method === "POST" && url.pathname === "/api/admin/access-points") {
         const result = updateAccessPoint(await readJson(req));
+        return sendJson(res, result.status, result.data);
+      }
+      if (req.method === "POST" && url.pathname === "/api/admin/destinations") {
+        const result = updateDestination(await readJson(req));
         return sendJson(res, result.status, result.data);
       }
     }

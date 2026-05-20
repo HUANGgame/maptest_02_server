@@ -7,6 +7,7 @@ const i18n = {
     destinationCategory: "\u76ee\u7684\u5730\u5206\u985e",
     destinationSearch: "\u8f38\u5165\u6216\u9078\u64c7\u76ee\u7684\u5730",
     destinationSearchPlaceholder: "\u4f8b\uff1aM3\u3001Y\u5340\u3001\u52d5\u6f2b\u3001\u7f8e\u98df\u3001\u5ec1\u6240\u3001\u96fb\u68af",
+    clearDestination: "\u6e05\u9664",
     destination: "\u76ee\u7684\u5730",
     photoMap: "\u62cd\u651d\u7246\u4e0a\u5730\u5716",
     locateByPhoto: "\u62cd\u7167\u5b9a\u4f4d",
@@ -20,6 +21,7 @@ const i18n = {
     routeFailed: "\u8def\u7dda\u898f\u5283\u5931\u6557",
     routeTo: "\u6cbf\u8457\u7bad\u982d\u8def\u7dda\u524d\u5f80",
     goVertical: "\u8acb\u5148\u524d\u5f80\u96fb\u68af / \u6a13\u68af\uff0c\u518d\u79fb\u52d5\u5230",
+    switchFloor: "\u6211\u5df2\u5230\u9054\uff0c\u5207\u63db\u6a13\u5c64",
     distance: "\u8ddd\u96e2\u7d04",
     meters: "\u516c\u5c3a",
     futureSteps: "\u5c55\u958b\u4e4b\u5f8c\u6b65\u9a5f",
@@ -89,6 +91,7 @@ const i18n = {
     destinationCategory: "Destination category",
     destinationSearch: "Search or choose destination",
     destinationSearchPlaceholder: "e.g. M3, Y area, anime, food, restroom, elevator",
+    clearDestination: "Clear",
     destination: "Destination",
     photoMap: "Photo of wall map",
     locateByPhoto: "Locate by Photo",
@@ -102,6 +105,7 @@ const i18n = {
     routeFailed: "Route planning failed",
     routeTo: "Follow the arrow route to",
     goVertical: "Go to Elevator / Stairs first, then move to",
+    switchFloor: "I arrived. Switch floor",
     distance: "Distance about",
     meters: "m",
     futureSteps: "Show later steps",
@@ -172,6 +176,7 @@ const langSelect = document.getElementById("langSelect");
 const categorySelect = document.getElementById("categorySelect");
 const destinationSearch = document.getElementById("destinationSearch");
 const destinationSuggestions = document.getElementById("destinationSuggestions");
+const clearDestinationBtn = document.getElementById("clearDestinationBtn");
 const destPlace = document.getElementById("destPlace");
 const photoInput = document.getElementById("photoInput");
 const locateBtn = document.getElementById("locateBtn");
@@ -215,6 +220,7 @@ let lastSpokenRoute = "";
 let lastAutoSpeechAt = 0;
 let lastTileSignature = "";
 let routeRequestSeq = 0;
+let routeAnimationStart = performance.now();
 
 const floorStyles = {
   B1: { bg: "#edf7f3", band: "#cde7df", label: "#0f766e" },
@@ -875,14 +881,19 @@ function drawPosition() {
 function drawRoute() {
   if (!routeData?.path?.length) return;
   const path = [currentPosition, ...routeData.path, routeData.destination];
+  const dashOffset = -((performance.now() - routeAnimationStart) / 55 % 24);
+  ctx.save();
   ctx.strokeStyle = "#0f766e";
-  ctx.lineWidth = 1.8;
+  ctx.lineWidth = 1.45 / Math.sqrt(view.scale);
   ctx.lineCap = "round";
   ctx.lineJoin = "round";
+  ctx.setLineDash([8, 10]);
+  ctx.lineDashOffset = dashOffset;
   ctx.beginPath();
   ctx.moveTo(path[0].x, path[0].y);
   for (let i = 1; i < path.length; i += 1) ctx.lineTo(path[i].x, path[i].y);
   ctx.stroke();
+  ctx.restore();
 
   for (let i = 1; i < path.length; i += 1) {
     const from = path[i - 1];
@@ -1038,6 +1049,7 @@ async function requestRoute(reason) {
     });
     if (requestSeq !== routeRequestSeq) return;
     routeData = nextRoute;
+    routeAnimationStart = performance.now();
     updateRouteText();
   } catch (error) {
     if (requestSeq !== routeRequestSeq) return;
@@ -1063,7 +1075,10 @@ function updateRouteText() {
   const nextNode = nextKey ? config.graphNodes[nextKey] : null;
   const direction = nextNode ? directionFromTo(currentPosition, nextNode) : "";
   const current = currentStepSpeech();
-  routeHint.innerHTML = `<strong>${t("currentInstruction")}:</strong> ${escapeHtml(current)}<br>${t("distance")} ${routeMeters()} ${t("meters")}${routeStepsHtml(finalDest)}`;
+  routeHint.innerHTML = `<strong>${t("currentInstruction")}:</strong> ${escapeHtml(current)}<br>${t("distance")} ${routeMeters()} ${t("meters")}${verticalSwitchHtml(finalDest)}${routeStepsHtml(finalDest)}`;
+  routeHint.classList.remove("prompt-pulse");
+  void routeHint.offsetWidth;
+  routeHint.classList.add("prompt-pulse");
   const spoken = routeSpeech();
   if (spoken && spoken !== lastSpokenRoute) {
     lastSpokenRoute = spoken;
@@ -1116,6 +1131,7 @@ function shortLocationSpeech() {
 function locationSourceText() {
   if (locationSource === "photo") return t("sourcePhoto");
   if (locationSource === "gps") return t("sourceGps");
+  if (locationSource === "floor-switch") return lang === "en" ? "Floor changed at elevator/stairs" : "已在電梯／樓梯切換樓層";
   return t("sourceDefault");
 }
 
@@ -1181,6 +1197,17 @@ function verticalArrivalInstruction(finalDest) {
     return `You have reached the elevator, escalator, or stairs. Please ${verticalMoveText()} to ${targetFloor}, then continue to ${text(finalDest)}.`;
   }
   return `你已到達電梯／手扶梯／樓梯。請${verticalMoveText()}到${targetFloor}，再繼續前往${text(finalDest)}。`;
+}
+
+function verticalSwitchHtml(finalDest) {
+  if (!routeData || routeData.sameFloor) return "";
+  const connector = routeData.destination;
+  if (!connector || distance(currentPosition, connector) >= 35) return "";
+  const targetFloor = floorText(routeData.destFloor);
+  const label = lang === "en"
+    ? `${t("switchFloor")} to ${targetFloor}`
+    : `${t("switchFloor")}: ${targetFloor}`;
+  return `<div class="priority-action"><button class="primary" type="button" data-switch-floor="${escapeHtml(routeData.destFloor)}">${escapeHtml(label)}</button><span>${escapeHtml(text(finalDest))}</span></div>`;
 }
 
 function routeStepsHtml(finalDest) {
@@ -1261,6 +1288,18 @@ locateBtn.addEventListener("click", locateFromPhoto);
 zoomInBtn.addEventListener("click", () => zoomAt(1.25));
 zoomOutBtn.addEventListener("click", () => zoomAt(0.8));
 centerBtn.addEventListener("click", centerOnCurrent);
+routeHint.addEventListener("click", event => {
+  const button = event.target.closest("[data-switch-floor]");
+  if (!button || !routeData) return;
+  currentFloor = button.dataset.switchFloor;
+  currentPosition = { x: routeData.destination.x, y: routeData.destination.y };
+  locationSource = "floor-switch";
+  routeData = null;
+  routeRequestSeq += 1;
+  updateLocationText();
+  requestRoute("floor-switch");
+  announce(lang === "en" ? `Switched to ${floorText(currentFloor)}` : `已切換到 ${floorText(currentFloor)}`, true);
+});
 voiceToggleBtn.addEventListener("click", () => {
   voiceEnabled = !voiceEnabled;
   localStorage.setItem("voiceEnabled", String(voiceEnabled));
@@ -1293,6 +1332,10 @@ destinationSearch.addEventListener("input", () => {
   if (destinationSearch.value.trim()) {
     destinationActive = true;
     updateRouteText();
+  } else {
+    destinationActive = false;
+    updateRouteText();
+    return;
   }
   searchTimer = setTimeout(resolveDestinationSearch, 280);
 });
@@ -1302,6 +1345,19 @@ destinationSearch.addEventListener("keydown", event => {
     clearTimeout(searchTimer);
     resolveDestinationSearch();
   }
+});
+clearDestinationBtn.addEventListener("click", () => {
+  clearTimeout(searchTimer);
+  destinationSearch.value = "";
+  destinationActive = false;
+  routeData = null;
+  routeRequestSeq += 1;
+  updateRouteText();
+  statusBox.textContent = t("photoHelp");
+  clearDestinationBtn.classList.remove("button-pulse");
+  void clearDestinationBtn.offsetWidth;
+  clearDestinationBtn.classList.add("button-pulse");
+  liveOnly(t("clearDestination"));
 });
 destPlace.addEventListener("change", () => {
   destinationActive = true;
