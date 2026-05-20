@@ -189,6 +189,7 @@ let currentBoard = null;
 let currentBaseMapId = "M-B1-CENTER-01";
 let currentAccessPoint = null;
 let routeData = null;
+let destinationActive = false;
 let currentCategory = "all";
 let searchTimer = null;
 let latestGps = null;
@@ -389,7 +390,6 @@ async function init() {
     updateLocationText();
     statusBox.textContent = `${health.message}\nSession: ${sessionId}`;
     draw();
-    await requestRoute("init");
     liveOnly(`${t("audioHelp")} ${t("voiceQuietHint")} ${t("cameraHint")} ${t("mapKeyboardHelp")} ${t("vibrationReady")}`);
   } catch (error) {
     statusBox.textContent = `${t("serverDown")}\n${error.message}`;
@@ -524,7 +524,7 @@ function applyGpsMapLocation(gps) {
   centerOnCurrent(false);
   updateLocationText();
   const now = Date.now();
-  if (now - lastGpsRouteAt > 8000) {
+  if (destinationActive && now - lastGpsRouteAt > 8000) {
     lastGpsRouteAt = now;
     void requestRoute("gps");
   }
@@ -576,7 +576,7 @@ function updateTileLayer() {
       const seScreen = geoToScreen(tileYToLat(y + 1, zoom), tileXToLon(x + 1, zoom), rect);
       const width = Math.max(1, seScreen.x - nwScreen.x + 1);
       const height = Math.max(1, seScreen.y - nwScreen.y + 1);
-      html.push(`<img alt="" src="https://basemaps.cartocdn.com/light_nolabels/${zoom}/${x}/${y}.png" style="left:${nwScreen.x}px;top:${nwScreen.y}px;width:${width}px;height:${height}px">`);
+      html.push(`<img alt="" src="https://basemaps.cartocdn.com/rastertiles/voyager/${zoom}/${x}/${y}.png" style="left:${nwScreen.x}px;top:${nwScreen.y}px;width:${width}px;height:${height}px">`);
     }
   }
   tileLayer.innerHTML = html.join("");
@@ -641,6 +641,7 @@ function drawAccessPoints() {
 }
 
 function drawDestinationMarker() {
+  if (!destinationActive) return;
   const selected = routeData?.destination || config?.places?.[destPlace.value];
   if (!selected || selected.floor !== currentFloor) return;
   const label = text(selected);
@@ -942,7 +943,8 @@ async function locateFromPhoto() {
     mapBadge.textContent = `${t("located")}: ${lang === "en" ? data.location.boardNameEn : data.location.boardNameZh}\n${t("baseMap")}: ${baseMapName()}`;
     statusBox.textContent = `${t("baseMapSwitched")}: ${baseMapName()}\n${t("autoUpdated")}\n${t("confidence")}: ${Math.round(data.location.confidence * 100)}%`;
     updateLocationText();
-    await requestRoute("photo-location");
+    if (destinationActive) await requestRoute("photo-location");
+    else updateRouteText();
     haptic([80, 60, 160]);
     autoNavigateSpeak(`${t("photoLocatedSpeech")}。${t("baseMapSwitched")}: ${baseMapName()}。${shortLocationSpeech()}。${currentStepSpeech()}`, true);
   } catch (error) {
@@ -953,6 +955,11 @@ async function locateFromPhoto() {
 }
 
 async function requestRoute(reason) {
+  if (!destinationActive) {
+    routeData = null;
+    updateRouteText();
+    return;
+  }
   try {
     routeData = await api("/api/route", {
       method: "POST",
@@ -975,7 +982,10 @@ async function requestRoute(reason) {
 }
 
 function updateRouteText() {
-  if (!routeData || !config) return;
+  if (!routeData || !config) {
+    if (!destinationActive) routeHint.textContent = t("photoHelp");
+    return;
+  }
   const dest = routeData.destination;
   const floor = config.floors[routeData.destFloor];
   const intro = routeData.sameFloor
@@ -1142,6 +1152,7 @@ if (categorySelect) {
   categorySelect.addEventListener("change", () => {
     currentCategory = categorySelect.value;
     fillSelects();
+    destinationActive = true;
     requestRoute("destination-category");
     liveOnly(`${t("destinationCategory")}: ${categorySelect.options[categorySelect.selectedIndex]?.textContent || ""}`);
   });
@@ -1157,7 +1168,10 @@ destinationSearch.addEventListener("keydown", event => {
     resolveDestinationSearch();
   }
 });
-destPlace.addEventListener("change", () => requestRoute("destination-place"));
+destPlace.addEventListener("change", () => {
+  destinationActive = true;
+  requestRoute("destination-place");
+});
 destPlace.addEventListener("change", () => liveOnly(`${t("destination")}: ${destPlace.options[destPlace.selectedIndex]?.textContent || ""}`));
 canvas.addEventListener("wheel", event => {
   event.preventDefault();
@@ -1253,6 +1267,7 @@ async function resolveDestinationSearch() {
     });
     const match = result.best;
     currentCategory = match.category || "all";
+    destinationActive = true;
     fillSelects();
     destPlace.value = match.id;
     destinationSearch.value = text(match);
