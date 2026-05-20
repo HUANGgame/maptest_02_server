@@ -405,6 +405,15 @@ canvas {
   line-height: 1.55;
 }
 
+.route-steps {
+  margin: 8px 0 0;
+  padding-left: 0;
+  list-style: none;
+  display: grid;
+  gap: 4px;
+  font-weight: 600;
+}
+
 .status {
   white-space: pre-wrap;
   font-size: 13px;

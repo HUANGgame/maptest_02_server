@@ -551,7 +551,7 @@ function updateTileLayer() {
   if (!tileLayer) return;
   const rect = canvas.getBoundingClientRect();
   if (!rect.width || !rect.height) return;
-  const zoom = Math.max(16, Math.min(19, Math.round(17 + Math.log2(view.scale))));
+  const zoom = Math.max(16, Math.min(19, Math.round(18 + Math.log2(view.scale))));
   const topLeftMap = {
     x: Math.max(0, Math.min(canvas.width, -view.x / view.scale)),
     y: Math.max(0, Math.min(canvas.height, -view.y / view.scale))
@@ -576,7 +576,7 @@ function updateTileLayer() {
       const seScreen = geoToScreen(tileYToLat(y + 1, zoom), tileXToLon(x + 1, zoom), rect);
       const width = Math.max(1, seScreen.x - nwScreen.x + 1);
       const height = Math.max(1, seScreen.y - nwScreen.y + 1);
-      html.push(`<img alt="" src="https://basemaps.cartocdn.com/rastertiles/voyager/${zoom}/${x}/${y}.png" style="left:${nwScreen.x}px;top:${nwScreen.y}px;width:${width}px;height:${height}px">`);
+      html.push(`<img alt="" src="https://tile.openstreetmap.org/${zoom}/${x}/${y}.png" style="left:${nwScreen.x}px;top:${nwScreen.y}px;width:${width}px;height:${height}px">`);
     }
   }
   tileLayer.innerHTML = html.join("");
@@ -600,19 +600,7 @@ function draw() {
 }
 
 function drawBaseMap() {
-  const profile = activeBaseMap();
-  ctx.strokeStyle = "rgba(15, 118, 110, .18)";
-  ctx.lineWidth = 5;
-  ctx.lineCap = "round";
-  ctx.lineJoin = "round";
-  for (const [a, b] of config.graphEdges) {
-    ctx.beginPath();
-    ctx.moveTo(config.graphNodes[a].x, config.graphNodes[a].y);
-    ctx.lineTo(config.graphNodes[b].x, config.graphNodes[b].y);
-    ctx.stroke();
-  }
-
-  drawBaseMapFocus(profile);
+  if (destinationActive && routeData) drawBaseMapFocus(activeBaseMap());
 }
 
 function drawBaseMapFocus(profile) {
@@ -643,9 +631,40 @@ function drawAccessPoints() {
 function drawDestinationMarker() {
   if (!destinationActive) return;
   const selected = routeData?.destination || config?.places?.[destPlace.value];
-  if (!selected || selected.floor !== currentFloor) return;
+  if (!selected || (selected.floor && selected.floor !== currentFloor)) return;
   const label = text(selected);
-  drawIconMarker(selected.x, selected.y, iconForPlace(selected), "#2563eb", label, true);
+  drawDestinationPin(selected.x, selected.y, label);
+}
+
+function drawDestinationPin(x, y, label) {
+  const markerScale = 1 / Math.sqrt(view.scale);
+  const s = markerScale;
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.shadowColor = "rgba(15, 23, 42, .28)";
+  ctx.shadowBlur = 8 * s;
+  ctx.shadowOffsetY = 3 * s;
+  ctx.fillStyle = "#e11d48";
+  ctx.strokeStyle = "#fff";
+  ctx.lineWidth = 3 * s;
+  ctx.beginPath();
+  ctx.moveTo(0, 0);
+  ctx.bezierCurveTo(-16 * s, -18 * s, -16 * s, -39 * s, 0, -48 * s);
+  ctx.bezierCurveTo(16 * s, -39 * s, 16 * s, -18 * s, 0, 0);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+  ctx.shadowColor = "transparent";
+  ctx.fillStyle = "#fff";
+  ctx.beginPath();
+  ctx.arc(0, -30 * s, 8 * s, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = "#e11d48";
+  ctx.beginPath();
+  ctx.arc(0, -30 * s, 4.5 * s, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+  drawMarkerLabel(x + 16 * s, y - 42 * s, label, "#e11d48", markerScale);
 }
 
 function iconForPlace(place) {
@@ -798,24 +817,33 @@ function truncateLabel(value, maxLength) {
 
 function drawPosition() {
   const radiusScale = 1 / Math.sqrt(view.scale);
-  ctx.fillStyle = "rgba(220, 38, 38, .18)";
+  ctx.fillStyle = "rgba(220, 38, 38, .14)";
   ctx.beginPath();
-  ctx.arc(currentPosition.x, currentPosition.y, 30 * radiusScale, 0, Math.PI * 2);
+  ctx.arc(currentPosition.x, currentPosition.y, 16 * radiusScale, 0, Math.PI * 2);
   ctx.fill();
   ctx.fillStyle = "#dc2626";
   ctx.beginPath();
-  ctx.arc(currentPosition.x, currentPosition.y, 10 * radiusScale, 0, Math.PI * 2);
+  ctx.arc(currentPosition.x, currentPosition.y, 6 * radiusScale, 0, Math.PI * 2);
   ctx.fill();
   ctx.strokeStyle = "#fff";
-  ctx.lineWidth = 3 * radiusScale;
+  ctx.lineWidth = 2.5 * radiusScale;
   ctx.stroke();
 }
 
 function drawRoute() {
   if (!routeData?.path?.length) return;
   const path = [currentPosition, ...routeData.path, routeData.destination];
+  ctx.strokeStyle = "rgba(255, 255, 255, .86)";
+  ctx.lineWidth = 10;
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+  ctx.beginPath();
+  ctx.moveTo(path[0].x, path[0].y);
+  for (let i = 1; i < path.length; i += 1) ctx.lineTo(path[i].x, path[i].y);
+  ctx.stroke();
+
   ctx.strokeStyle = "#0f766e";
-  ctx.lineWidth = 6;
+  ctx.lineWidth = 5.5;
   ctx.lineCap = "round";
   ctx.lineJoin = "round";
   ctx.beginPath();
@@ -855,7 +883,7 @@ function drawArrow(from, to, color) {
 function clampView() {
   const rect = canvas.getBoundingClientRect();
   const minScale = 0.75;
-  const maxScale = 4;
+  const maxScale = 8;
   view.scale = Math.max(minScale, Math.min(maxScale, view.scale));
   const scaledW = canvas.width * view.scale;
   const scaledH = canvas.height * view.scale;
@@ -883,7 +911,7 @@ function zoomAt(factor, clientX, clientY) {
   const fallbackY = rect.top + rect.height / 2;
   const point = screenToMap(clientX ?? fallbackX, clientY ?? fallbackY);
   const oldScale = view.scale;
-  view.scale = Math.max(0.75, Math.min(4, view.scale * factor));
+  view.scale = Math.max(0.75, Math.min(8, view.scale * factor));
   view.x = point.sx - point.x * view.scale;
   view.y = point.sy - point.y * view.scale;
   clampView();
@@ -995,7 +1023,7 @@ function updateRouteText() {
   const nextNode = nextKey ? config.graphNodes[nextKey] : null;
   const direction = nextNode ? directionFromTo(currentPosition, nextNode) : "";
   const directionLine = direction ? `<br>${t("nextDirection")}: ${direction}` : "";
-  routeHint.innerHTML = `${intro}${directionLine}<br>${t("distance")} ${routeData.totalDistance}px, ${t("path")}: ${routeData.pathKeys.join(" -> ")}`;
+  routeHint.innerHTML = `${intro}${directionLine}<br>${t("distance")} ${routeData.totalDistance}px${routeStepsHtml(finalDest)}`;
   const spoken = routeSpeech();
   if (spoken && spoken !== lastSpokenRoute) {
     lastSpokenRoute = spoken;
@@ -1113,6 +1141,28 @@ function verticalArrivalInstruction(finalDest) {
     return `You have reached the elevator, escalator, or stairs. Please ${verticalMoveText()} to ${targetFloor}, then continue to ${text(finalDest)}.`;
   }
   return `你已到達電梯／手扶梯／樓梯。請${verticalMoveText()}到${targetFloor}，再繼續前往${text(finalDest)}。`;
+}
+
+function routeStepsHtml(finalDest) {
+  if (!routeData?.pathKeys?.length || !config?.graphNodes) return "";
+  const keys = routeData.pathKeys;
+  const steps = [];
+  for (let i = 1; i < keys.length; i += 1) {
+    const from = config.graphNodes[keys[i - 1]];
+    const to = config.graphNodes[keys[i]];
+    if (!from || !to) continue;
+    const dir = directionFromTo(from, to);
+    const placeName = text(to);
+    steps.push(lang === "en" ? `${dir || t("directionStraight")} toward ${placeName}` : `${dir || t("directionStraight")}，往${placeName}`);
+  }
+  if (!routeData.sameFloor) {
+    steps.push(verticalArrivalInstruction(finalDest));
+  } else {
+    steps.push(lang === "en" ? `Arrive at ${text(finalDest)}.` : `抵達${text(finalDest)}。`);
+  }
+  if (!steps.length) return "";
+  const list = steps.slice(0, 5).map((step, index) => `<li>${index + 1}. ${escapeHtml(step)}</li>`).join("");
+  return `<ol class="route-steps">${list}</ol>`;
 }
 
 function directionFromTo(from, to) {
