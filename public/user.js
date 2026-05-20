@@ -987,10 +987,10 @@ function updateRouteText() {
     return;
   }
   const dest = routeData.destination;
-  const floor = config.floors[routeData.destFloor];
+  const finalDest = config.places[routeData.destPlace] || dest;
   const intro = routeData.sameFloor
-    ? `${t("routeTo")} ${text(dest)}.`
-    : `${t("goVertical")} ${lang === "en" ? floor.nameEn : floor.nameZh}.`;
+    ? `${t("routeTo")} ${text(finalDest)}.`
+    : verticalRouteInstruction(finalDest);
   const nextKey = routeData.pathKeys?.[1] || routeData.pathKeys?.[0];
   const nextNode = nextKey ? config.graphNodes[nextKey] : null;
   const direction = nextNode ? directionFromTo(currentPosition, nextNode) : "";
@@ -1054,9 +1054,11 @@ function locationSourceText() {
 function currentStepSpeech() {
   if (!routeData || !config) return t("noRouteYet");
   const dest = routeData.destination;
+  const finalDest = config.places[routeData.destPlace] || dest;
   const nextKey = routeData.pathKeys?.[1] || routeData.pathKeys?.[0];
   const nextNode = nextKey ? config.graphNodes[nextKey] : null;
-  if (distance(currentPosition, dest) < 35) return `${t("arrivedNear")}: ${text(dest)}`;
+  if (!routeData.sameFloor && distance(currentPosition, dest) < 35) return verticalArrivalInstruction(finalDest);
+  if (distance(currentPosition, dest) < 35) return `${t("arrivedNear")}: ${text(finalDest)}`;
   const nextText = nextNode ? text(nextNode) : text(dest);
   const direction = nextNode ? directionFromTo(currentPosition, nextNode) : "";
   return `${t("nextDirection")}: ${direction || t("directionStraight")}。${t("nextToward")} ${nextText}`;
@@ -1065,18 +1067,52 @@ function currentStepSpeech() {
 function routeSpeech() {
   if (!routeData || !config) return t("noRouteYet");
   const dest = routeData.destination;
-  const floor = config.floors[routeData.destFloor];
-  const destText = text(dest);
+  const finalDest = config.places[routeData.destPlace] || dest;
+  const destText = text(finalDest);
   const nextKey = routeData.pathKeys?.[1] || routeData.pathKeys?.[0];
   const nextNode = nextKey ? config.graphNodes[nextKey] : null;
   const nextText = nextNode ? text(nextNode) : destText;
   const direction = nextNode ? directionFromTo(currentPosition, nextNode) : "";
   const intro = routeData.sameFloor
     ? `${t("routeTo")} ${destText}`
-    : `${t("goVertical")} ${lang === "en" ? floor.nameEn : floor.nameZh}`;
+    : verticalRouteInstruction(finalDest);
   const step = distance(currentPosition, dest) < 35 ? t("arrivedNear") : `${t("nextToward")} ${nextText}`;
   const directionText = direction ? `${t("nextDirection")}: ${direction}` : "";
   return `${intro}。${directionText}。${step}。${t("distance")} ${Math.round(routeData.totalDistance)} px。${t("path")}: ${routeData.pathKeys.join(" -> ")}`;
+}
+
+function floorText(floorId) {
+  const floor = config?.floors?.[floorId];
+  if (!floor) return floorId || "";
+  return lang === "en" ? floor.nameEn : floor.nameZh;
+}
+
+function verticalMoveText() {
+  if (lang === "en") {
+    if (routeData?.verticalDirection === "down") return "go down";
+    if (routeData?.verticalDirection === "up") return "go up";
+    return "move";
+  }
+  if (routeData?.verticalDirection === "down") return "下樓";
+  if (routeData?.verticalDirection === "up") return "上樓";
+  return "移動";
+}
+
+function verticalRouteInstruction(finalDest) {
+  const targetFloor = floorText(routeData.destFloor);
+  const connector = lang === "en" ? "elevator, escalator, or stairs" : "電梯／手扶梯／樓梯";
+  if (lang === "en") {
+    return `First follow the arrows to the ${connector}, then ${verticalMoveText()} to ${targetFloor}. After arriving on that floor, continue to ${text(finalDest)}.`;
+  }
+  return `請先沿著箭頭前往${connector}，再${verticalMoveText()}到${targetFloor}。到達該樓層後，繼續前往${text(finalDest)}。`;
+}
+
+function verticalArrivalInstruction(finalDest) {
+  const targetFloor = floorText(routeData.destFloor);
+  if (lang === "en") {
+    return `You have reached the elevator, escalator, or stairs. Please ${verticalMoveText()} to ${targetFloor}, then continue to ${text(finalDest)}.`;
+  }
+  return `你已到達電梯／手扶梯／樓梯。請${verticalMoveText()}到${targetFloor}，再繼續前往${text(finalDest)}。`;
 }
 
 function directionFromTo(from, to) {
