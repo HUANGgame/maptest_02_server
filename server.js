@@ -79,8 +79,51 @@ const destinationCategories = [
   category("R", "R \u5340\uff1a\u4e2d\u5c71\u5730\u4e0b\u8857", "R Area: Zhongshan Metro Mall"),
   category("food", "\u7f8e\u98df / \u9910\u98f2", "Food / Dining"),
   category("shopping", "\u8cfc\u7269 / \u670d\u98fe / \u52d5\u6f2b", "Shopping / Fashion / Anime"),
-  category("facility", "\u8a2d\u65bd\uff1a\u5ec1\u6240\u3001\u96fb\u68af\u3001\u670d\u52d9\u53f0", "Facilities")
+  category("facility", "\u8a2d\u65bd\uff1a\u5ec1\u6240\u3001\u96fb\u68af\u3001\u670d\u52d9\u53f0", "Facilities"),
+  category("Y-food", "Y \u5340\u5e97\u92ea\uff1a\u7f8e\u98df\u5340", "Y Shops: Food"),
+  category("Y-info", "Y \u5340\u5e97\u92ea\uff1a\u8cc7\u8a0a\u5340", "Y Shops: Info / Hobby"),
+  category("Y-dept", "Y \u5340\u5e97\u92ea\uff1a\u767e\u8ca8\u5340", "Y Shops: General Goods"),
+  category("Y-fashion", "Y \u5340\u5e97\u92ea\uff1a\u670d\u98fe\u5340", "Y Shops: Fashion")
 ];
+
+const storeDirectory = [
+  yStore("Y27-1", "\u5b8f\u8a18\u4fbf\u7576", "Hong Ji Bento", "Y-food", 70, ["\u4fbf\u7576", "bento"]),
+  yStore("Y27-2", "\u963f\u5b97\u9eb5\u7dda", "Ay-Chung Noodle", "Y-food", 75, ["\u9eb5\u7dda", "noodle"]),
+  yStore("Y25-1", "\u6843\u5712\u820a\u99ac\u8def", "Taoyuan Old Road", "Y-food", 150),
+  yStore("Y25-2", "\u842c\u80fd\u9910\u98f2", "All-purpose Dining", "Y-food", 160, ["\u9910\u98f2", "dining"]),
+  yStore("Y23-1", "\u6625\u85e4\u5496\u5561", "Spring Vine Coffee", "Y-food", 240, ["\u5496\u5561", "coffee"]),
+  yStore("Y23-2", "Tomica", "Tomica", "Y-food", 250, ["\u73a9\u5177", "toy"]),
+  yStore("Y23-3", "\u6607\u5143\u9999\u9175\u574a", "Sheng Yuan Bakery", "Y-food", 260, ["\u70d8\u7119", "bakery"]),
+  yStore("Y21-1", "\u8aa0\u54c1\u751f\u6d3b\u6377\u904b\u5e97", "Eslite Spectrum Metro", "Y-food", 340, ["\u8aa0\u54c1", "eslite"]),
+  yStore("Y21-2", "\u53ef\u4e0d\u53ef\u719f\u6210\u7d05\u8336", "Kebuke Tea", "Y-food", 355, ["\u98f2\u6599", "\u7d05\u8336", "tea"]),
+  yStore("Y19-1", "\u52dd\u535a\u6bbf", "Saboten", "Y-info", 430, ["\u8c6c\u6392", "saboten"]),
+  yStore("Y19-2", "\u597d\u6642\u5149", "Good Time", "Y-info", 440),
+  yStore("Y19-3", "Syariah", "Syariah", "Y-info", 450),
+  yStore("Y17-1", "TGK \u5361\u7247\u73a9\u5177\u5c08\u8ce3\u5e97", "TGK Card & Toy Store", "Y-info", 520, ["\u5361\u7247", "\u73a9\u5177", "card", "toy"]),
+  yStore("Y17-2", "\u661f\u8056\u96fb\u7af6\u4e3b\u984c\u9910\u5ef3", "E-sports Theme Restaurant", "Y-info", 535, ["\u96fb\u7af6", "esports"]),
+  yStore("Y15-1", "\u5c0f\u6f58\u86cb\u7cd5\u574a", "Pan Cake Shop", "Y-info", 600, ["\u86cb\u7cd5", "cake"]),
+  yStore("Y15-2", "\u73a9\u5177\u5f37", "Toy Strong", "Y-info", 610, ["\u73a9\u5177", "toy"]),
+  yStore("Y13-1", "\u65e5\u85e5\u672c\u8216", "Japanese Drugstore", "Y-dept", 690, ["\u85e5\u599d", "drugstore"]),
+  yStore("Y13-2", "\u62db\u5546\u4e2d", "Vacant Shop", "Y-dept", 700, ["\u7a7a\u92ea", "vacant"]),
+  yStore("Y13-3", "\u6c38\u5eb7\u9999\u5712", "Yong Kang Food", "Y-dept", 710),
+  yStore("Y11-1", "\u5b89\u4e1e\u6c34\u6676", "Crystal Shop", "Y-fashion", 760, ["\u6c34\u6676", "crystal"]),
+  yStore("Y11-2", "\u975c\u7d72\u54c1", "Jing Si Goods", "Y-fashion", 770),
+  yStore("Y11-3", "\u79fb\u52d5\u5be6\u9a57\u5ba4", "Mobile Lab", "Y-fashion", 780, ["\u624b\u6a5f", "mobile"]),
+  yStore("Y9-1", "\u68ee\u6797\u5c0f\u92ea", "Forest Shop", "Y-fashion", 835),
+  yStore("Y9-2", "\u9435\u677f\u6599\u7406", "Teppanyaki", "Y-fashion", 845, ["\u9435\u677f", "teppanyaki"]),
+  yStore("Y7-1", "\u7c73\u6f3f MIKI", "MIKI", "Y-fashion", 900, ["miki"]),
+  yStore("Y7-2", "\u4f0a\u6d0b\u884c", "I House", "Y-fashion", 910, ["i house"]),
+  yStore("Y5-1", "\u65b0\u6d41\u884c\u5bbf", "Fashion Inn", "Y-fashion", 965, ["\u670d\u98fe", "fashion"]),
+  yStore("Y5-2", "Top 3C", "Top 3C", "Y-fashion", 975, ["3c", "\u96fb\u5b50"]),
+  yStore("Y3-1", "Mr. Pink", "Mr. Pink", "Y-fashion", 1030, ["pink"]),
+  yStore("Y3-2", "CLC INDEX", "CLC INDEX", "Y-fashion", 1040),
+  yStore("Y1-1", "\u6b63\u6d0b\u4e2d", "Zheng Yang", "Y-fashion", 1080),
+  yStore("Y1-2", "\u88d5\u745e\u5a5a", "Wedding Shop", "Y-fashion", 1090, ["\u5a5a\u7d17", "wedding"])
+];
+
+for (const store of storeDirectory) {
+  places[store.id] = storePlace(store);
+}
 
 const mapSources = [
   {
@@ -126,6 +169,39 @@ function place(x, y, labelZh, labelEn, node, categoryId, aliases = []) {
 
 function category(id, labelZh, labelEn) {
   return { id, labelZh, labelEn };
+}
+
+function yStore(shopNo, nameZh, nameEn, categoryId, x, aliases = []) {
+  return {
+    id: `store-${shopNo.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`,
+    shopNo,
+    nameZh,
+    nameEn,
+    floor: "B1",
+    area: "Y",
+    node: "Y_LINK",
+    category: categoryId,
+    x: clamp(x, 0, CANVAS_WIDTH, 120),
+    y: 355,
+    aliases: [shopNo, shopNo.replace(/-/g, ""), nameZh, nameEn, "\u53f0\u5317\u5730\u4e0b\u8857", "Y\u5340", "Taipei City Mall", ...aliases]
+  };
+}
+
+function storePlace(store) {
+  return {
+    x: store.x,
+    y: store.y,
+    labelZh: `${store.shopNo} ${store.nameZh}`,
+    labelEn: `${store.shopNo} ${store.nameEn}`,
+    node: store.node,
+    category: store.category,
+    aliases: store.aliases,
+    shopNo: store.shopNo,
+    storeNameZh: store.nameZh,
+    storeNameEn: store.nameEn,
+    area: store.area,
+    floor: store.floor
+  };
 }
 
 function distance(a, b) {
@@ -376,7 +452,7 @@ function recordSession(sessionId, type, payload) {
 }
 
 function adminSummary() {
-  return { boards: state.mapBoards, accessPoints: state.accessPoints, sessions: Object.values(state.sessions).sort((a, b) => b.lastSeen.localeCompare(a.lastSeen)), events: state.events.slice(-150).reverse(), sources: mapSources };
+  return { boards: state.mapBoards, accessPoints: state.accessPoints, storeDirectory, sessions: Object.values(state.sessions).sort((a, b) => b.lastSeen.localeCompare(a.lastSeen)), events: state.events.slice(-150).reverse(), sources: mapSources };
 }
 
 function updateBoard(body) {
@@ -421,7 +497,7 @@ function updateAccessPoint(body) {
 }
 
 function config() {
-  return { canvas: { width: CANVAS_WIDTH, height: CANVAS_HEIGHT }, floors, places, destinationCategories, graphNodes, graphEdges, mapBoards: state.mapBoards, accessPoints: state.accessPoints, sources: mapSources };
+  return { canvas: { width: CANVAS_WIDTH, height: CANVAS_HEIGHT }, floors, places, destinationCategories, storeDirectory, graphNodes, graphEdges, mapBoards: state.mapBoards, accessPoints: state.accessPoints, sources: mapSources };
 }
 
 function login(body) {

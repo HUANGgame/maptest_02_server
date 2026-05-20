@@ -366,7 +366,9 @@ function renderDestinations() {
     return !keyword || haystack.includes(keyword);
   });
   const categories = Object.fromEntries(config.destinationCategories.map(category => [category.id, category]));
+  const storeCount = (config.storeDirectory || []).length;
   elements.destinationList.innerHTML = `
+    <p class="muted">${lang === "en" ? "Shop directory" : "\u5e97\u92ea\u76ee\u9304"}: ${storeCount} ${lang === "en" ? "shops" : "\u7b46"}</p>
     <div class="destination-chips">
       ${config.destinationCategories.map(category => `<span>${escapeHtml(localCategory(category))}</span>`).join("")}
     </div>
@@ -376,6 +378,7 @@ function renderDestinations() {
           <div>
             <strong>${escapeHtml(lang === "en" ? place.labelEn : place.labelZh)}</strong>
             <div class="muted">${t("category")}: ${escapeHtml(localCategory(categories[place.category]) || place.category)}</div>
+            ${place.shopNo ? `<div class="small">${lang === "en" ? "Shop No." : "\u5e97\u865f"}: ${escapeHtml(place.shopNo)} · ${lang === "en" ? "Area" : "\u5340\u57df"}: ${escapeHtml(place.area || "-")}</div>` : ""}
             <div class="small">${t("aliases")}: ${escapeHtml((place.aliases || []).join(", ") || "-")}</div>
           </div>
           <span class="pill">${escapeHtml(place.id)}</span>
