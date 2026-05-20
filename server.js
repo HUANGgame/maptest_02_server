@@ -418,7 +418,8 @@ async function saveState() {
     events: state.events.slice(-800),
     learnedNodes: state.learnedNodes,
     learnedEdges: state.learnedEdges.slice(-2000),
-    lastPositions: state.lastPositions
+    lastPositions: state.lastPositions,
+    destinationOverrides: state.destinationOverrides || {}
   }, null, 2), "utf8");
 }
 
@@ -493,7 +494,7 @@ function shortestPath(startKey, endKey, nodes = graphNodes, adj = adjacency) {
     }
     if (!current || distances[current] === Infinity || current === endKey) break;
     open.delete(current);
-    for (const edge of adjacency[current]) {
+    for (const edge of adj[current] || []) {
       if (!open.has(edge.node)) continue;
       const alternative = distances[current] + edge.weight;
       if (alternative < distances[edge.node]) {
