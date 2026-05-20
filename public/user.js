@@ -374,7 +374,7 @@ function autoNavigateSpeak(message, interrupt = false) {
 }
 
 function haptic(pattern = [80]) {
-  if (navigator.vibrate) navigator.vibrate(pattern);
+  return;
 }
 
 async function api(url, options = {}) {
@@ -874,17 +874,8 @@ function drawPosition() {
 function drawRoute() {
   if (!routeData?.path?.length) return;
   const path = [currentPosition, ...routeData.path, routeData.destination];
-  ctx.strokeStyle = "rgba(255, 255, 255, .86)";
-  ctx.lineWidth = 10;
-  ctx.lineCap = "round";
-  ctx.lineJoin = "round";
-  ctx.beginPath();
-  ctx.moveTo(path[0].x, path[0].y);
-  for (let i = 1; i < path.length; i += 1) ctx.lineTo(path[i].x, path[i].y);
-  ctx.stroke();
-
   ctx.strokeStyle = "#0f766e";
-  ctx.lineWidth = 5.5;
+  ctx.lineWidth = 1.8;
   ctx.lineCap = "round";
   ctx.lineJoin = "round";
   ctx.beginPath();
@@ -895,7 +886,7 @@ function drawRoute() {
   for (let i = 1; i < path.length; i += 1) {
     const from = path[i - 1];
     const to = path[i];
-    drawArrow(from, to, "#064e3b");
+    drawArrow(from, to, "#0f766e");
   }
 }
 
@@ -912,10 +903,10 @@ function drawArrow(from, to, color) {
   ctx.rotate(angle);
   ctx.fillStyle = color;
   ctx.beginPath();
-  ctx.moveTo(14, 0);
-  ctx.lineTo(-8, -9);
+  ctx.moveTo(12, 0);
+  ctx.lineTo(-7, -7);
   ctx.lineTo(-3, 0);
-  ctx.lineTo(-8, 9);
+  ctx.lineTo(-7, 7);
   ctx.closePath();
   ctx.fill();
   ctx.restore();

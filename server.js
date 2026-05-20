@@ -315,11 +315,22 @@ function distance(a, b) {
   return Math.hypot(a.x - b.x, a.y - b.y);
 }
 
+function tinyWalkModel(edge, baseDistance) {
+  const count = Math.max(0, Number(edge.count || 0));
+  const normalizedDistance = Math.min(1, baseDistance / 180);
+  const learnedConfidence = Math.min(1, Math.log1p(count) / Math.log(12));
+  const score = 1 / (1 + Math.exp(-(2.2 * learnedConfidence - 1.1 * normalizedDistance)));
+  return Math.max(0.42, 1 - score * 0.48);
+}
+
 function buildAdjacency(nodes = graphNodes, edges = graphEdges) {
   const out = Object.fromEntries(Object.keys(nodes).map(key => [key, []]));
-  for (const [a, b] of edges) {
+  for (const rawEdge of edges) {
+    const a = Array.isArray(rawEdge) ? rawEdge[0] : rawEdge.a;
+    const b = Array.isArray(rawEdge) ? rawEdge[1] : rawEdge.b;
     if (!nodes[a] || !nodes[b] || !out[a] || !out[b]) continue;
-    const weight = distance(nodes[a], nodes[b]);
+    const baseDistance = distance(nodes[a], nodes[b]);
+    const weight = Array.isArray(rawEdge) ? baseDistance : baseDistance * tinyWalkModel(rawEdge, baseDistance);
     out[a].push({ node: b, weight });
     out[b].push({ node: a, weight });
   }
@@ -392,7 +403,7 @@ function normalizedLearnedEdges() {
     const key = [edge.a, edge.b].sort().join("|");
     if (seen.has(key)) continue;
     seen.add(key);
-    out.push([edge.a, edge.b]);
+    out.push(edge);
   }
   return out;
 }
@@ -531,6 +542,25 @@ function route(body, req) {
   const adjacencyForRoute = buildAdjacency(routing.nodes, routing.edges);
   const snap = nearestNode(position, routing.nodes);
   const result = shortestPath(snap.key, destination.node, routing.nodes, adjacencyForRoute);
+  if (!Number.isFinite(result.totalDistance) || result.pathKeys.length === 0) {
+    return jsonOk({
+      currentFloor,
+      destFloor,
+      destPlace,
+      routeTarget,
+      sameFloor,
+      verticalDirection: "same",
+      start: { x: position.x, y: position.y, nearestNode: snap.key, snapDistance: Math.round(snap.distance) },
+      destination,
+      path: [destination],
+      pathKeys: [destination.node],
+      totalDistance: Math.round(distance(position, destination)),
+      totalMeters: Math.round(distance(position, destination) * METERS_PER_PIXEL),
+      learnedEdges: state.learnedEdges.length,
+      learnedNodes: Object.keys(state.learnedNodes).length,
+      model: "tiny-walk-v1-fallback"
+    });
+  }
   const path = result.pathKeys.map(key => ({ id: key, ...routing.nodes[key] })).filter(item => Number.isFinite(item.x));
   const verticalDiff = floors[destFloor].order - floors[currentFloor].order;
   const verticalDirection = verticalDiff > 0 ? "down" : verticalDiff < 0 ? "up" : "same";
@@ -560,7 +590,8 @@ function route(body, req) {
     totalDistance: Math.round(result.totalDistance),
     totalMeters: Math.round(result.totalDistance * METERS_PER_PIXEL),
     learnedEdges: state.learnedEdges.length,
-    learnedNodes: Object.keys(state.learnedNodes).length
+    learnedNodes: Object.keys(state.learnedNodes).length,
+    model: "tiny-walk-v1"
   });
 }
 
