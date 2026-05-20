@@ -125,6 +125,34 @@ for (const store of storeDirectory) {
   places[store.id] = storePlace(store);
 }
 
+const areaExitDirectory = [
+  ...[
+    ["Y1", 1085], ["Y2U", 1060], ["Y3", 1035], ["Y4", 1010], ["Y5", 965], ["Y6", 945],
+    ["Y7", 905], ["Y8", 875], ["Y9", 840], ["Y10", 815], ["Y11", 780], ["Y12", 750],
+    ["Y13", 700], ["Y15", 615], ["Y17", 535], ["Y19", 450], ["Y20U", 380], ["Y21", 350],
+    ["Y22", 320], ["Y23", 265], ["Y24U", 230], ["Y25", 165], ["Y26", 125], ["Y27", 75], ["Y28", 45]
+  ].map(([code, x]) => mallExit(code, "Y", "Y_LINK", Number(x), 355, "\u53f0\u5317\u5730\u4e0b\u8857", "Taipei City Mall")),
+  ...[
+    ["Z1", 760], ["Z2", 720], ["Z3", 680], ["Z4", 650], ["Z5", 610], ["Z6", 575],
+    ["Z7", 530], ["Z8", 500], ["Z9", 470], ["Z10", 430]
+  ].map(([code, x]) => mallExit(code, "Z", "Z_LINK", Number(x), 690, "\u7ad9\u524d\u5730\u4e0b\u8857", "Station Front Metro Mall")),
+  ...[
+    ["K1", 880, 650], ["K2", 845, 650], ["K3", 805, 650], ["K4", 785, 650], ["K5", 815, 675], ["K6", 760, 650],
+    ["K7", 735, 630], ["K8", 710, 650], ["K9", 690, 630], ["K10", 650, 690], ["K11", 620, 610], ["K12", 590, 650]
+  ].map(([code, x, y]) => mallExit(code, "K", "K_LINK", Number(x), Number(y), "K \u5340\u5730\u4e0b\u8857", "K Underground Mall")),
+  ...[
+    ["R1", 460], ["R2", 455], ["R4", 450], ["R5", 445], ["R6", 440], ["R7", 435], ["R8", 430]
+  ].map(([code, x]) => mallExit(code, "R", "R_LINK", Number(x), 125, "\u4e2d\u5c71\u5730\u4e0b\u8857", "Zhongshan Metro Mall")),
+  mallExit("M2", "M", "M1", 610, 125, "\u6377\u904b\u5730\u4e0b\u8857", "MRT Mall"),
+  mallExit("\u53f0\u5317\u8eca\u7ad9", "M", "CENTER", 545, 360, "\u53f0\u5317\u8eca\u7ad9", "Taipei Main Station", ["taipei main station", "main station", "\u5317\u8eca"])
+];
+
+places.mainStation = place(545, 360, "\u53f0\u5317\u8eca\u7ad9", "Taipei Main Station", "CENTER", "M", ["\u5317\u8eca", "\u53f0\u5317\u8eca\u7ad9", "\u81fa\u5317\u8eca\u7ad9", "taipei main station", "main station"]);
+
+for (const exit of areaExitDirectory) {
+  places[exit.id] = exitPlace(exit);
+}
+
 const mapSources = [
   {
     title: "Taipei Station underground mall layout",
@@ -143,6 +171,12 @@ const mapSources = [
     url: "https://zh.wikipedia.org/wiki/%E5%8F%B0%E5%8C%97%E5%9C%B0%E4%B8%8B%E8%A1%97",
     noteZh: "\u53f0\u5317\u5730\u4e0b\u8857\u53c8\u7a31 Y \u5340\uff0c\u51fa\u53e3\u4ee5 Y \u70ba\u7de8\u865f\u3002",
     noteEn: "Taipei City Mall is also known as the Y area."
+  },
+  {
+    title: "User supplied Taipei Underground Street surrounding-area map",
+    url: "#",
+    noteZh: "\u4f7f\u7528\u8005\u63d0\u4f9b\u7684\u5468\u908a\u5340\u57df\u5716\uff0c\u7528\u65bc\u6574\u7406 Y\u3001K\u3001Z\u3001R\u3001M \u51fa\u53e3\u7d22\u5f15\u3002",
+    noteEn: "User-provided surrounding-area map used to organize Y, K, Z, R, and M exit indexes."
   }
 ];
 
@@ -187,6 +221,24 @@ function yStore(shopNo, nameZh, nameEn, categoryId, x, aliases = []) {
   };
 }
 
+function mallExit(code, area, node, x, y, areaZh, areaEn, aliases = []) {
+  const id = `exit-${String(code).toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
+  const codeText = String(code);
+  return {
+    id,
+    code: codeText,
+    floor: "B1",
+    area,
+    areaZh,
+    areaEn,
+    node,
+    category: area,
+    x: clamp(x, 0, CANVAS_WIDTH, 545),
+    y: clamp(y, 0, CANVAS_HEIGHT, 360),
+    aliases: [codeText, codeText.replace(/-/g, ""), `${codeText}\u51fa\u53e3`, `${area}\u5340`, areaZh, areaEn, ...aliases]
+  };
+}
+
 function storePlace(store) {
   return {
     x: store.x,
@@ -201,6 +253,21 @@ function storePlace(store) {
     storeNameEn: store.nameEn,
     area: store.area,
     floor: store.floor
+  };
+}
+
+function exitPlace(exit) {
+  return {
+    x: exit.x,
+    y: exit.y,
+    labelZh: `${exit.code} \u51fa\u53e3 / ${exit.areaZh}`,
+    labelEn: `${exit.code} Exit / ${exit.areaEn}`,
+    node: exit.node,
+    category: exit.category,
+    aliases: exit.aliases,
+    exitCode: exit.code,
+    area: exit.area,
+    floor: exit.floor
   };
 }
 
@@ -452,7 +519,7 @@ function recordSession(sessionId, type, payload) {
 }
 
 function adminSummary() {
-  return { boards: state.mapBoards, accessPoints: state.accessPoints, storeDirectory, sessions: Object.values(state.sessions).sort((a, b) => b.lastSeen.localeCompare(a.lastSeen)), events: state.events.slice(-150).reverse(), sources: mapSources };
+  return { boards: state.mapBoards, accessPoints: state.accessPoints, storeDirectory, areaExitDirectory, sessions: Object.values(state.sessions).sort((a, b) => b.lastSeen.localeCompare(a.lastSeen)), events: state.events.slice(-150).reverse(), sources: mapSources };
 }
 
 function updateBoard(body) {
@@ -497,7 +564,7 @@ function updateAccessPoint(body) {
 }
 
 function config() {
-  return { canvas: { width: CANVAS_WIDTH, height: CANVAS_HEIGHT }, floors, places, destinationCategories, storeDirectory, graphNodes, graphEdges, mapBoards: state.mapBoards, accessPoints: state.accessPoints, sources: mapSources };
+  return { canvas: { width: CANVAS_WIDTH, height: CANVAS_HEIGHT }, floors, places, destinationCategories, storeDirectory, areaExitDirectory, graphNodes, graphEdges, mapBoards: state.mapBoards, accessPoints: state.accessPoints, sources: mapSources };
 }
 
 function login(body) {

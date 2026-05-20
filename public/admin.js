@@ -367,8 +367,10 @@ function renderDestinations() {
   });
   const categories = Object.fromEntries(config.destinationCategories.map(category => [category.id, category]));
   const storeCount = (config.storeDirectory || []).length;
+  const exitCount = (config.areaExitDirectory || []).length;
   elements.destinationList.innerHTML = `
     <p class="muted">${lang === "en" ? "Shop directory" : "\u5e97\u92ea\u76ee\u9304"}: ${storeCount} ${lang === "en" ? "shops" : "\u7b46"}</p>
+    <p class="muted">${lang === "en" ? "Exit directory" : "\u51fa\u53e3\u76ee\u9304"}: ${exitCount} ${lang === "en" ? "exits / area points" : "\u7b46"}</p>
     <div class="destination-chips">
       ${config.destinationCategories.map(category => `<span>${escapeHtml(localCategory(category))}</span>`).join("")}
     </div>
@@ -379,6 +381,7 @@ function renderDestinations() {
             <strong>${escapeHtml(lang === "en" ? place.labelEn : place.labelZh)}</strong>
             <div class="muted">${t("category")}: ${escapeHtml(localCategory(categories[place.category]) || place.category)}</div>
             ${place.shopNo ? `<div class="small">${lang === "en" ? "Shop No." : "\u5e97\u865f"}: ${escapeHtml(place.shopNo)} · ${lang === "en" ? "Area" : "\u5340\u57df"}: ${escapeHtml(place.area || "-")}</div>` : ""}
+            ${place.exitCode ? `<div class="small">${lang === "en" ? "Exit" : "\u51fa\u53e3"}: ${escapeHtml(place.exitCode)} · ${lang === "en" ? "Area" : "\u5340\u57df"}: ${escapeHtml(place.area || "-")}</div>` : ""}
             <div class="small">${t("aliases")}: ${escapeHtml((place.aliases || []).join(", ") || "-")}</div>
           </div>
           <span class="pill">${escapeHtml(place.id)}</span>
