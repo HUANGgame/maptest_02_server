@@ -159,6 +159,7 @@ const i18n = {
 
 const canvas = document.getElementById("mapCanvas");
 const ctx = canvas.getContext("2d");
+const tileLayer = document.getElementById("tileLayer");
 const langSelect = document.getElementById("langSelect");
 const categorySelect = document.getElementById("categorySelect");
 const destinationSearch = document.getElementById("destinationSearch");
@@ -202,6 +203,7 @@ let lastGpsSpeechAt = 0;
 let lastGpsRouteAt = 0;
 let lastSpokenRoute = "";
 let lastAutoSpeechAt = 0;
+let lastTileSignature = "";
 
 const floorStyles = {
   B1: { bg: "#edf7f3", band: "#cde7df", label: "#0f766e" },
@@ -279,6 +281,10 @@ function text(item, key = "label") {
   if (!item) return "";
   if (lang === "en") return item[`${key}En`] || item.nameEn || item[`${key}Zh`] || item.nameZh || item.id || "";
   return item[`${key}Zh`] || item.nameZh || item[`${key}En`] || item.nameEn || item.id || "";
+}
+
+function distance(a, b) {
+  return Math.hypot(Number(a?.x || 0) - Number(b?.x || 0), Number(a?.y || 0) - Number(b?.y || 0));
 }
 
 function applyI18n() {
@@ -429,6 +435,47 @@ function geoToMap(lat, lon) {
   return { x, y };
 }
 
+function mapToGeo(x, y) {
+  const lon = geoMapBounds.west + (x / canvas.width) * (geoMapBounds.east - geoMapBounds.west);
+  const lat = geoMapBounds.north - (y / canvas.height) * (geoMapBounds.north - geoMapBounds.south);
+  return { lat, lon };
+}
+
+function lonToTileX(lon, zoom) {
+  return Math.floor((lon + 180) / 360 * 2 ** zoom);
+}
+
+function latToTileY(lat, zoom) {
+  const rad = lat * Math.PI / 180;
+  return Math.floor((1 - Math.log(Math.tan(rad) + 1 / Math.cos(rad)) / Math.PI) / 2 * 2 ** zoom);
+}
+
+function lonToTileFloatX(lon, zoom) {
+  return (lon + 180) / 360 * 2 ** zoom;
+}
+
+function latToTileFloatY(lat, zoom) {
+  const rad = lat * Math.PI / 180;
+  return (1 - Math.log(Math.tan(rad) + 1 / Math.cos(rad)) / Math.PI) / 2 * 2 ** zoom;
+}
+
+function tileXToLon(x, zoom) {
+  return x / 2 ** zoom * 360 - 180;
+}
+
+function tileYToLat(y, zoom) {
+  const n = Math.PI - 2 * Math.PI * y / 2 ** zoom;
+  return 180 / Math.PI * Math.atan(0.5 * (Math.exp(n) - Math.exp(-n)));
+}
+
+function geoToScreen(lat, lon, rect) {
+  const point = geoToMap(lat, lon);
+  return {
+    x: (point.x * view.scale + view.x) * rect.width / canvas.width,
+    y: (point.y * view.scale + view.y) * rect.height / canvas.height
+  };
+}
+
 function isMapPointUsable(point) {
   return point && point.x >= -80 && point.x <= canvas.width + 80 && point.y >= -80 && point.y <= canvas.height + 80;
 }
@@ -500,8 +547,44 @@ function switchBaseMap(boardId) {
   centerOnCurrent(false);
 }
 
+function updateTileLayer() {
+  if (!tileLayer) return;
+  const rect = canvas.getBoundingClientRect();
+  if (!rect.width || !rect.height) return;
+  const zoom = Math.max(16, Math.min(19, Math.round(17 + Math.log2(view.scale))));
+  const topLeftMap = {
+    x: Math.max(0, Math.min(canvas.width, -view.x / view.scale)),
+    y: Math.max(0, Math.min(canvas.height, -view.y / view.scale))
+  };
+  const bottomRightMap = {
+    x: Math.max(0, Math.min(canvas.width, (canvas.width - view.x) / view.scale)),
+    y: Math.max(0, Math.min(canvas.height, (canvas.height - view.y) / view.scale))
+  };
+  const nw = mapToGeo(topLeftMap.x, topLeftMap.y);
+  const se = mapToGeo(bottomRightMap.x, bottomRightMap.y);
+  const minTileX = lonToTileX(nw.lon, zoom) - 1;
+  const maxTileX = lonToTileX(se.lon, zoom) + 1;
+  const minTileY = latToTileY(nw.lat, zoom) - 1;
+  const maxTileY = latToTileY(se.lat, zoom) + 1;
+  const signature = `${zoom}:${minTileX}:${maxTileX}:${minTileY}:${maxTileY}:${Math.round(view.x)}:${Math.round(view.y)}:${Math.round(view.scale * 100)}`;
+  if (signature === lastTileSignature) return;
+  lastTileSignature = signature;
+  const html = [];
+  for (let x = minTileX; x <= maxTileX; x += 1) {
+    for (let y = minTileY; y <= maxTileY; y += 1) {
+      const nwScreen = geoToScreen(tileYToLat(y, zoom), tileXToLon(x, zoom), rect);
+      const seScreen = geoToScreen(tileYToLat(y + 1, zoom), tileXToLon(x + 1, zoom), rect);
+      const width = Math.max(1, seScreen.x - nwScreen.x + 1);
+      const height = Math.max(1, seScreen.y - nwScreen.y + 1);
+      html.push(`<img alt="" src="https://basemaps.cartocdn.com/light_nolabels/${zoom}/${x}/${y}.png" style="left:${nwScreen.x}px;top:${nwScreen.y}px;width:${width}px;height:${height}px">`);
+    }
+  }
+  tileLayer.innerHTML = html.join("");
+}
+
 function draw() {
   if (!config) return;
+  updateTileLayer();
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   ctx.save();
   ctx.translate(view.x, view.y);
@@ -510,26 +593,16 @@ function draw() {
   drawRoute();
   drawBoards();
   drawAccessPoints();
+  drawDestinationMarker();
   drawPosition();
   ctx.restore();
   requestAnimationFrame(draw);
 }
 
 function drawBaseMap() {
-  const floorStyle = floorStyles[currentFloor] || floorStyles.B1;
   const profile = activeBaseMap();
-  const style = currentFloor === "B1" ? profile : floorStyle;
-  ctx.fillStyle = style.bg;
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-  ctx.fillStyle = style.band;
-  ctx.fillRect(0, 0, canvas.width, 112);
-  ctx.fillRect(0, canvas.height - 74, canvas.width, 74);
-
-  drawBaseMapFocus(profile);
-
-  ctx.strokeStyle = "#c4ced8";
-  ctx.lineWidth = 16;
+  ctx.strokeStyle = "rgba(15, 118, 110, .18)";
+  ctx.lineWidth = 5;
   ctx.lineCap = "round";
   ctx.lineJoin = "round";
   for (const [a, b] of config.graphEdges) {
@@ -539,78 +612,187 @@ function drawBaseMap() {
     ctx.stroke();
   }
 
-  ctx.strokeStyle = "#7e8a98";
-  ctx.lineWidth = 2;
-  for (const node of Object.values(config.graphNodes)) {
-    ctx.beginPath();
-    ctx.arc(node.x, node.y, 5, 0, Math.PI * 2);
-    ctx.stroke();
-  }
-
-  for (const place of Object.values(config.places)) {
-    ctx.fillStyle = place.node === "ELEVATOR" ? "#7c3aed" : "#d99a22";
-    ctx.beginPath();
-    ctx.arc(place.x, place.y, 11, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = "#1f2933";
-    ctx.font = "bold 16px Microsoft JhengHei, Arial";
-    ctx.fillText(text(place), place.x + 14, place.y - 10);
-  }
-
-  const floor = config.floors[currentFloor];
-  ctx.fillStyle = style.label;
-  ctx.font = "bold 48px Microsoft JhengHei, Arial";
-  ctx.fillText(floor ? (lang === "en" ? floor.nameEn : floor.nameZh) : currentFloor, 38, 72);
-  ctx.font = "bold 20px Microsoft JhengHei, Arial";
-  ctx.fillText(`${t("baseMap")}: ${baseMapName(profile)}`, 38, 104);
+  drawBaseMapFocus(profile);
 }
 
 function drawBaseMapFocus(profile) {
   if (!profile?.focus) return;
   const { x, y, w, h } = profile.focus;
   ctx.save();
-  ctx.fillStyle = "rgba(255, 255, 255, .38)";
+  ctx.fillStyle = "rgba(255, 255, 255, .16)";
   ctx.fillRect(x, y, w, h);
   ctx.strokeStyle = profile.accent;
-  ctx.lineWidth = 5;
+  ctx.lineWidth = 2;
   ctx.setLineDash([14, 10]);
   ctx.strokeRect(x, y, w, h);
-  ctx.setLineDash([]);
-  ctx.fillStyle = profile.accent;
-  ctx.font = "bold 18px Microsoft JhengHei, Arial";
-  ctx.fillText(baseMapName(profile), x + 14, y + 30);
   ctx.restore();
 }
 
 function drawBoards() {
-  for (const board of config.mapBoards.filter(item => item.floor === currentFloor)) {
-    ctx.save();
-    ctx.translate(board.x, board.y);
-    ctx.rotate((Number(board.heading || 0) - 90) * Math.PI / 180);
-    ctx.fillStyle = board.id === currentBoard?.boardId ? "#0f766e" : "#2f5f9f";
-    ctx.fillRect(-15, -10, 30, 20);
-    ctx.fillStyle = "#fff";
-    ctx.fillRect(-9, -5, 18, 10);
-    ctx.restore();
-    ctx.fillStyle = "#1f2933";
-    ctx.font = "13px Microsoft JhengHei, Arial";
-    ctx.fillText(board.id, board.x + 18, board.y + 5);
-  }
+  if (!currentBoard) return;
+  const board = config.mapBoards.find(item => item.id === currentBoard.boardId);
+  if (!board || board.floor !== currentFloor) return;
+  drawIconMarker(board.x, board.y, "map", "#2f5f9f", lang === "en" ? board.nameEn : board.nameZh);
 }
 
 function drawAccessPoints() {
-  for (const ap of config.accessPoints.filter(item => item.floor === currentFloor)) {
-    const active = currentAccessPoint && ap.id === currentAccessPoint.id;
-    ctx.strokeStyle = active ? "rgba(15, 118, 110, .75)" : "rgba(180, 83, 9, .45)";
-    ctx.lineWidth = active ? 4 : 2;
-    ctx.beginPath();
-    ctx.arc(ap.x, ap.y, active ? 30 : 22, 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.fillStyle = active ? "#0f766e" : "#b45309";
-    ctx.beginPath();
-    ctx.arc(ap.x, ap.y, active ? 8 : 5, 0, Math.PI * 2);
-    ctx.fill();
+  if (!currentAccessPoint) return;
+  drawIconMarker(currentAccessPoint.x, currentAccessPoint.y, "wifi", "#0f766e", currentAccessPoint.ip);
+}
+
+function drawDestinationMarker() {
+  const selected = routeData?.destination || config?.places?.[destPlace.value];
+  if (!selected || selected.floor !== currentFloor) return;
+  const label = text(selected);
+  drawIconMarker(selected.x, selected.y, iconForPlace(selected), "#2563eb", label, true);
+}
+
+function iconForPlace(place) {
+  const label = `${place.id || ""} ${place.nameZh || ""} ${place.nameEn || ""} ${(place.aliases || []).join(" ")}`.toLowerCase();
+  if (place.node === "RESTROOM" || label.includes("restroom") || label.includes("toilet") || label.includes("wc") || label.includes("廁所")) return "toilet";
+  if (place.node === "ELEVATOR" || label.includes("elevator") || label.includes("電梯")) return "elevator";
+  if (place.exitCode || /^出口|exit/.test(label)) return "exit";
+  if (place.shopNo || place.category === "shop") return "shop";
+  return "pin";
+}
+
+function drawIconMarker(x, y, icon, color, label = "", showLabel = false) {
+  const markerScale = 1 / Math.sqrt(view.scale);
+  const size = 22 * markerScale;
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.fillStyle = "#fff";
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 3 * markerScale;
+  ctx.beginPath();
+  ctx.arc(0, 0, size / 2, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+  ctx.strokeStyle = color;
+  ctx.fillStyle = color;
+  ctx.lineWidth = 2 * markerScale;
+  drawMarkerIcon(icon, markerScale);
+  ctx.restore();
+
+  if (showLabel && label) {
+    drawMarkerLabel(x, y, label, color, markerScale);
   }
+}
+
+function drawMarkerIcon(icon, markerScale) {
+  const s = markerScale;
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+  if (icon === "toilet") {
+    ctx.strokeRect(-5 * s, -6 * s, 10 * s, 7 * s);
+    ctx.beginPath();
+    ctx.moveTo(-3 * s, 1 * s);
+    ctx.quadraticCurveTo(0, 7 * s, 6 * s, 3 * s);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(-6 * s, -8 * s);
+    ctx.lineTo(5 * s, -8 * s);
+    ctx.stroke();
+    return;
+  }
+  if (icon === "elevator") {
+    ctx.strokeRect(-6 * s, -7 * s, 12 * s, 14 * s);
+    ctx.beginPath();
+    ctx.moveTo(0, -5 * s);
+    ctx.lineTo(-3 * s, -2 * s);
+    ctx.moveTo(0, -5 * s);
+    ctx.lineTo(3 * s, -2 * s);
+    ctx.moveTo(0, 5 * s);
+    ctx.lineTo(-3 * s, 2 * s);
+    ctx.moveTo(0, 5 * s);
+    ctx.lineTo(3 * s, 2 * s);
+    ctx.stroke();
+    return;
+  }
+  if (icon === "wifi") {
+    for (let r = 4; r <= 9; r += 3) {
+      ctx.beginPath();
+      ctx.arc(0, 5 * s, r * s, Math.PI * 1.18, Math.PI * 1.82);
+      ctx.stroke();
+    }
+    ctx.beginPath();
+    ctx.arc(0, 5 * s, 1.8 * s, 0, Math.PI * 2);
+    ctx.fill();
+    return;
+  }
+  if (icon === "map") {
+    ctx.beginPath();
+    ctx.moveTo(-7 * s, -6 * s);
+    ctx.lineTo(-2 * s, -8 * s);
+    ctx.lineTo(3 * s, -6 * s);
+    ctx.lineTo(8 * s, -8 * s);
+    ctx.lineTo(8 * s, 6 * s);
+    ctx.lineTo(3 * s, 8 * s);
+    ctx.lineTo(-2 * s, 6 * s);
+    ctx.lineTo(-7 * s, 8 * s);
+    ctx.closePath();
+    ctx.stroke();
+    return;
+  }
+  if (icon === "exit") {
+    ctx.strokeRect(-6 * s, -7 * s, 8 * s, 14 * s);
+    ctx.beginPath();
+    ctx.moveTo(-1 * s, 0);
+    ctx.lineTo(8 * s, 0);
+    ctx.moveTo(5 * s, -3 * s);
+    ctx.lineTo(8 * s, 0);
+    ctx.lineTo(5 * s, 3 * s);
+    ctx.stroke();
+    return;
+  }
+  if (icon === "shop") {
+    ctx.strokeRect(-6 * s, -1 * s, 12 * s, 7 * s);
+    ctx.beginPath();
+    ctx.moveTo(-7 * s, -2 * s);
+    ctx.lineTo(-5 * s, -7 * s);
+    ctx.lineTo(5 * s, -7 * s);
+    ctx.lineTo(7 * s, -2 * s);
+    ctx.stroke();
+    return;
+  }
+  ctx.beginPath();
+  ctx.arc(0, -2 * s, 4 * s, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(0, 8 * s);
+  ctx.lineTo(-5 * s, 1 * s);
+  ctx.lineTo(5 * s, 1 * s);
+  ctx.closePath();
+  ctx.fill();
+}
+
+function drawMarkerLabel(x, y, label, color, markerScale) {
+  const textValue = truncateLabel(label, lang === "en" ? 22 : 14);
+  const fontSize = 13 * markerScale;
+  ctx.save();
+  ctx.font = `700 ${fontSize}px "Microsoft JhengHei", Arial, sans-serif`;
+  const paddingX = 8 * markerScale;
+  const paddingY = 5 * markerScale;
+  const textWidth = ctx.measureText(textValue).width;
+  const boxWidth = textWidth + paddingX * 2;
+  const boxHeight = fontSize + paddingY * 2;
+  const left = x + 16 * markerScale;
+  const top = y - boxHeight / 2;
+  ctx.fillStyle = "rgba(255, 255, 255, .95)";
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 1.5 * markerScale;
+  ctx.beginPath();
+  ctx.roundRect(left, top, boxWidth, boxHeight, 6 * markerScale);
+  ctx.fill();
+  ctx.stroke();
+  ctx.fillStyle = "#111827";
+  ctx.fillText(textValue, left + paddingX, top + paddingY + fontSize * .78);
+  ctx.restore();
+}
+
+function truncateLabel(value, maxLength) {
+  const textValue = String(value || "");
+  return textValue.length > maxLength ? `${textValue.slice(0, maxLength - 1)}...` : textValue;
 }
 
 function drawPosition() {
@@ -632,7 +814,7 @@ function drawRoute() {
   if (!routeData?.path?.length) return;
   const path = [currentPosition, ...routeData.path, routeData.destination];
   ctx.strokeStyle = "#0f766e";
-  ctx.lineWidth = 9;
+  ctx.lineWidth = 6;
   ctx.lineCap = "round";
   ctx.lineJoin = "round";
   ctx.beginPath();
@@ -660,10 +842,10 @@ function drawArrow(from, to, color) {
   ctx.rotate(angle);
   ctx.fillStyle = color;
   ctx.beginPath();
-  ctx.moveTo(18, 0);
-  ctx.lineTo(-10, -12);
-  ctx.lineTo(-4, 0);
-  ctx.lineTo(-10, 12);
+  ctx.moveTo(14, 0);
+  ctx.lineTo(-8, -9);
+  ctx.lineTo(-3, 0);
+  ctx.lineTo(-8, 9);
   ctx.closePath();
   ctx.fill();
   ctx.restore();
