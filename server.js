@@ -167,6 +167,18 @@ const mapSources = [
     noteEn: "Taipei City note describing Y, Z, R, and K underground-street codes."
   },
   {
+    title: "Taipei Station K Underground Mall",
+    url: "https://zh.wikipedia.org/wiki/%E5%8F%B0%E5%8C%97%E8%BB%8A%E7%AB%99K%E5%8D%80%E5%9C%B0%E4%B8%8B%E8%A1%97",
+    noteZh: "K \u5340\u5730\u4e0b\u8857\u4f4d\u65bc\u53f0\u5317\u8eca\u7ad9\u7ad9\u524d\u5ee3\u5834\u5730\u4e0b\uff0c\u5171\u6709 K1-K12 \u51fa\u5165\u53e3\u8cc7\u6599\u3002",
+    noteEn: "K Underground Mall is under Taipei Main Station front plaza and has K1-K12 exits."
+  },
+  {
+    title: "Station Front Metro Mall",
+    url: "https://zh.wikipedia.org/wiki/%E7%AB%99%E5%89%8D%E5%9C%B0%E4%B8%8B%E8%A1%97",
+    noteZh: "\u7ad9\u524d\u5730\u4e0b\u8857\u53c8\u7a31 Z \u5340\u5730\u4e0b\u8857\uff0c\u7528\u65bc\u5c0d\u61c9 Z \u5340\u4f4d\u7f6e\u8207\u51fa\u53e3\u3002",
+    noteEn: "Station Front Metro Mall is also known as the Z area."
+  },
+  {
     title: "Taipei City Mall",
     url: "https://zh.wikipedia.org/wiki/%E5%8F%B0%E5%8C%97%E5%9C%B0%E4%B8%8B%E8%A1%97",
     noteZh: "\u53f0\u5317\u5730\u4e0b\u8857\u53c8\u7a31 Y \u5340\uff0c\u51fa\u53e3\u4ee5 Y \u70ba\u7de8\u865f\u3002",

@@ -37,6 +37,12 @@ const i18n = {
     gps: "GPS",
     gpsWaiting: "\u7b49\u5f85 GPS \u6b0a\u9650\u6216\u8cc7\u6599",
     gpsUnavailable: "GPS \u7121\u6cd5\u4f7f\u7528",
+    gpsMapped: "GPS \u7c97\u7565\u5b9a\u4f4d",
+    gpsOutside: "GPS \u5728\u5730\u5716\u7bc4\u570d\u5916",
+    locationSource: "\u5b9a\u4f4d\u4f86\u6e90",
+    sourceDefault: "\u9810\u8a2d\u4f4d\u7f6e",
+    sourceGps: "GPS / Google Map \u5c0d\u61c9",
+    sourcePhoto: "\u7246\u9762\u5730\u5716\u6821\u6b63",
     view: "\u8996\u91ce",
     skipToControls: "\u8df3\u5230\u64cd\u4f5c\u5340",
     audioHelp: "\u8a9e\u97f3\u5c0e\u89bd\u5df2\u5c31\u7dd2\u3002\u9078\u64c7\u76ee\u7684\u5730\u3001\u62cd\u651d\u7246\u4e0a\u5730\u5716\uff0c\u518d\u6839\u64da\u8a9e\u97f3\u8def\u7dda\u524d\u9032\u3002",
@@ -109,6 +115,12 @@ const i18n = {
     gps: "GPS",
     gpsWaiting: "Waiting for GPS permission or data",
     gpsUnavailable: "GPS unavailable",
+    gpsMapped: "Approximate GPS location",
+    gpsOutside: "GPS is outside the map area",
+    locationSource: "Location source",
+    sourceDefault: "Default location",
+    sourceGps: "GPS / Google Map alignment",
+    sourcePhoto: "Wall-map photo calibration",
     view: "View",
     skipToControls: "Skip to controls",
     audioHelp: "Voice guidance is ready. Choose a destination, take a wall-map photo, then follow the spoken route.",
@@ -179,6 +191,7 @@ let routeData = null;
 let currentCategory = "all";
 let searchTimer = null;
 let latestGps = null;
+let locationSource = "default";
 let view = { scale: 1, x: 0, y: 0 };
 let dragging = false;
 let dragStart = { x: 0, y: 0, viewX: 0, viewY: 0 };
@@ -186,6 +199,7 @@ let lastTouchDistance = null;
 let lastTouchCenter = null;
 let voiceEnabled = localStorage.getItem("voiceEnabled") !== "false";
 let lastGpsSpeechAt = 0;
+let lastGpsRouteAt = 0;
 let lastSpokenRoute = "";
 let lastAutoSpeechAt = 0;
 
@@ -236,6 +250,13 @@ const baseMapProfiles = {
     focus: { x: 80, y: 250, w: 330, h: 170 },
     view: { scale: 1.45, x: 80, y: -80 }
   }
+};
+
+const geoMapBounds = {
+  north: 25.0526,
+  south: 25.0442,
+  west: 121.5106,
+  east: 121.5228
 };
 
 langSelect.value = lang;
@@ -400,6 +421,66 @@ function filteredPlaces() {
 function resolveDestinationFloor() {
   const place = config?.places?.[destPlace.value];
   return place?.floor || currentFloor || "B1";
+}
+
+function geoToMap(lat, lon) {
+  const x = (lon - geoMapBounds.west) / (geoMapBounds.east - geoMapBounds.west) * canvas.width;
+  const y = (geoMapBounds.north - lat) / (geoMapBounds.north - geoMapBounds.south) * canvas.height;
+  return { x, y };
+}
+
+function isMapPointUsable(point) {
+  return point && point.x >= -80 && point.x <= canvas.width + 80 && point.y >= -80 && point.y <= canvas.height + 80;
+}
+
+function baseMapIdFromPoint(point) {
+  if (point.y > 540) return "M-B1-SOUTH-01";
+  if (point.x < 390) return "M-B1-WEST-01";
+  if (point.x > 650) return "M-B1-EAST-01";
+  return "M-B1-CENTER-01";
+}
+
+function nearestAccessPointClient(point) {
+  if (!config?.accessPoints?.length) return null;
+  const sameFloor = config.accessPoints.filter(ap => ap.floor === currentFloor);
+  if (!sameFloor.length) return null;
+  let best = sameFloor[0];
+  let bestDistance = distance(point, best);
+  for (const ap of sameFloor.slice(1)) {
+    const d = distance(point, ap);
+    if (d < bestDistance) {
+      best = ap;
+      bestDistance = d;
+    }
+  }
+  return { id: best.id, name: best.name, ip: best.ip, ssid: best.ssid, floor: best.floor, x: Number(best.x), y: Number(best.y), distance: Math.round(bestDistance) };
+}
+
+function applyGpsMapLocation(gps) {
+  if (!config || locationSource === "photo") return;
+  const mapped = geoToMap(gps.lat, gps.lon);
+  if (!isMapPointUsable(mapped)) {
+    mapBadge.textContent = `${t("gpsOutside")}: ${gps.lat.toFixed(6)}, ${gps.lon.toFixed(6)}`;
+    updateLocationText();
+    return;
+  }
+  currentFloor = "B1";
+  currentPosition = {
+    x: Math.max(0, Math.min(canvas.width, mapped.x)),
+    y: Math.max(0, Math.min(canvas.height, mapped.y))
+  };
+  currentBoard = null;
+  locationSource = "gps";
+  currentAccessPoint = nearestAccessPointClient(currentPosition);
+  currentBaseMapId = baseMapIdFromPoint(currentPosition);
+  mapBadge.textContent = `${t("gpsMapped")}: x=${Math.round(currentPosition.x)}, y=${Math.round(currentPosition.y)}`;
+  centerOnCurrent(false);
+  updateLocationText();
+  const now = Date.now();
+  if (now - lastGpsRouteAt > 8000) {
+    lastGpsRouteAt = now;
+    void requestRoute("gps");
+  }
 }
 
 function activeBaseMap() {
@@ -673,6 +754,7 @@ async function locateFromPhoto() {
     currentFloor = data.location.floor;
     currentPosition = { x: data.location.x, y: data.location.y };
     currentAccessPoint = data.location.accessPoint || null;
+    locationSource = "photo";
     switchBaseMap(data.location.boardId);
     fillSelects();
     mapBadge.textContent = `${t("located")}: ${lang === "en" ? data.location.boardNameEn : data.location.boardNameZh}\n${t("baseMap")}: ${baseMapName()}`;
@@ -735,6 +817,7 @@ function updateLocationText() {
   const boardName = currentBoard ? (lang === "en" ? currentBoard.boardNameEn : currentBoard.boardNameZh) : "-";
   const ap = currentAccessPoint;
   locationBox.innerHTML = [
+    `<strong>${t("locationSource")}:</strong> ${locationSourceText()}`,
     `<strong>${t("floor")}:</strong> ${floorName}`,
     `<strong>${t("baseMap")}:</strong> ${baseMapName()}`,
     `<strong>${t("coordinate")}:</strong> x=${Math.round(currentPosition.x)}, y=${Math.round(currentPosition.y)}`,
@@ -753,6 +836,7 @@ function locationSpeech() {
   const boardName = currentBoard ? (lang === "en" ? currentBoard.boardNameEn : currentBoard.boardNameZh) : "-";
   const ap = currentAccessPoint;
   const parts = [
+    `${t("locationSource")}: ${locationSourceText()}`,
     `${t("floor")}: ${floorName}`,
     `${t("baseMap")}: ${baseMapName()}`,
     `${t("coordinate")}: X ${Math.round(currentPosition.x)}, Y ${Math.round(currentPosition.y)}`,
@@ -767,6 +851,12 @@ function shortLocationSpeech() {
   const floor = config?.floors?.[currentFloor];
   const floorName = floor ? (lang === "en" ? floor.nameEn : floor.nameZh) : currentFloor;
   return `${t("located")}。${t("floor")}: ${floorName}。${t("coordinate")}: X ${Math.round(currentPosition.x)}, Y ${Math.round(currentPosition.y)}`;
+}
+
+function locationSourceText() {
+  if (locationSource === "photo") return t("sourcePhoto");
+  if (locationSource === "gps") return t("sourceGps");
+  return t("sourceDefault");
 }
 
 function currentStepSpeech() {
@@ -832,6 +922,7 @@ function startGpsWatch() {
         lon: position.coords.longitude,
         accuracy: position.coords.accuracy
       };
+      applyGpsMapLocation(latestGps);
       updateLocationText();
       const now = Date.now();
       if (now - lastGpsSpeechAt > 60000) {
