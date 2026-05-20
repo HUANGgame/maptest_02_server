@@ -214,6 +214,7 @@ let lastGpsLearnAt = 0;
 let lastSpokenRoute = "";
 let lastAutoSpeechAt = 0;
 let lastTileSignature = "";
+let routeRequestSeq = 0;
 
 const floorStyles = {
   B1: { bg: "#edf7f3", band: "#cde7df", label: "#0f766e" },
@@ -545,7 +546,7 @@ function applyGpsMapLocation(gps) {
     lastGpsLearnAt = now;
     void learnGpsPath(gps, currentPosition);
   }
-  if (destinationActive && now - lastGpsRouteAt > 8000) {
+  if (destinationActive && now - lastGpsRouteAt > 2500) {
     lastGpsRouteAt = now;
     void requestRoute("gps");
   }
@@ -1020,8 +1021,11 @@ async function requestRoute(reason) {
     updateRouteText();
     return;
   }
+  const requestSeq = ++routeRequestSeq;
+  routeData = null;
+  updateRouteText();
   try {
-    routeData = await api("/api/route", {
+    const nextRoute = await api("/api/route", {
       method: "POST",
       body: JSON.stringify({
         sessionId,
@@ -1032,8 +1036,11 @@ async function requestRoute(reason) {
         reason
       })
     });
+    if (requestSeq !== routeRequestSeq) return;
+    routeData = nextRoute;
     updateRouteText();
   } catch (error) {
+    if (requestSeq !== routeRequestSeq) return;
     routeData = null;
     routeHint.textContent = `${t("routeFailed")}: ${error.message}`;
     haptic([250, 80, 250]);
@@ -1044,6 +1051,7 @@ async function requestRoute(reason) {
 function updateRouteText() {
   if (!routeData || !config) {
     if (!destinationActive) routeHint.textContent = t("photoHelp");
+    else routeHint.textContent = lang === "en" ? "Updating route..." : "正在更新路線...";
     return;
   }
   const dest = routeData.destination;
@@ -1271,12 +1279,21 @@ if (categorySelect) {
     currentCategory = categorySelect.value;
     fillSelects();
     destinationActive = true;
+    routeData = null;
+    routeRequestSeq += 1;
+    updateRouteText();
     requestRoute("destination-category");
     liveOnly(`${t("destinationCategory")}: ${categorySelect.options[categorySelect.selectedIndex]?.textContent || ""}`);
   });
 }
 destinationSearch.addEventListener("input", () => {
   clearTimeout(searchTimer);
+  routeData = null;
+  routeRequestSeq += 1;
+  if (destinationSearch.value.trim()) {
+    destinationActive = true;
+    updateRouteText();
+  }
   searchTimer = setTimeout(resolveDestinationSearch, 280);
 });
 destinationSearch.addEventListener("keydown", event => {
@@ -1289,6 +1306,9 @@ destinationSearch.addEventListener("keydown", event => {
 destPlace.addEventListener("change", () => {
   destinationActive = true;
   destinationSearch.value = destPlace.options[destPlace.selectedIndex]?.textContent || "";
+  routeData = null;
+  routeRequestSeq += 1;
+  updateRouteText();
   requestRoute("destination-place");
 });
 destPlace.addEventListener("change", () => liveOnly(`${t("destination")}: ${destPlace.options[destPlace.selectedIndex]?.textContent || ""}`));

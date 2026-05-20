@@ -475,7 +475,11 @@ function shortestPath(startKey, endKey, nodes = graphNodes, adj = adjacency) {
     cursor = previous[cursor];
   }
   if (pathKeys[0] !== startKey) return { pathKeys: [], totalDistance: Infinity };
-  return { pathKeys, totalDistance: distances[endKey] };
+  let rawDistance = 0;
+  for (let i = 1; i < pathKeys.length; i += 1) {
+    rawDistance += distance(nodes[pathKeys[i - 1]], nodes[pathKeys[i]]);
+  }
+  return { pathKeys, totalDistance: distances[endKey], rawDistance };
 }
 
 function hamming(a = "", b = "") {
@@ -572,8 +576,8 @@ function route(body, req) {
     position,
     accessPoint: nearestAccessPoint({ floor: currentFloor, x: position.x, y: position.y }),
     routeTarget,
-    totalDistance: Math.round(result.totalDistance),
-    totalMeters: Math.round(result.totalDistance * METERS_PER_PIXEL),
+    totalDistance: Math.round(result.rawDistance),
+    totalMeters: Math.round(result.rawDistance * METERS_PER_PIXEL),
     clientIp: clientIp(req)
   });
   return jsonOk({
@@ -587,8 +591,8 @@ function route(body, req) {
     destination,
     path,
     pathKeys: result.pathKeys,
-    totalDistance: Math.round(result.totalDistance),
-    totalMeters: Math.round(result.totalDistance * METERS_PER_PIXEL),
+    totalDistance: Math.round(result.rawDistance),
+    totalMeters: Math.round(result.rawDistance * METERS_PER_PIXEL),
     learnedEdges: state.learnedEdges.length,
     learnedNodes: Object.keys(state.learnedNodes).length,
     model: "tiny-walk-v1"
