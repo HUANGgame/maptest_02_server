@@ -1,11 +1,11 @@
 const i18n = {
   zh: {
     appTitle: "\u53f0\u5317\u8eca\u7ad9\u5730\u4e0b\u8857\u62cd\u7167\u5b9a\u4f4d",
-    waiting: "\u7b49\u5f85\u62cd\u7167\u5b9a\u4f4d",
-    photoHelp: "\u62cd\u651d\u7246\u4e0a\u56fa\u5b9a\u5730\u5716\u5f8c\uff0c\u7cfb\u7d71\u6703\u81ea\u52d5\u5207\u63db\u5e95\u5716\u3001\u66f4\u65b0\u5ea7\u6a19\u3001AP/IP \u8207\u8def\u7dda\u3002",
+    waiting: "GPS \u5b9a\u4f4d\u4e2d",
+    photoHelp: "GPS \u6703\u6301\u7e8c\u66f4\u65b0\u4f60\u7684\u4f4d\u7f6e\uff1b\u62cd\u651d\u7246\u4e0a\u5730\u5716\u53ea\u662f\u7528\u4f86\u66f4\u7cbe\u6e96\u6821\u6b63\u3002",
     destinationFloor: "\u76ee\u7684\u6a13\u5c64",
     destinationCategory: "\u76ee\u7684\u5730\u5206\u985e",
-    destinationSearch: "\u8f38\u5165\u5730\u9ede",
+    destinationSearch: "\u8f38\u5165\u6216\u9078\u64c7\u76ee\u7684\u5730",
     destinationSearchPlaceholder: "\u4f8b\uff1aM3\u3001Y\u5340\u3001\u52d5\u6f2b\u3001\u7f8e\u98df\u3001\u5ec1\u6240\u3001\u96fb\u68af",
     destination: "\u76ee\u7684\u5730",
     photoMap: "\u62cd\u651d\u7246\u4e0a\u5730\u5716",
@@ -21,6 +21,10 @@ const i18n = {
     routeTo: "\u6cbf\u8457\u7bad\u982d\u8def\u7dda\u524d\u5f80",
     goVertical: "\u8acb\u5148\u524d\u5f80\u96fb\u68af / \u6a13\u68af\uff0c\u518d\u79fb\u52d5\u5230",
     distance: "\u8ddd\u96e2\u7d04",
+    meters: "\u516c\u5c3a",
+    futureSteps: "\u5c55\u958b\u4e4b\u5f8c\u6b65\u9a5f",
+    currentInstruction: "\u73fe\u5728\u8acb",
+    learningUpdated: "\u5df2\u5b78\u7fd2\u9019\u6bb5\u53ef\u901a\u884c\u8def\u5f91",
     path: "\u8def\u5f91",
     confidence: "\u4fe1\u5fc3",
     coordinate: "\u5ea7\u6a19",
@@ -79,11 +83,11 @@ const i18n = {
   },
   en: {
     appTitle: "Taipei Station Underground Photo Navigation",
-    waiting: "Waiting for photo location",
-    photoHelp: "Take a photo of a fixed wall map. The base map, coordinates, AP/IP, and route update automatically.",
+    waiting: "Locating by GPS",
+    photoHelp: "GPS keeps updating your position. A wall-map photo only improves calibration.",
     destinationFloor: "Destination floor",
     destinationCategory: "Destination category",
-    destinationSearch: "Search destination",
+    destinationSearch: "Search or choose destination",
     destinationSearchPlaceholder: "e.g. M3, Y area, anime, food, restroom, elevator",
     destination: "Destination",
     photoMap: "Photo of wall map",
@@ -99,6 +103,10 @@ const i18n = {
     routeTo: "Follow the arrow route to",
     goVertical: "Go to Elevator / Stairs first, then move to",
     distance: "Distance about",
+    meters: "m",
+    futureSteps: "Show later steps",
+    currentInstruction: "Now",
+    learningUpdated: "This walkable path was learned",
     path: "Path",
     confidence: "confidence",
     coordinate: "Coordinate",
@@ -202,6 +210,7 @@ let lastTouchCenter = null;
 let voiceEnabled = localStorage.getItem("voiceEnabled") !== "false";
 let lastGpsSpeechAt = 0;
 let lastGpsRouteAt = 0;
+let lastGpsLearnAt = 0;
 let lastSpokenRoute = "";
 let lastAutoSpeechAt = 0;
 let lastTileSignature = "";
@@ -429,6 +438,14 @@ function resolveDestinationFloor() {
   return place?.floor || currentFloor || "B1";
 }
 
+function estimatedMeters(px) {
+  return Math.max(1, Math.round(Number(px || 0) * 0.6));
+}
+
+function routeMeters() {
+  return Number.isFinite(Number(routeData?.totalMeters)) ? Math.round(routeData.totalMeters) : estimatedMeters(routeData?.totalDistance);
+}
+
 function geoToMap(lat, lon) {
   const x = (lon - geoMapBounds.west) / (geoMapBounds.east - geoMapBounds.west) * canvas.width;
   const y = (geoMapBounds.north - lat) / (geoMapBounds.north - geoMapBounds.south) * canvas.height;
@@ -504,7 +521,7 @@ function nearestAccessPointClient(point) {
 }
 
 function applyGpsMapLocation(gps) {
-  if (!config || locationSource === "photo") return;
+  if (!config) return;
   const mapped = geoToMap(gps.lat, gps.lon);
   if (!isMapPointUsable(mapped)) {
     mapBadge.textContent = `${t("gpsOutside")}: ${gps.lat.toFixed(6)}, ${gps.lon.toFixed(6)}`;
@@ -524,9 +541,33 @@ function applyGpsMapLocation(gps) {
   centerOnCurrent(false);
   updateLocationText();
   const now = Date.now();
+  if (now - lastGpsLearnAt > 2500) {
+    lastGpsLearnAt = now;
+    void learnGpsPath(gps, currentPosition);
+  }
   if (destinationActive && now - lastGpsRouteAt > 8000) {
     lastGpsRouteAt = now;
     void requestRoute("gps");
+  }
+}
+
+async function learnGpsPath(gps, point) {
+  try {
+    const result = await api("/api/location/gps", {
+      method: "POST",
+      body: JSON.stringify({
+        sessionId,
+        floor: currentFloor,
+        x: point.x,
+        y: point.y,
+        lat: gps.lat,
+        lon: gps.lon,
+        accuracy: gps.accuracy
+      })
+    });
+    if (result.learned) screenReaderSummary.textContent = t("learningUpdated");
+  } catch {
+    // Learning is opportunistic; navigation should keep working if logging fails.
   }
 }
 
@@ -1022,8 +1063,8 @@ function updateRouteText() {
   const nextKey = routeData.pathKeys?.[1] || routeData.pathKeys?.[0];
   const nextNode = nextKey ? config.graphNodes[nextKey] : null;
   const direction = nextNode ? directionFromTo(currentPosition, nextNode) : "";
-  const directionLine = direction ? `<br>${t("nextDirection")}: ${direction}` : "";
-  routeHint.innerHTML = `${intro}${directionLine}<br>${t("distance")} ${routeData.totalDistance}px${routeStepsHtml(finalDest)}`;
+  const current = currentStepSpeech();
+  routeHint.innerHTML = `<strong>${t("currentInstruction")}:</strong> ${escapeHtml(current)}<br>${t("distance")} ${routeMeters()} ${t("meters")}${routeStepsHtml(finalDest)}`;
   const spoken = routeSpeech();
   if (spoken && spoken !== lastSpokenRoute) {
     lastSpokenRoute = spoken;
@@ -1106,7 +1147,7 @@ function routeSpeech() {
     : verticalRouteInstruction(finalDest);
   const step = distance(currentPosition, dest) < 35 ? t("arrivedNear") : `${t("nextToward")} ${nextText}`;
   const directionText = direction ? `${t("nextDirection")}: ${direction}` : "";
-  return `${intro}。${directionText}。${step}。${t("distance")} ${Math.round(routeData.totalDistance)} px。${t("path")}: ${routeData.pathKeys.join(" -> ")}`;
+  return `${intro}。${directionText}。${step}。${t("distance")} ${routeMeters()} ${t("meters")}`;
 }
 
 function floorText(floorId) {
@@ -1161,8 +1202,8 @@ function routeStepsHtml(finalDest) {
     steps.push(lang === "en" ? `Arrive at ${text(finalDest)}.` : `抵達${text(finalDest)}。`);
   }
   if (!steps.length) return "";
-  const list = steps.slice(0, 5).map((step, index) => `<li>${index + 1}. ${escapeHtml(step)}</li>`).join("");
-  return `<ol class="route-steps">${list}</ol>`;
+  const list = steps.slice(0, 8).map((step, index) => `<li>${index + 1}. ${escapeHtml(step)}</li>`).join("");
+  return `<details class="route-details"><summary>${t("futureSteps")}</summary><ol class="route-steps">${list}</ol></details>`;
 }
 
 function directionFromTo(from, to) {
@@ -1256,6 +1297,7 @@ destinationSearch.addEventListener("keydown", event => {
 });
 destPlace.addEventListener("change", () => {
   destinationActive = true;
+  destinationSearch.value = destPlace.options[destPlace.selectedIndex]?.textContent || "";
   requestRoute("destination-place");
 });
 destPlace.addEventListener("change", () => liveOnly(`${t("destination")}: ${destPlace.options[destPlace.selectedIndex]?.textContent || ""}`));

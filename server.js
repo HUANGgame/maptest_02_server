@@ -14,6 +14,7 @@ const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "TaipeiStationAdmin2026!";
 const ADMIN_TOKEN = randomBytes(32).toString("hex");
 const CANVAS_WIDTH = 1100;
 const CANVAS_HEIGHT = 720;
+const METERS_PER_PIXEL = 0.6;
 
 const floors = {
   B1: { id: "B1", nameZh: "\u5730\u4e0b\u8857\u5c64", nameEn: "Underground Mall", order: 1 },
@@ -50,6 +51,30 @@ const graphEdges = [
   ["M4", "M8"], ["WEST", "Y_LINK"], ["SOUTH", "Z_LINK"], ["M4", "K_LINK"],
   ["NORTH", "R_LINK"], ["CENTER", "INFO"], ["ELEVATOR", "RESTROOM"]
 ];
+
+Object.assign(graphNodes, {
+  M1_A: { x: 585, y: 165, labelZh: "M1/M2 連通道", labelEn: "M1/M2 Link" },
+  NORTH_A: { x: 560, y: 205, labelZh: "北側轉角", labelEn: "North Corner" },
+  NORTH_B: { x: 520, y: 255, labelZh: "北側通道南端", labelEn: "North Passage South End" },
+  CENTER_W: { x: 455, y: 360, labelZh: "中央西側通道", labelEn: "Center West Passage" },
+  CENTER_E: { x: 630, y: 360, labelZh: "中央東側通道", labelEn: "Center East Passage" },
+  SOUTH_A: { x: 545, y: 430, labelZh: "中央往南通道", labelEn: "Center South Passage" },
+  SOUTH_B: { x: 550, y: 485, labelZh: "站前連通北端", labelEn: "Station Front Link North" },
+  M3_A: { x: 700, y: 515, labelZh: "M3 西側轉角", labelEn: "M3 West Corner" },
+  M4_A: { x: 640, y: 570, labelZh: "M4 通道", labelEn: "M4 Passage" },
+  Y_A: { x: 185, y: 355, labelZh: "Y 區入口通道", labelEn: "Y Area Entrance" },
+  Z_A: { x: 555, y: 610, labelZh: "Z 區入口通道", labelEn: "Z Area Entrance" },
+  K_A: { x: 715, y: 625, labelZh: "K 區入口通道", labelEn: "K Area Entrance" },
+  R_A: { x: 470, y: 170, labelZh: "R 區入口通道", labelEn: "R Area Entrance" }
+});
+
+graphEdges.push(
+  ["M1", "M1_A"], ["M1_A", "NORTH_A"], ["NORTH_A", "NORTH"], ["NORTH", "NORTH_B"], ["NORTH_B", "CENTER"],
+  ["WEST", "Y_A"], ["Y_A", "CENTER_W"], ["CENTER_W", "CENTER"], ["CENTER", "CENTER_E"], ["CENTER_E", "EAST"],
+  ["CENTER", "SOUTH_A"], ["SOUTH_A", "SOUTH_B"], ["SOUTH_B", "SOUTH"], ["SOUTH", "M4_A"], ["M4_A", "M4"],
+  ["SOUTH", "Z_A"], ["Z_A", "Z_LINK"], ["M4", "K_A"], ["K_A", "K_LINK"], ["NORTH", "R_A"], ["R_A", "R_LINK"],
+  ["SOUTH_B", "ELEVATOR"], ["ELEVATOR", "M3_A"], ["M3_A", "M3"]
+);
 
 const places = {
   M1: place(590, 125, "M1 / M2 \u51fa\u53e3", "Exit M1 / M2", "M1", "M", ["m1", "m2", "\u6377\u904b"]),
@@ -204,7 +229,10 @@ const defaultState = {
     { id: "AP-M-EAST", name: "M Area Wi-Fi AP East", ip: "10.10.20.12", ssid: "TPE-Free", floor: "B1", x: 745, y: 350, note: "Demo data. Replace with real AP inventory." }
   ],
   sessions: {},
-  events: []
+  events: [],
+  learnedNodes: {},
+  learnedEdges: [],
+  lastPositions: {}
 };
 
 let state = structuredClone(defaultState);
@@ -287,10 +315,11 @@ function distance(a, b) {
   return Math.hypot(a.x - b.x, a.y - b.y);
 }
 
-function buildAdjacency() {
-  const out = Object.fromEntries(Object.keys(graphNodes).map(key => [key, []]));
-  for (const [a, b] of graphEdges) {
-    const weight = distance(graphNodes[a], graphNodes[b]);
+function buildAdjacency(nodes = graphNodes, edges = graphEdges) {
+  const out = Object.fromEntries(Object.keys(nodes).map(key => [key, []]));
+  for (const [a, b] of edges) {
+    if (!nodes[a] || !nodes[b] || !out[a] || !out[b]) continue;
+    const weight = distance(nodes[a], nodes[b]);
     out[a].push({ node: b, weight });
     out[b].push({ node: a, weight });
   }
@@ -308,7 +337,10 @@ async function loadState() {
       mapBoards: migrateBoards(saved.mapBoards),
       accessPoints: Array.isArray(saved.accessPoints) ? saved.accessPoints : structuredClone(defaultState.accessPoints),
       sessions: saved.sessions && typeof saved.sessions === "object" ? saved.sessions : {},
-      events: Array.isArray(saved.events) ? saved.events : []
+      events: Array.isArray(saved.events) ? saved.events : [],
+      learnedNodes: saved.learnedNodes && typeof saved.learnedNodes === "object" ? saved.learnedNodes : {},
+      learnedEdges: Array.isArray(saved.learnedEdges) ? saved.learnedEdges : [],
+      lastPositions: saved.lastPositions && typeof saved.lastPositions === "object" ? saved.lastPositions : {}
     };
   } catch {
     await saveState();
@@ -338,14 +370,59 @@ async function saveState() {
     mapBoards: state.mapBoards,
     accessPoints: state.accessPoints,
     sessions: state.sessions,
-    events: state.events.slice(-800)
+    events: state.events.slice(-800),
+    learnedNodes: state.learnedNodes,
+    learnedEdges: state.learnedEdges.slice(-2000),
+    lastPositions: state.lastPositions
   }, null, 2), "utf8");
 }
 
-function nearestNode(point) {
+function learnedNodeId(point) {
+  const x = Math.round(Number(point.x) / 18) * 18;
+  const y = Math.round(Number(point.y) / 18) * 18;
+  const floor = floors[point.floor] ? point.floor : "B1";
+  return `L-${floor}-${x}-${y}`;
+}
+
+function normalizedLearnedEdges() {
+  const out = [];
+  const seen = new Set();
+  for (const edge of state.learnedEdges || []) {
+    if (!edge?.a || !edge?.b || edge.a === edge.b) continue;
+    const key = [edge.a, edge.b].sort().join("|");
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push([edge.a, edge.b]);
+  }
+  return out;
+}
+
+function learnedGraph() {
+  const learnedNodes = {};
+  const connectorEdges = [];
+  for (const [id, node] of Object.entries(state.learnedNodes || {})) {
+    if (!Number.isFinite(Number(node.x)) || !Number.isFinite(Number(node.y))) continue;
+    learnedNodes[id] = {
+      x: Number(node.x),
+      y: Number(node.y),
+      floor: node.floor || "B1",
+      labelZh: "\u5df2\u5b78\u7fd2\u53ef\u901a\u884c\u9ede",
+      labelEn: "Learned Walkable Point"
+    };
+    const nearest = nearestNode({ floor: learnedNodes[id].floor, x: learnedNodes[id].x, y: learnedNodes[id].y }, graphNodes);
+    if (nearest.distance <= 95) connectorEdges.push([id, nearest.key]);
+  }
+  return {
+    nodes: { ...graphNodes, ...learnedNodes },
+    edges: [...graphEdges, ...normalizedLearnedEdges(), ...connectorEdges]
+  };
+}
+
+function nearestNode(point, nodes = graphNodes) {
   let bestKey = "CENTER";
   let bestDistance = Infinity;
-  for (const [key, node] of Object.entries(graphNodes)) {
+  for (const [key, node] of Object.entries(nodes)) {
+    if (node.floor && point.floor && node.floor !== point.floor) continue;
     const d = distance(point, node);
     if (d < bestDistance) {
       bestKey = key;
@@ -355,10 +432,10 @@ function nearestNode(point) {
   return { key: bestKey, distance: bestDistance };
 }
 
-function shortestPath(startKey, endKey) {
+function shortestPath(startKey, endKey, nodes = graphNodes, adj = adjacency) {
   const distances = {};
   const previous = {};
-  const open = new Set(Object.keys(graphNodes));
+  const open = new Set(Object.keys(nodes));
   for (const key of open) {
     distances[key] = Infinity;
     previous[key] = null;
@@ -445,14 +522,16 @@ function route(body, req) {
   const currentFloor = floors[body.currentFloor] ? body.currentFloor : "B1";
   const destFloor = floors[body.destFloor] ? body.destFloor : currentFloor;
   const destPlace = places[body.destPlace] ? body.destPlace : "M3";
-  const position = { x: Number(body.position?.x), y: Number(body.position?.y) };
+  const position = { floor: currentFloor, x: Number(body.position?.x), y: Number(body.position?.y) };
   if (!Number.isFinite(position.x) || !Number.isFinite(position.y)) return jsonError(400, "position.x and position.y must be numbers.");
   const sameFloor = currentFloor === destFloor;
   const routeTarget = sameFloor ? destPlace : "elevator";
   const destination = places[routeTarget];
-  const snap = nearestNode(position);
-  const result = shortestPath(snap.key, destination.node);
-  const path = result.pathKeys.map(key => ({ id: key, ...graphNodes[key] }));
+  const routing = learnedGraph();
+  const adjacencyForRoute = buildAdjacency(routing.nodes, routing.edges);
+  const snap = nearestNode(position, routing.nodes);
+  const result = shortestPath(snap.key, destination.node, routing.nodes, adjacencyForRoute);
+  const path = result.pathKeys.map(key => ({ id: key, ...routing.nodes[key] })).filter(item => Number.isFinite(item.x));
   const verticalDiff = floors[destFloor].order - floors[currentFloor].order;
   const verticalDirection = verticalDiff > 0 ? "down" : verticalDiff < 0 ? "up" : "same";
   const sessionId = clean(body.sessionId, 80);
@@ -464,6 +543,7 @@ function route(body, req) {
     accessPoint: nearestAccessPoint({ floor: currentFloor, x: position.x, y: position.y }),
     routeTarget,
     totalDistance: Math.round(result.totalDistance),
+    totalMeters: Math.round(result.totalDistance * METERS_PER_PIXEL),
     clientIp: clientIp(req)
   });
   return jsonOk({
@@ -477,8 +557,63 @@ function route(body, req) {
     destination,
     path,
     pathKeys: result.pathKeys,
-    totalDistance: Math.round(result.totalDistance)
+    totalDistance: Math.round(result.totalDistance),
+    totalMeters: Math.round(result.totalDistance * METERS_PER_PIXEL),
+    learnedEdges: state.learnedEdges.length,
+    learnedNodes: Object.keys(state.learnedNodes).length
   });
+}
+
+function learnGpsLocation(body, req) {
+  const sessionId = clean(body.sessionId, 80) || randomUUID();
+  const floor = floors[body.floor] ? body.floor : "B1";
+  const point = {
+    floor,
+    x: clamp(body.x, 0, CANVAS_WIDTH, CANVAS_WIDTH / 2),
+    y: clamp(body.y, 0, CANVAS_HEIGHT, CANVAS_HEIGHT / 2),
+    lat: Number(body.lat),
+    lon: Number(body.lon),
+    accuracy: Number(body.accuracy)
+  };
+  const nodeId = learnedNodeId(point);
+  const previousNode = state.learnedNodes[nodeId];
+  state.learnedNodes[nodeId] = {
+    id: nodeId,
+    floor,
+    x: point.x,
+    y: point.y,
+    seen: (previousNode?.seen || 0) + 1,
+    lastSeen: new Date().toISOString()
+  };
+  const last = state.lastPositions[sessionId];
+  let learned = false;
+  if (last?.nodeId && last.nodeId !== nodeId) {
+    const lastNode = state.learnedNodes[last.nodeId];
+    const d = lastNode ? distance(point, lastNode) : 0;
+    if (d >= 10 && d <= 180) {
+      const [a, b] = [last.nodeId, nodeId].sort();
+      const edgeKey = `${a}|${b}`;
+      const edge = state.learnedEdges.find(item => item.key === edgeKey);
+      if (edge) {
+        edge.count = (edge.count || 1) + 1;
+        edge.lastSeen = new Date().toISOString();
+      } else {
+        state.learnedEdges.push({ key: edgeKey, a, b, floor, count: 1, lastSeen: new Date().toISOString() });
+      }
+      learned = true;
+    }
+  }
+  state.lastPositions[sessionId] = { nodeId, floor, x: point.x, y: point.y, at: new Date().toISOString() };
+  recordSession(sessionId, "gps-location", {
+    floor,
+    position: { x: point.x, y: point.y },
+    gps: Number.isFinite(point.lat) && Number.isFinite(point.lon) ? { lat: point.lat, lon: point.lon, accuracy: point.accuracy } : null,
+    learned,
+    learnedNodes: Object.keys(state.learnedNodes).length,
+    learnedEdges: state.learnedEdges.length,
+    clientIp: clientIp(req)
+  });
+  return jsonOk({ ok: true, learned, nodeId, learnedNodes: Object.keys(state.learnedNodes).length, learnedEdges: state.learnedEdges.length });
 }
 
 function nearestAccessPoint(point) {
@@ -531,7 +666,20 @@ function recordSession(sessionId, type, payload) {
 }
 
 function adminSummary() {
-  return { boards: state.mapBoards, accessPoints: state.accessPoints, storeDirectory, areaExitDirectory, sessions: Object.values(state.sessions).sort((a, b) => b.lastSeen.localeCompare(a.lastSeen)), events: state.events.slice(-150).reverse(), sources: mapSources };
+  return {
+    boards: state.mapBoards,
+    accessPoints: state.accessPoints,
+    storeDirectory,
+    areaExitDirectory,
+    sessions: Object.values(state.sessions).sort((a, b) => b.lastSeen.localeCompare(a.lastSeen)),
+    events: state.events.slice(-150).reverse(),
+    sources: mapSources,
+    learned: {
+      nodes: Object.keys(state.learnedNodes || {}).length,
+      edges: (state.learnedEdges || []).length,
+      recentEdges: (state.learnedEdges || []).slice(-50).reverse()
+    }
+  };
 }
 
 function updateBoard(body) {
@@ -681,7 +829,11 @@ const server = http.createServer(async (req, res) => {
   try {
     if (req.method === "GET" && url.pathname === "/api/health") return sendJson(res, 200, { ok: true, message: "Taipei Station photo navigation server is running.", port: PORT });
     if (req.method === "GET" && url.pathname === "/api/config") return sendJson(res, 200, config());
-    if (req.method === "POST" && url.pathname === "/api/location/photo") {
+      if (req.method === "POST" && url.pathname === "/api/location/gps") {
+        const result = learnGpsLocation(await readJson(req), req);
+        return sendJson(res, result.status, result.data);
+      }
+      if (req.method === "POST" && url.pathname === "/api/location/photo") {
       const result = locateByPhoto(await readJson(req), req);
       return sendJson(res, result.status, result.data);
     }

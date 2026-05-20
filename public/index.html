@@ -30,7 +30,7 @@
       <div class="map-shell">
         <div id="tileLayer" class="tile-layer" aria-hidden="true"></div>
         <canvas id="mapCanvas" width="1100" height="720" tabindex="0" role="img" aria-label="Taipei Station underground navigation map"></canvas>
-        <div class="badge" id="mapBadge" role="status" aria-live="polite" data-i18n="waiting">Waiting for location</div>
+        <div class="badge" id="mapBadge" role="status" aria-live="polite" data-i18n="waiting">Locating by GPS</div>
         <div class="map-attribution">&copy; OpenStreetMap contributors</div>
         <div class="map-tools">
           <button id="zoomInBtn" type="button" aria-label="Zoom in">+</button>
@@ -38,16 +38,16 @@
           <button id="centerBtn" type="button" data-i18n="centerCurrent">Center</button>
         </div>
       </div>
-      <div class="hint" id="routeHint" role="status" aria-live="polite" data-i18n="photoHelp">Take a wall-map photo to update the floor map, coordinates, AP/IP, and route.</div>
+      <div class="hint" id="routeHint" role="status" aria-live="polite" data-i18n="photoHelp">GPS keeps updating your position. A wall-map photo only improves calibration.</div>
     </section>
 
     <aside class="panel" id="controlsPanel">
       <div class="field">
-        <label for="destinationSearch" data-i18n="destinationSearch">Search destination</label>
+        <label for="destinationSearch" data-i18n="destinationSearch">Search or choose destination</label>
         <input id="destinationSearch" list="destinationSuggestions" autocomplete="off" data-i18n-placeholder="destinationSearchPlaceholder">
         <datalist id="destinationSuggestions"></datalist>
       </div>
-      <div class="field">
+      <div class="field sr-only">
         <label for="destPlace" data-i18n="destination">Destination</label>
         <select id="destPlace"></select>
       </div>
