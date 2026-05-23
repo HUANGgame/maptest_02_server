@@ -144,6 +144,7 @@ const elements = {
   boardList: document.getElementById("boardList"),
   apForm: document.getElementById("apForm"),
   apList: document.getElementById("apList"),
+  wifiFingerprintPanel: document.getElementById("wifiFingerprintPanel"),
   destinationFilter: document.getElementById("destinationFilter"),
   destinationEditor: document.getElementById("destinationEditor"),
   destinationList: document.getElementById("destinationList"),
@@ -157,6 +158,7 @@ let config = null;
 let summary = null;
 let activeTab = "dashboard";
 let selectedDestinationId = "";
+let adminBaseMapImage = null;
 
 elements.langSelect.value = lang;
 
@@ -255,6 +257,11 @@ async function loadAdmin() {
   try {
     summary = await api("/api/admin/summary");
     config = await api("/api/config");
+    if (config.baseMap?.image && !adminBaseMapImage) {
+      adminBaseMapImage = new Image();
+      adminBaseMapImage.src = config.baseMap.image;
+      adminBaseMapImage.onload = () => drawAdminMap();
+    }
     fillFloorSelects();
     elements.loginView.classList.add("hidden");
     elements.adminView.classList.remove("hidden");
@@ -276,6 +283,7 @@ function renderAll() {
   renderDashboard();
   renderBoards();
   renderAccessPoints();
+  renderWifiFingerprints();
   renderDestinations();
   renderActivity();
   setTab(activeTab);
@@ -357,6 +365,61 @@ function renderAccessPoints() {
   `;
   elements.apList.querySelectorAll("[data-edit-ap]").forEach(button => {
     button.addEventListener("click", () => editAp(summary.accessPoints.find(ap => ap.id === button.dataset.editAp)));
+  });
+}
+
+function renderWifiFingerprints() {
+  if (!elements.wifiFingerprintPanel) return;
+  const fingerprints = summary.wifiFingerprints || config.wifiFingerprints || [];
+  const floorOptions = Object.values(config.floors).map(floor =>
+    `<option value="${floor.id}">${escapeHtml(lang === "en" ? floor.nameEn : floor.nameZh)}</option>`
+  ).join("");
+  elements.wifiFingerprintPanel.innerHTML = `
+    <div class="section-head">
+      <div>
+        <h2>${lang === "en" ? "Wi-Fi fingerprint demo" : "Wi-Fi 指紋定位 demo"}</h2>
+        <p class="muted">${lang === "en" ? "Paste scan samples for each known campus point. User-side Wi-Fi location compares against these fingerprints." : "每個已知校園點位貼上 Wi-Fi 掃描樣本，使用者端會用這些指紋比對定位。"}</p>
+      </div>
+    </div>
+    <form id="wifiFingerprintForm" class="easy-form">
+      <div class="form-card">
+        <h3>${lang === "en" ? "Point" : "點位"}</h3>
+        <div class="field"><label for="wifiId">ID</label><input id="wifiId" value="WF-TKU-DEMO"></div>
+        <div class="field"><label for="wifiLabelZh">中文名稱</label><input id="wifiLabelZh" value="淡江 Wi-Fi 指紋點"></div>
+        <div class="field"><label for="wifiLabelEn">English name</label><input id="wifiLabelEn" value="Tamkang Wi-Fi Fingerprint"></div>
+        <div class="row">
+          <div class="field"><label for="wifiFloor">${t("floor")}</label><select id="wifiFloor">${floorOptions}</select></div>
+          <div class="field"><label for="wifiX">X</label><input id="wifiX" type="number" value="440"></div>
+          <div class="field"><label for="wifiY">Y</label><input id="wifiY" type="number" value="615"></div>
+        </div>
+      </div>
+      <div class="form-card">
+        <h3>${lang === "en" ? "Scan samples" : "掃描樣本"}</h3>
+        <div class="field">
+          <label for="wifiSamples">${lang === "en" ? "JSON or one line each: bssid,ssid,rssi" : "JSON 或每行一筆：bssid,ssid,rssi"}</label>
+          <textarea id="wifiSamples" rows="7">aa:aa:aa:00:02,TKU-Library,-48
+aa:aa:aa:00:03,TKU-Student,-72</textarea>
+        </div>
+        <div class="field"><label for="wifiNote">${t("note")}</label><textarea id="wifiNote"></textarea></div>
+        <button class="primary" type="submit">${lang === "en" ? "Save Wi-Fi fingerprint" : "儲存 Wi-Fi 指紋"}</button>
+      </div>
+    </form>
+    <div class="data-list">
+      ${fingerprints.map(item => `
+        <article class="data-row">
+          <div>
+            <strong>${escapeHtml(lang === "en" ? item.labelEn : item.labelZh)}</strong>
+            <div class="muted">${escapeHtml(item.id)} · ${escapeHtml(item.floor)} · X ${Math.round(item.x)}, Y ${Math.round(item.y)}</div>
+            <div class="small">${(item.samples || []).length} AP samples</div>
+          </div>
+          <button type="button" data-edit-wifi="${escapeHtml(item.id)}">${t("edit")}</button>
+        </article>
+      `).join("") || `<p class="muted">${t("noData")}</p>`}
+    </div>
+  `;
+  document.getElementById("wifiFingerprintForm").addEventListener("submit", saveWifiFingerprint);
+  elements.wifiFingerprintPanel.querySelectorAll("[data-edit-wifi]").forEach(button => {
+    button.addEventListener("click", () => editWifiFingerprint(fingerprints.find(item => item.id === button.dataset.editWifi)));
   });
 }
 
@@ -474,8 +537,14 @@ function drawAdminMap() {
     y: Number(document.getElementById("destinationEditY")?.value || 0)
   };
   ctx.clearRect(0, 0, canvas.width, canvas.height);
-  ctx.fillStyle = "#f8fafc";
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  if (adminBaseMapImage?.complete) {
+    ctx.drawImage(adminBaseMapImage, 0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = "rgba(255, 255, 255, .22)";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+  } else {
+    ctx.fillStyle = "#f8fafc";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+  }
   ctx.strokeStyle = "#dbe3ec";
   ctx.lineWidth = 1;
   for (let x = 0; x <= canvas.width; x += 50) {
@@ -620,6 +689,36 @@ async function saveAp(event) {
   alert(t("saved"));
 }
 
+async function saveWifiFingerprint(event) {
+  event.preventDefault();
+  const fingerprint = {
+    id: value("wifiId"),
+    labelZh: value("wifiLabelZh"),
+    labelEn: value("wifiLabelEn"),
+    floor: value("wifiFloor"),
+    x: value("wifiX"),
+    y: value("wifiY"),
+    samples: value("wifiSamples"),
+    note: value("wifiNote")
+  };
+  await api("/api/admin/wifi-fingerprints", { method: "POST", body: JSON.stringify(fingerprint) });
+  await loadAdmin();
+  alert(t("saved"));
+}
+
+function editWifiFingerprint(item) {
+  if (!item) return;
+  setValue("wifiId", item.id);
+  setValue("wifiLabelZh", item.labelZh);
+  setValue("wifiLabelEn", item.labelEn);
+  setValue("wifiFloor", item.floor);
+  setValue("wifiX", item.x);
+  setValue("wifiY", item.y);
+  setValue("wifiSamples", JSON.stringify(item.samples || [], null, 2));
+  setValue("wifiNote", item.note || "");
+  document.getElementById("wifiFingerprintForm")?.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
 function editBoard(board) {
   if (!board) return;
   setValue("boardId", board.id);
@@ -654,9 +753,9 @@ function resetBoardForm() {
   setValue("boardId", id);
   setValue("boardNameZh", "新牆面地圖");
   setValue("boardNameEn", "New Wall Map");
-  setValue("boardFloor", "B1");
-  setValue("boardX", 545);
-  setValue("boardY", 360);
+  setValue("boardFloor", "campus");
+  setValue("boardX", 440);
+  setValue("boardY", 615);
   setValue("boardHeading", 0);
   elements.referenceHash.value = "";
 }
@@ -668,9 +767,9 @@ function resetApForm() {
   setValue("apName", "New AP");
   setValue("apIp", "");
   setValue("apSsid", "");
-  setValue("apFloor", "B1");
-  setValue("apX", 545);
-  setValue("apY", 360);
+  setValue("apFloor", "campus");
+  setValue("apX", 440);
+  setValue("apY", 615);
 }
 
 function statCard(label, valueText) {

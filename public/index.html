@@ -3,13 +3,13 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Taipei Station Photo Navigation</title>
+  <title>淡江校園 Wi-Fi 定位導覽 Demo</title>
   <link rel="stylesheet" href="/app.css">
 </head>
 <body>
   <a class="skip-link" href="#controlsPanel" data-i18n="skipToControls">Skip to controls</a>
   <header>
-    <h1 data-i18n="appTitle">Taipei Station Photo Navigation</h1>
+    <h1 data-i18n="appTitle">淡江校園 Wi-Fi 定位導覽 Demo</h1>
     <div class="top-actions">
       <select id="langSelect" aria-label="Language">
         <option value="zh">中文</option>
@@ -60,6 +60,13 @@
       </div>
       <div class="actions">
         <button id="locateBtn" class="primary" type="button" data-i18n="locateByPhoto">Locate by Photo</button>
+      </div>
+      <div class="field">
+        <label for="wifiScanInput" data-i18n="wifiScan">Wi-Fi scan demo</label>
+        <textarea id="wifiScanInput" rows="5" spellcheck="false" data-i18n-placeholder="wifiScanPlaceholder"></textarea>
+      </div>
+      <div class="actions">
+        <button id="wifiLocateBtn" class="primary" type="button" data-i18n="locateByWifi">Wi-Fi 定位</button>
       </div>
       <div class="status" id="locationBox" role="status" aria-live="polite">-</div>
       <div class="status" id="statusBox" role="status" aria-live="polite">Server...</div>

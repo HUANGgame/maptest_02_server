@@ -1,6 +1,6 @@
 const i18n = {
   zh: {
-    appTitle: "\u53f0\u5317\u8eca\u7ad9\u5730\u4e0b\u8857\u62cd\u7167\u5b9a\u4f4d",
+    appTitle: "淡江校園 Wi-Fi 定位導覽 Demo",
     waiting: "GPS \u5b9a\u4f4d\u4e2d",
     photoHelp: "GPS \u6703\u6301\u7e8c\u66f4\u65b0\u4f60\u7684\u4f4d\u7f6e\uff1b\u62cd\u651d\u7246\u4e0a\u5730\u5716\u53ea\u662f\u7528\u4f86\u66f4\u7cbe\u6e96\u6821\u6b63\u3002",
     destinationFloor: "\u76ee\u7684\u6a13\u5c64",
@@ -11,6 +11,10 @@ const i18n = {
     destination: "\u76ee\u7684\u5730",
     photoMap: "\u62cd\u651d\u7246\u4e0a\u5730\u5716",
     locateByPhoto: "\u62cd\u7167\u5b9a\u4f4d",
+    wifiScan: "Wi-Fi 指紋定位 demo",
+    wifiScanPlaceholder: "貼上 JSON，或每行一筆：bssid,ssid,rssi\n例如：aa:aa:aa:00:02,TKU-Library,-48",
+    locateByWifi: "Wi-Fi 定位",
+    wifiLocated: "Wi-Fi 定位成功",
     publicNote: "\u62cd\u7167\u6210\u529f\u5f8c\u6703\u76f4\u63a5\u66f4\u65b0\u5e95\u5716\u3001\u6b63\u78ba\u5ea7\u6a19\u3001AP/IP \u548c\u65b9\u5411\u7bad\u982d\u8def\u7dda\u3002",
     centerCurrent: "\u56de\u5230\u76ee\u524d\u4f4d\u7f6e",
     serverDown: "Server \u7121\u6cd5\u9023\u7dda\u3002",
@@ -84,7 +88,7 @@ const i18n = {
     cameraHint: "\u628a\u93e1\u982d\u5c0d\u6e96\u7246\u4e0a\u5730\u5716\uff0c\u62cd\u5b8c\u5f8c\u7cfb\u7d71\u6703\u81ea\u52d5\u5b9a\u4f4d\u4e26\u6717\u8b80\u8def\u7dda\u3002"
   },
   en: {
-    appTitle: "Taipei Station Underground Photo Navigation",
+    appTitle: "Tamkang Campus Wi-Fi Navigation Demo",
     waiting: "Locating by GPS",
     photoHelp: "GPS keeps updating your position. A wall-map photo only improves calibration.",
     destinationFloor: "Destination floor",
@@ -95,6 +99,10 @@ const i18n = {
     destination: "Destination",
     photoMap: "Photo of wall map",
     locateByPhoto: "Locate by Photo",
+    wifiScan: "Wi-Fi fingerprint demo",
+    wifiScanPlaceholder: "Paste JSON, or one line each: bssid,ssid,rssi\ne.g. aa:aa:aa:00:02,TKU-Library,-48",
+    locateByWifi: "Locate by Wi-Fi",
+    wifiLocated: "Wi-Fi location succeeded",
     publicNote: "After a successful photo match, the base map, accurate coordinates, AP/IP, and arrow route update automatically.",
     centerCurrent: "Center current",
     serverDown: "Server is unavailable.",
@@ -180,6 +188,8 @@ const clearDestinationBtn = document.getElementById("clearDestinationBtn");
 const destPlace = document.getElementById("destPlace");
 const photoInput = document.getElementById("photoInput");
 const locateBtn = document.getElementById("locateBtn");
+const wifiScanInput = document.getElementById("wifiScanInput");
+const wifiLocateBtn = document.getElementById("wifiLocateBtn");
 const zoomInBtn = document.getElementById("zoomInBtn");
 const zoomOutBtn = document.getElementById("zoomOutBtn");
 const centerBtn = document.getElementById("centerBtn");
@@ -196,8 +206,8 @@ localStorage.setItem("mapSessionId", sessionId);
 
 let lang = localStorage.getItem("lang") || "zh";
 let config = null;
-let currentFloor = "B1";
-let currentPosition = { x: 545, y: 360 };
+let currentFloor = "campus";
+let currentPosition = { x: 440, y: 615 };
 let currentBoard = null;
 let currentBaseMapId = "M-B1-CENTER-01";
 let currentAccessPoint = null;
@@ -221,6 +231,7 @@ let lastAutoSpeechAt = 0;
 let lastTileSignature = "";
 let routeRequestSeq = 0;
 let routeAnimationStart = performance.now();
+let baseMapImage = null;
 
 const floorStyles = {
   B1: { bg: "#edf7f3", band: "#cde7df", label: "#0f766e" },
@@ -402,6 +413,10 @@ async function init() {
     config = await api("/api/config");
     canvas.width = config.canvas.width;
     canvas.height = config.canvas.height;
+    if (config.baseMap?.image) {
+      baseMapImage = new Image();
+      baseMapImage.src = config.baseMap.image;
+    }
     fillSelects();
     updateLocationText();
     statusBox.textContent = `${health.message}\nSession: ${sessionId}`;
@@ -421,7 +436,7 @@ function fillSelects() {
       .join("");
   }
   const places = filteredPlaces();
-  const selected = places.some(([id]) => id === destPlace.value) ? destPlace.value : (places[0]?.[0] || "M3");
+  const selected = places.some(([id]) => id === destPlace.value) ? destPlace.value : (places[0]?.[0] || "mainGate");
   destPlace.innerHTML = places
     .map(([id, place]) => `<option value="${id}" ${id === selected ? "selected" : ""}>${text(place)}</option>`)
     .join("");
@@ -442,7 +457,7 @@ function filteredPlaces() {
 
 function resolveDestinationFloor() {
   const place = config?.places?.[destPlace.value];
-  return place?.floor || currentFloor || "B1";
+  return place?.floor || currentFloor || "campus";
 }
 
 function estimatedMeters(px) {
@@ -535,7 +550,7 @@ function applyGpsMapLocation(gps) {
     updateLocationText();
     return;
   }
-  currentFloor = "B1";
+  currentFloor = "campus";
   currentPosition = {
     x: Math.max(0, Math.min(canvas.width, mapped.x)),
     y: Math.max(0, Math.min(canvas.height, mapped.y))
@@ -597,6 +612,11 @@ function switchBaseMap(boardId) {
 
 function updateTileLayer() {
   if (!tileLayer) return;
+  if (config?.baseMap?.type === "image") {
+    tileLayer.innerHTML = "";
+    tileLayer.style.background = "#d9c6ae";
+    return;
+  }
   const rect = canvas.getBoundingClientRect();
   if (!rect.width || !rect.height) return;
   const zoom = Math.max(16, Math.min(19, Math.round(18 + Math.log2(view.scale))));
@@ -648,10 +668,16 @@ function draw() {
 }
 
 function drawBaseMap() {
-  if (destinationActive && routeData) drawBaseMapFocus(activeBaseMap());
+  if (baseMapImage?.complete) {
+    ctx.drawImage(baseMapImage, 0, 0, canvas.width, canvas.height);
+  } else {
+    ctx.fillStyle = "#d9c6ae";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+  }
 }
 
 function drawBaseMapFocus(profile) {
+  return;
   if (!profile?.focus) return;
   const { x, y, w, h } = profile.focus;
   ctx.save();
@@ -1026,6 +1052,54 @@ async function locateFromPhoto() {
   }
 }
 
+function parseWifiScanInput() {
+  const raw = wifiScanInput?.value.trim() || "";
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : (parsed.wifi || parsed.scan || parsed.samples || []);
+  } catch {
+    return raw.split(/\r?\n/).map(line => {
+      const [bssid, ssid, rssi] = line.split(/[,|\t]/).map(part => part.trim());
+      return { bssid, ssid, rssi: Number(rssi) };
+    }).filter(item => item.bssid || item.ssid);
+  }
+}
+
+async function locateFromWifi() {
+  const scan = parseWifiScanInput();
+  if (!scan.length) {
+    statusBox.textContent = lang === "en" ? "Paste Wi-Fi scan data first." : "請先貼上 Wi-Fi 掃描資料。";
+    return;
+  }
+  statusBox.textContent = lang === "en" ? "Matching Wi-Fi fingerprint..." : "正在比對 Wi-Fi 指紋...";
+  try {
+    const data = await api("/api/location/wifi", {
+      method: "POST",
+      body: JSON.stringify({ sessionId, scan, userAgent: navigator.userAgent })
+    });
+    currentBoard = {
+      boardId: data.location.fingerprintId,
+      boardNameZh: data.location.fingerprintNameZh,
+      boardNameEn: data.location.fingerprintNameEn
+    };
+    currentFloor = data.location.floor;
+    currentPosition = { x: data.location.x, y: data.location.y };
+    currentAccessPoint = data.location.accessPoint || null;
+    locationSource = "wifi";
+    mapBadge.textContent = `${t("wifiLocated")}: ${lang === "en" ? data.location.fingerprintNameEn : data.location.fingerprintNameZh}`;
+    statusBox.textContent = `${t("wifiLocated")} / ${t("confidence")}: ${Math.round(data.location.confidence * 100)}%`;
+    centerOnCurrent(false);
+    updateLocationText();
+    if (destinationActive) await requestRoute("wifi-location");
+    else updateRouteText();
+    autoNavigateSpeak(`${t("wifiLocated")}。${shortLocationSpeech()}`, true);
+  } catch (error) {
+    statusBox.textContent = `${t("failed")}: ${error.message}`;
+    autoNavigateSpeak(`${t("failed")}: ${error.message}`, true);
+  }
+}
+
 async function requestRoute(reason) {
   if (!destinationActive) {
     routeData = null;
@@ -1131,6 +1205,7 @@ function shortLocationSpeech() {
 function locationSourceText() {
   if (locationSource === "photo") return t("sourcePhoto");
   if (locationSource === "gps") return t("sourceGps");
+  if (locationSource === "wifi") return lang === "en" ? "Wi-Fi fingerprint" : "Wi-Fi 指紋定位";
   if (locationSource === "floor-switch") return lang === "en" ? "Floor changed at elevator/stairs" : "已在電梯／樓梯切換樓層";
   return t("sourceDefault");
 }
@@ -1285,6 +1360,7 @@ function startGpsWatch() {
 }
 
 locateBtn.addEventListener("click", locateFromPhoto);
+wifiLocateBtn?.addEventListener("click", locateFromWifi);
 zoomInBtn.addEventListener("click", () => zoomAt(1.25));
 zoomOutBtn.addEventListener("click", () => zoomAt(0.8));
 centerBtn.addEventListener("click", centerOnCurrent);

@@ -12,8 +12,8 @@ const dataFile = path.join(dataDir, "state.json");
 const PORT = Number(process.env.PORT || 3000);
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "TaipeiStationAdmin2026!";
 const ADMIN_TOKEN = randomBytes(32).toString("hex");
-const CANVAS_WIDTH = 1100;
-const CANVAS_HEIGHT = 720;
+const CANVAS_WIDTH = 1600;
+const CANVAS_HEIGHT = 1600;
 const METERS_PER_PIXEL = 0.6;
 const GEO_MAP_BOUNDS = {
   north: 25.0526,
@@ -23,6 +23,7 @@ const GEO_MAP_BOUNDS = {
 };
 
 const floors = {
+  campus: { id: "campus", nameZh: "淡水校園", nameEn: "Tamsui Campus", order: 1 },
   B1: { id: "B1", nameZh: "\u5730\u4e0b\u8857\u5c64", nameEn: "Underground Mall", order: 1 },
   B2: { id: "B2", nameZh: "\u6377\u904b\u5927\u5ef3", nameEn: "MRT Concourse", order: 2 },
   B3: { id: "B3", nameZh: "\u6377\u904b\u8f49\u4e58\u5c64", nameEn: "MRT Transfer", order: 3 }
@@ -184,6 +185,8 @@ for (const exit of areaExitDirectory) {
   places[exit.id] = exitPlace(exit);
 }
 
+installTamkangCampusDemoData();
+
 const mapSources = [
   {
     title: "Taipei Station underground mall layout",
@@ -225,14 +228,19 @@ const mapSources = [
 
 const defaultState = {
   mapBoards: [
-    { id: "M-B1-CENTER-01", nameZh: "M \u5340\u4e2d\u592e\u7246\u9762\u5730\u5716", nameEn: "M Area Center Wall Map", floor: "B1", x: 545, y: 360, heading: 0, referenceHash: "", note: "\u53f0\u5317\u8eca\u7ad9\u5730\u4e0b\u8857 M \u5340\u4e2d\u592e" },
-    { id: "M-B1-EAST-01", nameZh: "M3/M7 \u65b9\u5411\u7246\u9762\u5730\u5716", nameEn: "M3/M7 Side Wall Map", floor: "B1", x: 745, y: 350, heading: 270, referenceHash: "", note: "\u9760\u8fd1 M3/M7 \u65b9\u5411" },
-    { id: "M-B1-SOUTH-01", nameZh: "\u7ad9\u524d\u5730\u4e0b\u8857\u9023\u901a\u5730\u5716", nameEn: "Station Front Link Wall Map", floor: "B1", x: 555, y: 535, heading: 180, referenceHash: "", note: "\u901a\u5f80 Z \u5340 / \u7ad9\u524d\u5730\u4e0b\u8857" },
-    { id: "M-B1-WEST-01", nameZh: "Y \u5340\u65b9\u5411\u7246\u9762\u5730\u5716", nameEn: "Y Area Side Wall Map", floor: "B1", x: 245, y: 355, heading: 90, referenceHash: "", note: "\u901a\u5f80\u53f0\u5317\u5730\u4e0b\u8857 Y \u5340" }
+    { id: "TKU-GA-BOARD", nameZh: "淡江大門校園導覽圖", nameEn: "Tamkang Main Gate Campus Map", floor: "campus", x: 440, y: 615, heading: 0, referenceHash: "", note: "淡水校園 demo 校正點" },
+    { id: "TKU-LIB-BOARD", nameZh: "圖書館前導覽圖", nameEn: "Library Area Campus Map", floor: "campus", x: 995, y: 830, heading: 0, referenceHash: "", note: "圖書館附近 demo 校正點" },
+    { id: "TKU-STUDENT-BOARD", nameZh: "學生活動中心導覽圖", nameEn: "Student Activity Area Campus Map", floor: "campus", x: 795, y: 1210, heading: 0, referenceHash: "", note: "學生活動中心附近 demo 校正點" }
   ],
   accessPoints: [
-    { id: "AP-M-CENTER", name: "M Area Wi-Fi AP Center", ip: "10.10.20.11", ssid: "TPE-Free", floor: "B1", x: 545, y: 360, note: "Demo data. Replace with real AP inventory." },
-    { id: "AP-M-EAST", name: "M Area Wi-Fi AP East", ip: "10.10.20.12", ssid: "TPE-Free", floor: "B1", x: 745, y: 350, note: "Demo data. Replace with real AP inventory." }
+    { id: "AP-TKU-GA", name: "TKU Main Gate Demo AP", ip: "10.20.1.11", ssid: "TKU-Demo", floor: "campus", x: 440, y: 615, note: "Demo AP. Replace with real campus AP inventory." },
+    { id: "AP-TKU-LIB", name: "TKU Library Demo AP", ip: "10.20.1.12", ssid: "TKU-Demo", floor: "campus", x: 995, y: 830, note: "Demo AP. Replace with real campus AP inventory." },
+    { id: "AP-TKU-STUDENT", name: "TKU Student Area Demo AP", ip: "10.20.1.13", ssid: "TKU-Demo", floor: "campus", x: 795, y: 1210, note: "Demo AP. Replace with real campus AP inventory." }
+  ],
+  wifiFingerprints: [
+    { id: "WF-TKU-GA", labelZh: "大門 Wi-Fi 指紋", labelEn: "Main Gate Wi-Fi Fingerprint", floor: "campus", x: 440, y: 615, samples: [{ bssid: "aa:aa:aa:00:01", ssid: "TKU-Demo", rssi: -45 }, { bssid: "aa:aa:aa:00:02", ssid: "TKU-Library", rssi: -78 }] },
+    { id: "WF-TKU-LIB", labelZh: "圖書館 Wi-Fi 指紋", labelEn: "Library Wi-Fi Fingerprint", floor: "campus", x: 995, y: 830, samples: [{ bssid: "aa:aa:aa:00:02", ssid: "TKU-Library", rssi: -48 }, { bssid: "aa:aa:aa:00:03", ssid: "TKU-Student", rssi: -72 }] },
+    { id: "WF-TKU-STUDENT", labelZh: "活動中心 Wi-Fi 指紋", labelEn: "Student Area Wi-Fi Fingerprint", floor: "campus", x: 795, y: 1210, samples: [{ bssid: "aa:aa:aa:00:03", ssid: "TKU-Student", rssi: -44 }, { bssid: "aa:aa:aa:00:02", ssid: "TKU-Library", rssi: -70 }] }
   ],
   sessions: {},
   events: [],
@@ -318,6 +326,67 @@ function exitPlace(exit) {
   };
 }
 
+function installTamkangCampusDemoData() {
+  for (const key of Object.keys(graphNodes)) delete graphNodes[key];
+  graphEdges.splice(0, graphEdges.length);
+  for (const key of Object.keys(places)) delete places[key];
+  destinationCategories.splice(0, destinationCategories.length,
+    category("all", "全部", "All"),
+    category("gate", "校門 / 守衛室", "Gates"),
+    category("academic", "教學大樓", "Academic"),
+    category("student", "學生服務", "Student Services"),
+    category("sports", "運動場館", "Sports"),
+    category("scenery", "景點 / 休憩", "Scenery"),
+    category("transport", "交通 / 公車", "Transport")
+  );
+  storeDirectory.splice(0, storeDirectory.length);
+  areaExitDirectory.splice(0, areaExitDirectory.length);
+
+  Object.assign(graphNodes, {
+    mainGate: { x: 440, y: 615, labelZh: "大門管制站", labelEn: "Main Entrance Guard House" },
+    stadiumNorth: { x: 320, y: 345, labelZh: "操場北側", labelEn: "Stadium North" },
+    stadiumSouth: { x: 415, y: 650, labelZh: "操場南側", labelEn: "Stadium South" },
+    centerRound: { x: 620, y: 845, labelZh: "蛋捲廣場 / 中央圓環", labelEn: "Central Round Plaza" },
+    adminRoad: { x: 760, y: 895, labelZh: "行政大樓前道路", labelEn: "Administration Road" },
+    libraryRoad: { x: 925, y: 950, labelZh: "圖書館前道路", labelEn: "Library Road" },
+    businessRoad: { x: 1030, y: 980, labelZh: "商管大樓前道路", labelEn: "Business Road" },
+    studentRoad: { x: 765, y: 1195, labelZh: "學生生活區道路", labelEn: "Student Area Road" },
+    engineeringRoad: { x: 930, y: 690, labelZh: "工學大樓前道路", labelEn: "Engineering Road" },
+    busStop: { x: 790, y: 735, labelZh: "公車站", labelEn: "Bus Stop" },
+    sceneryLoop: { x: 535, y: 1125, labelZh: "休憩景點步道", labelEn: "Scenery Walk" },
+    southGate: { x: 965, y: 1430, labelZh: "南側出口", labelEn: "South Exit" }
+  });
+  graphEdges.push(
+    ["mainGate", "stadiumNorth"], ["mainGate", "stadiumSouth"], ["stadiumSouth", "centerRound"],
+    ["centerRound", "adminRoad"], ["adminRoad", "libraryRoad"], ["libraryRoad", "businessRoad"],
+    ["centerRound", "studentRoad"], ["studentRoad", "sceneryLoop"], ["studentRoad", "southGate"],
+    ["adminRoad", "engineeringRoad"], ["engineeringRoad", "busStop"], ["busStop", "businessRoad"],
+    ["stadiumSouth", "sceneryLoop"]
+  );
+
+  const campusPlaces = {
+    mainGate: place(440, 615, "大門管制站（GA）", "Main Entrance Guard House", "mainGate", "gate", ["大門", "入口", "GA", "gate"]),
+    reviewingStand: place(325, 360, "司令臺（P）", "Reviewing Stand", "stadiumNorth", "sports", ["司令台", "操場", "P"]),
+    natatorium: place(510, 640, "紹謨紀念游泳館（N）", "Shao-mo Memorial Natatorium", "stadiumSouth", "sports", ["游泳館", "游泳池", "N"]),
+    internationalCenter: place(665, 770, "守謙國際會議中心（HC）", "Hsu Shou-Chlien International Conference Center", "centerRound", "academic", ["守謙", "HC", "會議中心"]),
+    liuHsien: place(705, 820, "騮先紀念科學館（S）", "Liu-hsien Memorial Science Hall", "centerRound", "academic", ["科學館", "S"]),
+    chemistry: place(705, 1035, "鍾靈化學館（C）", "Chung-ling Chemistry Hall", "studentRoad", "academic", ["化學館", "C"]),
+    communicationQ: place(830, 1030, "傳播館（Q）", "Communication Hall", "studentRoad", "academic", ["傳播館", "Q"]),
+    liberalArts: place(930, 910, "文學館（L）", "College of Liberal Arts", "libraryRoad", "academic", ["文學館", "L"]),
+    library: place(995, 830, "覺生紀念圖書館（U）", "Chueh-sheng Memorial Library", "libraryRoad", "student", ["圖書館", "U", "library"]),
+    business: place(1130, 1035, "商管大樓（B）", "Business and Management Building", "businessRoad", "academic", ["商管", "B"]),
+    engineering: place(915, 690, "工學館（G）", "Engineering Building", "engineeringRoad", "academic", ["工學館", "G"]),
+    education: place(1045, 735, "教育館（ED）", "College of Education", "engineeringRoad", "academic", ["教育館", "ED"]),
+    admin: place(710, 900, "行政大樓（A）", "Administration Building", "adminRoad", "student", ["行政", "A"]),
+    activity: place(795, 1210, "學生活動中心（R）", "Student Activity Center", "studentRoad", "student", ["活動中心", "R"]),
+    busStop: place(790, 735, "公車站", "Bus Stop", "busStop", "transport", ["公車", "bus"]),
+    sceneryA: place(500, 1015, "克難坡", "Overcoming Difficulties Slope", "sceneryLoop", "scenery", ["克難坡", "A"]),
+    sceneryO: place(790, 1115, "書卷廣場", "University Commons", "studentRoad", "scenery", ["書卷", "廣場", "O"]),
+    southExit: place(965, 1430, "南側出口", "South Exit", "southGate", "gate", ["出口", "南側"])
+  };
+  Object.assign(places, campusPlaces);
+}
+
 function distance(a, b) {
   return Math.hypot(a.x - b.x, a.y - b.y);
 }
@@ -379,7 +448,8 @@ async function loadState() {
       ...structuredClone(defaultState),
       ...saved,
       mapBoards: migrateBoards(saved.mapBoards),
-      accessPoints: Array.isArray(saved.accessPoints) ? saved.accessPoints : structuredClone(defaultState.accessPoints),
+      accessPoints: migrateAccessPoints(saved.accessPoints),
+      wifiFingerprints: migrateWifiFingerprints(saved.wifiFingerprints),
       sessions: saved.sessions && typeof saved.sessions === "object" ? saved.sessions : {},
       events: Array.isArray(saved.events) ? saved.events : [],
       learnedNodes: saved.learnedNodes && typeof saved.learnedNodes === "object" ? saved.learnedNodes : {},
@@ -394,13 +464,13 @@ async function loadState() {
 
 function migrateBoards(boards) {
   if (!Array.isArray(boards) || boards.length === 0) return structuredClone(defaultState.mapBoards);
-  const oldDemoData = boards.some(board => ["B-WEST-01", "B-CENTER-01", "B-EAST-01", "A-CENTER-01", "C-CENTER-01"].includes(board.id));
+  const oldDemoData = boards.some(board => ["B-WEST-01", "B-CENTER-01", "B-EAST-01", "A-CENTER-01", "C-CENTER-01", "M-B1-CENTER-01", "M-B1-EAST-01", "M-B1-SOUTH-01", "M-B1-WEST-01"].includes(board.id));
   if (oldDemoData) return structuredClone(defaultState.mapBoards);
   return boards.map(board => ({
     id: clean(board.id, 80) || randomUUID(),
     nameZh: clean(board.nameZh || board.name, 120) || clean(board.id, 80),
     nameEn: clean(board.nameEn || board.name, 120) || clean(board.id, 80),
-    floor: floors[board.floor] ? board.floor : "B1",
+    floor: floors[board.floor] ? board.floor : "campus",
     x: clamp(board.x, 0, CANVAS_WIDTH, CANVAS_WIDTH / 2),
     y: clamp(board.y, 0, CANVAS_HEIGHT, CANVAS_HEIGHT / 2),
     heading: clamp(board.heading, 0, 359, 0),
@@ -409,11 +479,23 @@ function migrateBoards(boards) {
   }));
 }
 
+function migrateAccessPoints(accessPoints) {
+  if (!Array.isArray(accessPoints) || !accessPoints.some(ap => String(ap.id || "").startsWith("AP-TKU"))) return structuredClone(defaultState.accessPoints);
+  return accessPoints;
+}
+
+function migrateWifiFingerprints(fingerprints) {
+  if (!Array.isArray(fingerprints) || fingerprints.length === 0) return structuredClone(defaultState.wifiFingerprints);
+  return fingerprints;
+}
+
 async function saveState() {
   await mkdir(dataDir, { recursive: true });
   await writeFile(dataFile, JSON.stringify({
     mapBoards: state.mapBoards,
     accessPoints: state.accessPoints,
+    wifiFingerprints: state.wifiFingerprints || [],
+    wifiFingerprints: state.wifiFingerprints,
     sessions: state.sessions,
     events: state.events.slice(-800),
     learnedNodes: state.learnedNodes,
@@ -426,7 +508,7 @@ async function saveState() {
 function learnedNodeId(point) {
   const x = Math.round(Number(point.x) / 18) * 18;
   const y = Math.round(Number(point.y) / 18) * 18;
-  const floor = floors[point.floor] ? point.floor : "B1";
+  const floor = floors[point.floor] ? point.floor : "campus";
   return `L-${floor}-${x}-${y}`;
 }
 
@@ -451,7 +533,7 @@ function learnedGraph() {
     learnedNodes[id] = {
       x: Number(node.x),
       y: Number(node.y),
-      floor: node.floor || "B1",
+      floor: node.floor || "campus",
       labelZh: "\u5df2\u5b78\u7fd2\u53ef\u901a\u884c\u9ede",
       labelEn: "Learned Walkable Point"
     };
@@ -570,9 +652,9 @@ function locateByPhoto(body, req) {
 
 function route(body, req) {
   const allPlaces = resolvedPlaces();
-  const currentFloor = floors[body.currentFloor] ? body.currentFloor : "B1";
+  const currentFloor = floors[body.currentFloor] ? body.currentFloor : "campus";
   const destFloor = floors[body.destFloor] ? body.destFloor : currentFloor;
-  const destPlace = allPlaces[body.destPlace] ? body.destPlace : "M3";
+  const destPlace = allPlaces[body.destPlace] ? body.destPlace : "mainGate";
   const position = { floor: currentFloor, x: Number(body.position?.x), y: Number(body.position?.y) };
   if (!Number.isFinite(position.x) || !Number.isFinite(position.y)) return jsonError(400, "position.x and position.y must be numbers.");
   const sameFloor = currentFloor === destFloor;
@@ -640,7 +722,7 @@ function route(body, req) {
 
 function learnGpsLocation(body, req) {
   const sessionId = clean(body.sessionId, 80) || randomUUID();
-  const floor = floors[body.floor] ? body.floor : "B1";
+  const floor = floors[body.floor] ? body.floor : "campus";
   const point = {
     floor,
     x: clamp(body.x, 0, CANVAS_WIDTH, CANVAS_WIDTH / 2),
@@ -705,6 +787,94 @@ function nearestAccessPoint(point) {
   return { id: best.id, name: best.name, ip: best.ip, ssid: best.ssid, floor: best.floor, x: Number(best.x), y: Number(best.y), distance: Math.round(bestDistance) };
 }
 
+function normalizeWifiSamples(value) {
+  if (typeof value === "string") {
+    try {
+      value = JSON.parse(value);
+    } catch {
+      value = value.split(/\r?\n/).map(line => {
+        const [bssid, ssid, rssi] = line.split(/[,|\t]/).map(part => part.trim());
+        return { bssid, ssid, rssi: Number(rssi) };
+      });
+    }
+  }
+  if (!Array.isArray(value)) return [];
+  return value.map(item => ({
+    bssid: clean(item.bssid || item.BSSID || item.mac, 80).toLowerCase(),
+    ssid: clean(item.ssid || item.SSID || "", 80),
+    rssi: clamp(item.rssi ?? item.level ?? item.RSSI, -100, -20, -90)
+  })).filter(item => item.bssid || item.ssid).slice(0, 80);
+}
+
+function wifiSimilarity(scan, fingerprint) {
+  const observed = new Map(scan.map(item => [item.bssid || item.ssid, item]));
+  let score = 0;
+  let matches = 0;
+  for (const sample of normalizeWifiSamples(fingerprint.samples)) {
+    const key = sample.bssid || sample.ssid;
+    const hit = observed.get(key);
+    if (!hit) {
+      score += 35;
+      continue;
+    }
+    matches += 1;
+    score += Math.min(35, Math.abs(Number(hit.rssi) - Number(sample.rssi)));
+  }
+  score += Math.max(0, scan.length - matches) * 3;
+  return { score, matches };
+}
+
+function locateByWifi(body, req) {
+  const scan = normalizeWifiSamples(body.scan || body.samples || body.wifi);
+  if (scan.length === 0) return jsonError(400, "Wi-Fi scan is required. Paste JSON or lines: bssid,ssid,rssi.");
+  const candidates = (state.wifiFingerprints || []).map(fingerprint => {
+    const result = wifiSimilarity(scan, fingerprint);
+    return { fingerprint, ...result };
+  }).filter(item => item.matches > 0).sort((a, b) => a.score - b.score);
+  if (candidates.length === 0) return jsonError(404, "No Wi-Fi fingerprint matched. Add samples in admin first.");
+  const top = candidates.slice(0, 3);
+  const weightSum = top.reduce((sum, item) => sum + 1 / Math.max(1, item.score), 0);
+  const x = top.reduce((sum, item) => sum + Number(item.fingerprint.x) * (1 / Math.max(1, item.score)), 0) / weightSum;
+  const y = top.reduce((sum, item) => sum + Number(item.fingerprint.y) * (1 / Math.max(1, item.score)), 0) / weightSum;
+  const best = top[0].fingerprint;
+  const location = {
+    source: "wifi-fingerprint",
+    confidence: Number(Math.max(0.2, Math.min(0.98, top[0].matches / Math.max(scan.length, normalizeWifiSamples(best.samples).length))).toFixed(2)),
+    fingerprintId: best.id,
+    fingerprintNameZh: best.labelZh,
+    fingerprintNameEn: best.labelEn,
+    floor: best.floor || "campus",
+    x: Math.round(x),
+    y: Math.round(y),
+    accessPoint: nearestAccessPoint({ floor: best.floor || "campus", x, y })
+  };
+  const sessionId = clean(body.sessionId, 80) || randomUUID();
+  recordSession(sessionId, "wifi-location", { location, matches: top.map(item => ({ id: item.fingerprint.id, score: Math.round(item.score), matches: item.matches })), clientIp: clientIp(req) });
+  return jsonOk({ sessionId, location, candidates: top.map(item => ({ id: item.fingerprint.id, labelZh: item.fingerprint.labelZh, labelEn: item.fingerprint.labelEn, score: Math.round(item.score), matches: item.matches })) });
+}
+
+function updateWifiFingerprint(body) {
+  const id = clean(body.id, 80) || `WF-${Date.now().toString().slice(-6)}`;
+  const samples = normalizeWifiSamples(body.samples || body.scan || body.wifi);
+  if (samples.length === 0) return jsonError(400, "At least one Wi-Fi sample is required.");
+  const fingerprint = {
+    id,
+    labelZh: clean(body.labelZh, 120) || id,
+    labelEn: clean(body.labelEn, 120) || id,
+    floor: floors[body.floor] ? body.floor : "campus",
+    x: clamp(body.x, 0, CANVAS_WIDTH, CANVAS_WIDTH / 2),
+    y: clamp(body.y, 0, CANVAS_HEIGHT, CANVAS_HEIGHT / 2),
+    samples,
+    note: clean(body.note, 400),
+    updatedAt: new Date().toISOString()
+  };
+  const index = state.wifiFingerprints.findIndex(item => item.id === id);
+  if (index >= 0) state.wifiFingerprints[index] = fingerprint;
+  else state.wifiFingerprints.push(fingerprint);
+  void saveState();
+  return jsonOk({ fingerprint, wifiFingerprints: state.wifiFingerprints });
+}
+
 function resolvedPlaces() {
   const overrides = state.destinationOverrides || {};
   return Object.fromEntries(Object.entries(places).map(([id, placeData]) => {
@@ -716,7 +886,7 @@ function resolvedPlaces() {
       edited: Boolean(overrides[id]?.updatedAt),
       baseX: placeData.x,
       baseY: placeData.y,
-      baseFloor: placeData.floor || "B1"
+      baseFloor: placeData.floor || "campus"
     }];
   }));
 }
@@ -780,7 +950,7 @@ function updateBoard(body) {
     id,
     nameZh: clean(body.nameZh, 120) || id,
     nameEn: clean(body.nameEn, 120) || id,
-    floor: floors[body.floor] ? body.floor : "B1",
+    floor: floors[body.floor] ? body.floor : "campus",
     x: clamp(body.x, 0, CANVAS_WIDTH, CANVAS_WIDTH / 2),
     y: clamp(body.y, 0, CANVAS_HEIGHT, CANVAS_HEIGHT / 2),
     heading: clamp(body.heading, 0, 359, 0),
@@ -802,7 +972,7 @@ function updateAccessPoint(body) {
     name: clean(body.name, 120) || id,
     ip: clean(body.ip, 80),
     ssid: clean(body.ssid, 80),
-    floor: floors[body.floor] ? body.floor : "B1",
+    floor: floors[body.floor] ? body.floor : "campus",
     x: clamp(body.x, 0, CANVAS_WIDTH, CANVAS_WIDTH / 2),
     y: clamp(body.y, 0, CANVAS_HEIGHT, CANVAS_HEIGHT / 2),
     note: clean(body.note, 400)
@@ -828,7 +998,7 @@ function updateDestination(body) {
     labelZh: clean(body.labelZh, 160) || current.labelZh || base.labelZh,
     labelEn: clean(body.labelEn, 160) || current.labelEn || base.labelEn,
     category: destinationCategories.some(categoryItem => categoryItem.id === body.category) ? body.category : current.category,
-    floor: floors[body.floor] ? body.floor : current.floor || "B1",
+    floor: floors[body.floor] ? body.floor : current.floor || "campus",
     x: clamp(body.x, 0, CANVAS_WIDTH, current.x),
     y: clamp(body.y, 0, CANVAS_HEIGHT, current.y),
     node,
@@ -846,7 +1016,7 @@ function updateDestination(body) {
 }
 
 function config() {
-  return { canvas: { width: CANVAS_WIDTH, height: CANVAS_HEIGHT }, floors, places: resolvedPlaces(), destinationCategories, storeDirectory, areaExitDirectory, graphNodes, graphEdges, mapBoards: state.mapBoards, accessPoints: state.accessPoints, sources: mapSources, geoMapBounds: GEO_MAP_BOUNDS };
+  return { canvas: { width: CANVAS_WIDTH, height: CANVAS_HEIGHT }, floors, places: resolvedPlaces(), destinationCategories, storeDirectory, areaExitDirectory, graphNodes, graphEdges, mapBoards: state.mapBoards, accessPoints: state.accessPoints, wifiFingerprints: state.wifiFingerprints || [], sources: mapSources, geoMapBounds: GEO_MAP_BOUNDS, baseMap: { type: "image", image: "/assets/tamkang-campus-map.png", width: 5670, height: 5670, nameZh: "淡江大學淡水校園地圖", nameEn: "Tamkang Tamsui Campus Map" } };
 }
 
 function login(body) {
@@ -963,6 +1133,10 @@ const server = http.createServer(async (req, res) => {
       const result = route(await readJson(req), req);
       return sendJson(res, result.status, result.data);
     }
+    if (req.method === "POST" && url.pathname === "/api/location/wifi") {
+      const result = locateByWifi(await readJson(req), req);
+      return sendJson(res, result.status, result.data);
+    }
     if (req.method === "POST" && url.pathname === "/api/destination/resolve") {
       const result = resolveDestination(await readJson(req));
       return sendJson(res, result.status, result.data);
@@ -988,6 +1162,10 @@ const server = http.createServer(async (req, res) => {
       }
       if (req.method === "POST" && url.pathname === "/api/admin/destinations") {
         const result = updateDestination(await readJson(req));
+        return sendJson(res, result.status, result.data);
+      }
+      if (req.method === "POST" && url.pathname === "/api/admin/wifi-fingerprints") {
+        const result = updateWifiFingerprint(await readJson(req));
         return sendJson(res, result.status, result.data);
       }
     }

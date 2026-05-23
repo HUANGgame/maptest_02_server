@@ -324,7 +324,7 @@ canvas {
   z-index: 2;
   display: block;
   width: 100%;
-  aspect-ratio: 16 / 10;
+  aspect-ratio: 1 / 1;
   min-height: min(78vh, 920px);
   touch-action: none;
 }
@@ -670,7 +670,7 @@ button.danger {
 .admin-map-shell canvas {
   width: 100%;
   min-height: 520px;
-  aspect-ratio: 16 / 10;
+  aspect-ratio: 1 / 1;
   cursor: crosshair;
   touch-action: none;
 }
