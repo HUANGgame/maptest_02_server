@@ -1,17 +1,24 @@
 import http from "http";
 import { createHash, randomBytes, randomUUID, timingSafeEqual } from "crypto";
+import { existsSync, readFileSync } from "fs";
 import { mkdir, readFile, writeFile } from "fs/promises";
 import path from "path";
 import { fileURLToPath } from "url";
+import mysql from "mysql2/promise";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+loadDotEnv(path.join(__dirname, ".env"));
+
 const publicDir = path.join(__dirname, "public");
 const dataDir = path.join(__dirname, "data");
 const dataFile = path.join(dataDir, "state.json");
 const PORT = Number(process.env.PORT || 3000);
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "TaipeiStationAdmin2026!";
 const ADMIN_TOKEN = randomBytes(32).toString("hex");
+const DB_ENABLED = String(process.env.DB_ENABLED || "true").toLowerCase() !== "false";
+const DB_NAME = process.env.DB_NAME || "map_navigation";
 const CANVAS_WIDTH = 1600;
 const CANVAS_HEIGHT = 1600;
 const METERS_PER_PIXEL = 0.6;
@@ -251,6 +258,8 @@ const defaultState = {
 };
 
 let state = structuredClone(defaultState);
+let dbPool = null;
+let storageMode = "json";
 
 function place(x, y, labelZh, labelEn, node, categoryId, aliases = []) {
   return { x, y, labelZh, labelEn, node, category: categoryId, aliases };
@@ -441,25 +450,207 @@ function buildAdjacency(nodes = graphNodes, edges = graphEdges) {
 
 const adjacency = buildAdjacency();
 
+function loadDotEnv(envPath) {
+  if (!existsSync(envPath)) return;
+  const lines = readFileSync(envPath, "utf8").split(/\r?\n/);
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#")) continue;
+    const index = trimmed.indexOf("=");
+    if (index <= 0) continue;
+    const key = trimmed.slice(0, index).trim();
+    let value = trimmed.slice(index + 1).trim();
+    if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+      value = value.slice(1, -1);
+    }
+    if (!process.env[key]) process.env[key] = value;
+  }
+}
+
+function dbConnectionConfig(includeDatabase = true) {
+  if (!DB_ENABLED) return null;
+  const host = process.env.DB_HOST || "localhost";
+  const user = process.env.DB_USER || "root";
+  const password = process.env.DB_PASSWORD;
+  const port = Number(process.env.DB_PORT || 3306);
+  if (!password) return null;
+  if (!/^[A-Za-z0-9_]+$/.test(DB_NAME)) throw new Error("DB_NAME must contain only letters, numbers, and underscores.");
+  return {
+    host,
+    user,
+    password,
+    port,
+    ...(includeDatabase ? { database: DB_NAME } : {}),
+    charset: "utf8mb4",
+    waitForConnections: true,
+    connectionLimit: 5
+  };
+}
+
+async function initDatabase() {
+  const baseConfig = dbConnectionConfig(false);
+  if (!baseConfig) return false;
+  try {
+    const setupConnection = await mysql.createConnection(baseConfig);
+    await setupConnection.query(`CREATE DATABASE IF NOT EXISTS \`${DB_NAME}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`);
+    await setupConnection.end();
+
+    dbPool = mysql.createPool(dbConnectionConfig(true));
+    await dbPool.query(`
+      CREATE TABLE IF NOT EXISTS app_state (
+        state_key VARCHAR(64) PRIMARY KEY,
+        state_value JSON NOT NULL,
+        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
+    await dbPool.query(`
+      CREATE TABLE IF NOT EXISTS navigation_logs (
+        id VARCHAR(36) PRIMARY KEY,
+        session_id VARCHAR(120) NOT NULL,
+        event_type VARCHAR(80) NOT NULL,
+        payload JSON NOT NULL,
+        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_navigation_logs_session_created (session_id, created_at)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
+    await dbPool.query(`
+      CREATE TABLE IF NOT EXISTS places (
+        id VARCHAR(120) PRIMARY KEY,
+        label_zh VARCHAR(160) NOT NULL,
+        label_en VARCHAR(160) NULL,
+        category VARCHAR(80) NULL,
+        floor_id VARCHAR(40) NOT NULL,
+        x DOUBLE NOT NULL,
+        y DOUBLE NOT NULL,
+        aliases JSON NULL,
+        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        INDEX idx_places_category_floor (category, floor_id)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
+    await dbPool.query(`
+      CREATE TABLE IF NOT EXISTS obstacles (
+        id VARCHAR(36) PRIMARY KEY,
+        floor_id VARCHAR(40) NOT NULL,
+        label VARCHAR(160) NOT NULL,
+        geometry JSON NOT NULL,
+        status ENUM('active','cleared') NOT NULL DEFAULT 'active',
+        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        INDEX idx_obstacles_floor_status (floor_id, status)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
+    await dbPool.query(`
+      CREATE TABLE IF NOT EXISTS parking_records (
+        id VARCHAR(36) PRIMARY KEY,
+        session_id VARCHAR(120) NOT NULL,
+        floor_id VARCHAR(40) NOT NULL,
+        x DOUBLE NOT NULL,
+        y DOUBLE NOT NULL,
+        note VARCHAR(255) NULL,
+        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_parking_records_session_created (session_id, created_at)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
+    await dbPool.query(`
+      CREATE TABLE IF NOT EXISTS user_reports (
+        id VARCHAR(36) PRIMARY KEY,
+        session_id VARCHAR(120) NULL,
+        report_type VARCHAR(80) NOT NULL,
+        target_id VARCHAR(120) NULL,
+        message TEXT NOT NULL,
+        status ENUM('open','reviewing','resolved','rejected') NOT NULL DEFAULT 'open',
+        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        INDEX idx_user_reports_status_created (status, created_at)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
+    storageMode = "mysql";
+    return true;
+  } catch (error) {
+    dbPool = null;
+    console.warn("[storage] MySQL init failed:", error.message);
+    return false;
+  }
+}
+
+async function loadStateFromDatabase() {
+  const [rows] = await dbPool.query("SELECT state_key, state_value FROM app_state");
+  if (!rows.length) return null;
+  const saved = {};
+  for (const row of rows) {
+    saved[row.state_key] = typeof row.state_value === "string" ? JSON.parse(row.state_value) : row.state_value;
+  }
+  return saved;
+}
+
+async function seedDatabaseFromJsonOrDefault() {
+  let seed = currentPersistedState();
+  try {
+    seed = {
+      ...seed,
+      ...JSON.parse(await readFile(dataFile, "utf8"))
+    };
+  } catch {
+    // No JSON file yet; seed from defaults.
+  }
+  await saveStateObjectToDatabase(seed);
+}
+
+async function saveStateToDatabase() {
+  await saveStateObjectToDatabase(currentPersistedState());
+}
+
+async function saveStateObjectToDatabase(nextState) {
+  const entries = Object.entries(nextState).map(([key, value]) => [key, JSON.stringify(value)]);
+  if (!entries.length) return;
+  await dbPool.query(
+    "INSERT INTO app_state (state_key, state_value) VALUES ? ON DUPLICATE KEY UPDATE state_value = VALUES(state_value)",
+    [entries]
+  );
+}
+
 async function loadState() {
+  if (await initDatabase()) {
+    try {
+      const saved = await loadStateFromDatabase();
+      if (saved) {
+        applySavedState(saved);
+        return;
+      }
+      await seedDatabaseFromJsonOrDefault();
+      const seeded = await loadStateFromDatabase();
+      if (seeded) {
+        applySavedState(seeded);
+        return;
+      }
+    } catch (error) {
+      console.warn("[storage] MySQL unavailable, falling back to JSON:", error.message);
+      storageMode = "json";
+    }
+  }
+
   try {
     const saved = JSON.parse(await readFile(dataFile, "utf8"));
-    state = {
-      ...structuredClone(defaultState),
-      ...saved,
-      mapBoards: migrateBoards(saved.mapBoards),
-      accessPoints: migrateAccessPoints(saved.accessPoints),
-      wifiFingerprints: migrateWifiFingerprints(saved.wifiFingerprints),
-      sessions: saved.sessions && typeof saved.sessions === "object" ? saved.sessions : {},
-      events: Array.isArray(saved.events) ? saved.events : [],
-      learnedNodes: saved.learnedNodes && typeof saved.learnedNodes === "object" ? saved.learnedNodes : {},
-      learnedEdges: Array.isArray(saved.learnedEdges) ? saved.learnedEdges : [],
-      lastPositions: saved.lastPositions && typeof saved.lastPositions === "object" ? saved.lastPositions : {},
-      destinationOverrides: saved.destinationOverrides && typeof saved.destinationOverrides === "object" ? saved.destinationOverrides : {}
-    };
+    applySavedState(saved);
   } catch {
     await saveState();
   }
+}
+
+function applySavedState(saved = {}) {
+  state = {
+    ...structuredClone(defaultState),
+    ...saved,
+    mapBoards: migrateBoards(saved.mapBoards),
+    accessPoints: migrateAccessPoints(saved.accessPoints),
+    wifiFingerprints: migrateWifiFingerprints(saved.wifiFingerprints),
+    sessions: saved.sessions && typeof saved.sessions === "object" ? saved.sessions : {},
+    events: Array.isArray(saved.events) ? saved.events : [],
+    learnedNodes: saved.learnedNodes && typeof saved.learnedNodes === "object" ? saved.learnedNodes : {},
+    learnedEdges: Array.isArray(saved.learnedEdges) ? saved.learnedEdges : [],
+    lastPositions: saved.lastPositions && typeof saved.lastPositions === "object" ? saved.lastPositions : {},
+    destinationOverrides: saved.destinationOverrides && typeof saved.destinationOverrides === "object" ? saved.destinationOverrides : {}
+  };
 }
 
 function migrateBoards(boards) {
@@ -490,11 +681,18 @@ function migrateWifiFingerprints(fingerprints) {
 }
 
 async function saveState() {
+  if (storageMode === "mysql" && dbPool) {
+    await saveStateToDatabase();
+    return;
+  }
   await mkdir(dataDir, { recursive: true });
-  await writeFile(dataFile, JSON.stringify({
+  await writeFile(dataFile, JSON.stringify(currentPersistedState(), null, 2), "utf8");
+}
+
+function currentPersistedState() {
+  return {
     mapBoards: state.mapBoards,
     accessPoints: state.accessPoints,
-    wifiFingerprints: state.wifiFingerprints || [],
     wifiFingerprints: state.wifiFingerprints,
     sessions: state.sessions,
     events: state.events.slice(-800),
@@ -502,7 +700,7 @@ async function saveState() {
     learnedEdges: state.learnedEdges.slice(-2000),
     lastPositions: state.lastPositions,
     destinationOverrides: state.destinationOverrides || {}
-  }, null, 2), "utf8");
+  };
 }
 
 function learnedNodeId(point) {
@@ -920,9 +1118,23 @@ function recordSession(sessionId, type, payload) {
   session.eventCount += 1;
   session.current = { ...session.current, ...payload };
   state.sessions[sessionId] = session;
-  state.events.push({ id: randomUUID(), sessionId, type, at, payload });
+  const event = { id: randomUUID(), sessionId, type, at, payload };
+  state.events.push(event);
   state.events = state.events.slice(-800);
+  void saveNavigationLog(event);
   void saveState();
+}
+
+async function saveNavigationLog(event) {
+  if (storageMode !== "mysql" || !dbPool) return;
+  try {
+    await dbPool.query(
+      "INSERT INTO navigation_logs (id, session_id, event_type, payload, created_at) VALUES (?, ?, ?, CAST(? AS JSON), ?)",
+      [event.id, event.sessionId, event.type, JSON.stringify(event.payload || {}), event.at.replace("T", " ").replace("Z", "")]
+    );
+  } catch (error) {
+    console.warn("[storage] Failed to write navigation log:", error.message);
+  }
 }
 
 function adminSummary() {
@@ -1016,7 +1228,27 @@ function updateDestination(body) {
 }
 
 function config() {
-  return { canvas: { width: CANVAS_WIDTH, height: CANVAS_HEIGHT }, floors, places: resolvedPlaces(), destinationCategories, storeDirectory, areaExitDirectory, graphNodes, graphEdges, mapBoards: state.mapBoards, accessPoints: state.accessPoints, wifiFingerprints: state.wifiFingerprints || [], sources: mapSources, geoMapBounds: GEO_MAP_BOUNDS, baseMap: { type: "image", image: "/assets/tamkang-campus-map.png", width: 5670, height: 5670, nameZh: "淡江大學淡水校園地圖", nameEn: "Tamkang Tamsui Campus Map" } };
+  return {
+    storage: { mode: storageMode, database: storageMode === "mysql" ? DB_NAME : null },
+    canvas: { width: CANVAS_WIDTH, height: CANVAS_HEIGHT },
+    floors,
+    places: resolvedPlaces(),
+    destinationCategories,
+    storeDirectory,
+    areaExitDirectory,
+    graphNodes,
+    graphEdges,
+    mapBoards: state.mapBoards,
+    accessPoints: state.accessPoints,
+    wifiFingerprints: state.wifiFingerprints || [],
+    sources: mapSources,
+    geoMapBounds: GEO_MAP_BOUNDS,
+    baseMap: { type: "image", image: "/assets/tamkang-campus-map.png", width: 5670, height: 5670, nameZh: "淡江大學淡水校園地圖", nameEn: "Tamkang Tamsui Campus Map" },
+    referenceMaps: [
+      { id: "walk", labelZh: "淡水校園人行路線圖", labelEn: "Tamsui Campus Walking Route Map", image: "/assets/tamkang-walk-route-map.png" },
+      { id: "parking", labelZh: "淡江校園停車場位置圖", labelEn: "Tamkang Campus Parking Map", image: "/assets/tamkang-parking-map.png" }
+    ]
+  };
 }
 
 function login(body) {

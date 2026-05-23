@@ -283,7 +283,7 @@ function renderAll() {
   renderDashboard();
   renderBoards();
   renderAccessPoints();
-  renderWifiFingerprints();
+  renderWifiFingerprintsV2();
   renderDestinations();
   renderActivity();
   setTab(activeTab);
@@ -368,7 +368,7 @@ function renderAccessPoints() {
   });
 }
 
-function renderWifiFingerprints() {
+function renderWifiFingerprintsV2() {
   if (!elements.wifiFingerprintPanel) return;
   const fingerprints = summary.wifiFingerprints || config.wifiFingerprints || [];
   const floorOptions = Object.values(config.floors).map(floor =>
@@ -819,6 +819,150 @@ function formatTime(valueText) {
 
 function escapeHtml(valueText) {
   return String(valueText ?? "").replace(/[&<>"']/g, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[char]));
+}
+
+function renderWifiFingerprints() {
+  if (!elements.wifiFingerprintPanel) return;
+  const fingerprints = summary.wifiFingerprints || config.wifiFingerprints || [];
+  const floorOptions = Object.values(config.floors).map(floor =>
+    `<option value="${floor.id}">${escapeHtml(lang === "en" ? floor.nameEn : floor.nameZh)}</option>`
+  ).join("");
+  elements.wifiFingerprintPanel.innerHTML = `
+    <div class="admin-guide">
+      <h2>${lang === "en" ? "How to make a Wi-Fi demo point" : "Wi-Fi demo 點位怎麼做"}</h2>
+      <ol>
+        <li>${lang === "en" ? "Click one fixed position on the campus map below." : "在下面校園地圖上點一下固定位置。"}</li>
+        <li>${lang === "en" ? "The system fills X/Y, name, ID, and demo Wi-Fi samples automatically." : "系統會自動填 X/Y、名稱、ID、demo Wi-Fi 指紋。"}</li>
+        <li>${lang === "en" ? "Press Save. User-side Wi-Fi location can immediately match this point." : "按儲存。使用者端 Wi-Fi 定位就能立刻比對這個點。"}</li>
+      </ol>
+      <p class="muted">${lang === "en" ? "A normal mobile browser cannot directly scan Wi-Fi BSSID/RSSI. This demo generates samples first; later an Android scanner can send real samples to the same API." : "一般手機瀏覽器不能直接掃 Wi-Fi BSSID/RSSI。這個 demo 先用自動產生的樣本；之後接 Android 掃描器時可沿用同一個 API。"}</p>
+    </div>
+    <div class="reference-grid">
+      <a href="/assets/tamkang-walk-route-map.png" target="_blank" rel="noreferrer">
+        <img src="/assets/tamkang-walk-route-map.png" alt="walk route map">
+        <span>${lang === "en" ? "Walking route reference" : "人行路線輔助圖"}</span>
+      </a>
+      <a href="/assets/tamkang-parking-map.png" target="_blank" rel="noreferrer">
+        <img src="/assets/tamkang-parking-map.png" alt="parking map">
+        <span>${lang === "en" ? "Parking reference" : "停車場輔助圖"}</span>
+      </a>
+    </div>
+    <div class="admin-map-shell wifi-map-shell">
+      <canvas id="wifiMapCanvas" width="${config.canvas.width}" height="${config.canvas.height}" aria-label="Wi-Fi fingerprint map"></canvas>
+      <div class="map-instruction">${lang === "en" ? "Click the map to auto-fill a Wi-Fi demo point" : "點地圖即可自動填好 Wi-Fi demo 點位資料"}</div>
+    </div>
+    <div class="section-head">
+      <div>
+        <h2>${lang === "en" ? "Wi-Fi fingerprint demo" : "Wi-Fi 指紋定位 demo"}</h2>
+        <p class="muted">${lang === "en" ? "For the experiment, click the map and save. Edit details only when real data is available." : "實驗版只要點地圖再儲存；需要真實資料時才手動改樣本。"}</p>
+      </div>
+    </div>
+    <form id="wifiFingerprintForm" class="easy-form">
+      <div class="form-card">
+        <h3>${lang === "en" ? "Point" : "點位"}</h3>
+        <div class="field"><label for="wifiId">ID</label><input id="wifiId" value="WF-TKU-DEMO"></div>
+        <div class="field"><label for="wifiLabelZh">中文名稱</label><input id="wifiLabelZh" value="淡江 Wi-Fi 指紋點"></div>
+        <div class="field"><label for="wifiLabelEn">English name</label><input id="wifiLabelEn" value="Tamkang Wi-Fi Fingerprint"></div>
+        <div class="row">
+          <div class="field"><label for="wifiFloor">${t("floor")}</label><select id="wifiFloor">${floorOptions}</select></div>
+          <div class="field"><label for="wifiX">X</label><input id="wifiX" type="number" value="440"></div>
+          <div class="field"><label for="wifiY">Y</label><input id="wifiY" type="number" value="615"></div>
+        </div>
+      </div>
+      <div class="form-card">
+        <h3>${lang === "en" ? "Scan samples" : "掃描樣本"}</h3>
+        <div class="field">
+          <label for="wifiSamples">${lang === "en" ? "Auto-generated demo samples, or real lines: bssid,ssid,rssi" : "自動產生 demo 樣本，也可改成真實資料：bssid,ssid,rssi"}</label>
+          <textarea id="wifiSamples" rows="7">aa:aa:aa:00:02,TKU-Library,-48
+aa:aa:aa:00:03,TKU-Student,-72</textarea>
+        </div>
+        <div class="field"><label for="wifiNote">${t("note")}</label><textarea id="wifiNote"></textarea></div>
+        <button class="primary" type="submit">${lang === "en" ? "Save Wi-Fi fingerprint" : "儲存 Wi-Fi 指紋"}</button>
+      </div>
+    </form>
+    <div class="data-list">
+      ${fingerprints.map(item => `
+        <article class="data-row">
+          <div>
+            <strong>${escapeHtml(lang === "en" ? item.labelEn : item.labelZh)}</strong>
+            <div class="muted">${escapeHtml(item.id)} · ${escapeHtml(item.floor)} · X ${Math.round(item.x)}, Y ${Math.round(item.y)}</div>
+            <div class="small">${(item.samples || []).length} AP samples</div>
+          </div>
+          <button type="button" data-edit-wifi="${escapeHtml(item.id)}">${t("edit")}</button>
+        </article>
+      `).join("") || `<p class="muted">${t("noData")}</p>`}
+    </div>
+  `;
+  document.getElementById("wifiFingerprintForm").addEventListener("submit", saveWifiFingerprint);
+  document.getElementById("wifiMapCanvas")?.addEventListener("click", fillWifiPointFromMap);
+  elements.wifiFingerprintPanel.querySelectorAll("[data-edit-wifi]").forEach(button => {
+    button.addEventListener("click", () => editWifiFingerprint(fingerprints.find(item => item.id === button.dataset.editWifi)));
+  });
+  drawWifiMap();
+}
+
+function fillWifiPointFromMap(event) {
+  const canvas = event.currentTarget;
+  const rect = canvas.getBoundingClientRect();
+  const x = Math.round((event.clientX - rect.left) * (canvas.width / rect.width));
+  const y = Math.round((event.clientY - rect.top) * (canvas.height / rect.height));
+  const serial = `${String(Math.round(x)).padStart(4, "0")}${String(Math.round(y)).padStart(4, "0")}`;
+  setValue("wifiId", `WF-TKU-${serial}`);
+  setValue("wifiLabelZh", `淡江 Wi-Fi 點 X${x} Y${y}`);
+  setValue("wifiLabelEn", `Tamkang Wi-Fi Point X${x} Y${y}`);
+  setValue("wifiFloor", "campus");
+  setValue("wifiX", x);
+  setValue("wifiY", y);
+  setValue("wifiSamples", generateDemoWifiSamples(x, y));
+  setValue("wifiNote", lang === "en" ? "Auto-generated by clicking the map. Replace with real scan later." : "點地圖自動產生，之後可替換成真實掃描資料。");
+  drawWifiMap({ x, y });
+}
+
+function generateDemoWifiSamples(x, y) {
+  const seedA = Math.abs(Math.round(x * 13 + y * 7));
+  const seedB = Math.abs(Math.round(x * 5 + y * 17));
+  const mac1 = `02:tk:${(seedA % 256).toString(16).padStart(2, "0")}:${(seedB % 256).toString(16).padStart(2, "0")}:01`;
+  const mac2 = `02:tk:${((seedA + 37) % 256).toString(16).padStart(2, "0")}:${((seedB + 83) % 256).toString(16).padStart(2, "0")}:02`;
+  const rssi1 = -42 - Math.round((x + y) % 18);
+  const rssi2 = -62 - Math.round((x * 2 + y) % 20);
+  return `${mac1},TKU-Demo-${Math.round(x)},${rssi1}\n${mac2},TKU-Backup-${Math.round(y)},${rssi2}`;
+}
+
+function drawWifiMap(selectedPoint = null) {
+  const canvas = document.getElementById("wifiMapCanvas");
+  if (!canvas || !config) return;
+  const ctx = canvas.getContext("2d");
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  if (adminBaseMapImage?.complete) ctx.drawImage(adminBaseMapImage, 0, 0, canvas.width, canvas.height);
+  else {
+    ctx.fillStyle = "#d9c6ae";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+  }
+  ctx.fillStyle = "rgba(255,255,255,.18)";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  for (const item of summary.wifiFingerprints || config.wifiFingerprints || []) {
+    ctx.fillStyle = "#0f766e";
+    ctx.beginPath();
+    ctx.arc(Number(item.x), Number(item.y), 7, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "rgba(255,255,255,.95)";
+    ctx.fillRect(Number(item.x) + 10, Number(item.y) - 13, 92, 22);
+    ctx.fillStyle = "#0f172a";
+    ctx.font = "700 12px sans-serif";
+    ctx.fillText(String(item.id).slice(0, 12), Number(item.x) + 14, Number(item.y) + 2);
+  }
+  const x = selectedPoint?.x ?? Number(document.getElementById("wifiX")?.value || 0);
+  const y = selectedPoint?.y ?? Number(document.getElementById("wifiY")?.value || 0);
+  if (Number.isFinite(x) && Number.isFinite(y) && x > 0 && y > 0) {
+    ctx.strokeStyle = "#e11d48";
+    ctx.fillStyle = "#e11d48";
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.arc(x, y, 13, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = "#fff";
+    ctx.stroke();
+  }
 }
 
 init();
