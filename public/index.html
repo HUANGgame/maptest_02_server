@@ -52,16 +52,19 @@
         <label for="destPlace" data-i18n="destination">Destination</label>
         <select id="destPlace"></select>
       </div>
-      <div class="field hidden">
-        <label for="photoInput" data-i18n="photoMap">Photo of wall map</label>
-        <input id="photoInput" type="file" accept="image/*" capture="environment">
-      </div>
-      <div class="actions hidden">
-        <button id="locateBtn" class="primary" type="button" data-i18n="locateByPhoto">Locate by Photo</button>
-      </div>
       <div class="actions">
         <button id="wifiLocateBtn" class="primary" type="button" data-i18n="locateByWifi">Wi-Fi 定位</button>
       </div>
+      <div class="field">
+        <label for="objectPhotoInput" data-i18n="objectPhoto">圖片物品搜尋 Demo</label>
+        <input id="objectPhotoInput" type="file" accept="image/*" capture="environment">
+      </div>
+      <div class="actions action-stack">
+        <button id="saveParkingBtn" class="secondary" type="button" data-i18n="saveParking">記住車位</button>
+        <button id="returnStartBtn" class="secondary" type="button" data-i18n="returnStart">回到起點</button>
+        <button id="returnParkingBtn" class="secondary" type="button" data-i18n="returnParking">回到停車位</button>
+      </div>
+      <div class="status compact-status" id="historyBox" role="status" aria-live="polite"></div>
       <div class="status" id="locationBox" role="status" aria-live="polite">-</div>
       <div class="status" id="statusBox" role="status" aria-live="polite">Server...</div>
       <div class="sr-only" id="screenReaderSummary" aria-live="assertive"></div>

@@ -641,6 +641,21 @@ button.danger {
   flex-wrap: wrap;
 }
 
+.action-stack {
+  display: grid;
+  grid-template-columns: 1fr;
+}
+
+.compact-status {
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.compact-status ul {
+  margin: 6px 0 0;
+  padding-left: 20px;
+}
+
 .row > * {
   flex: 1;
 }

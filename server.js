@@ -29,6 +29,17 @@ const GEO_MAP_BOUNDS = {
   east: 121.5228
 };
 
+const campusWalkwayCorridors = [
+  { id: "main-spine", width: 86, points: [[440, 615], [520, 700], [585, 760], [590, 1010], [840, 1010], [1000, 880], [1130, 860]] },
+  { id: "stadium-loop", width: 78, points: [[440, 615], [415, 650], [535, 1125], [765, 1195], [965, 1430]] },
+  { id: "north-sports", width: 76, points: [[440, 615], [320, 345], [415, 650]] },
+  { id: "engineering-link", width: 78, points: [[585, 760], [790, 735], [930, 690], [1120, 700], [1130, 860]] },
+  { id: "student-link", width: 84, points: [[590, 1010], [610, 1060], [620, 1210], [620, 1330], [765, 1360], [940, 1430]] },
+  { id: "library-ring", width: 78, points: [[930, 690], [1120, 700], [1120, 880], [995, 940], [925, 950], [840, 1010]] },
+  { id: "bus-link", width: 72, points: [[790, 735], [840, 1010], [620, 1210]] },
+  { id: "south-service", width: 70, points: [[620, 1210], [765, 1360], [965, 1430], [1165, 1340]] }
+];
+
 const floors = {
   campus: { id: "campus", nameZh: "淡水校園", nameEn: "Tamsui Campus", order: 1 },
   B1: { id: "B1", nameZh: "\u5730\u4e0b\u8857\u5c64", nameEn: "Underground Mall", order: 1 },
@@ -259,6 +270,7 @@ const defaultState = {
   ],
   sessions: {},
   events: [],
+  parkingRecords: [],
   learnedNodes: {},
   learnedEdges: [],
   lastPositions: {},
@@ -654,6 +666,7 @@ function applySavedState(saved = {}) {
     wifiFingerprints: migrateWifiFingerprints(saved.wifiFingerprints),
     sessions: saved.sessions && typeof saved.sessions === "object" ? saved.sessions : {},
     events: Array.isArray(saved.events) ? saved.events : [],
+    parkingRecords: Array.isArray(saved.parkingRecords) ? saved.parkingRecords : [],
     obstacles: Array.isArray(saved.obstacles) ? saved.obstacles : structuredClone(defaultState.obstacles),
     learnedNodes: saved.learnedNodes && typeof saved.learnedNodes === "object" ? saved.learnedNodes : {},
     learnedEdges: Array.isArray(saved.learnedEdges) ? saved.learnedEdges : [],
@@ -706,6 +719,7 @@ function currentPersistedState() {
     obstacles: state.obstacles,
     sessions: state.sessions,
     events: state.events.slice(-800),
+    parkingRecords: (state.parkingRecords || []).slice(-300),
     learnedNodes: state.learnedNodes,
     learnedEdges: state.learnedEdges.slice(-2000),
     lastPositions: state.lastPositions,
@@ -825,9 +839,69 @@ function activeObstacles(floor = "campus") {
     }));
 }
 
-function pointInRect(point, rect, padding = 22) {
+function pointInRect(point, rect, padding = 8) {
   return point.x >= rect.x - padding && point.x <= rect.x + rect.w + padding
     && point.y >= rect.y - padding && point.y <= rect.y + rect.h + padding;
+}
+
+function distanceToSegment(point, a, b) {
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  const len2 = dx * dx + dy * dy;
+  if (!len2) return distance(point, a);
+  const t = Math.max(0, Math.min(1, ((point.x - a.x) * dx + (point.y - a.y) * dy) / len2));
+  return distance(point, { x: a.x + dx * t, y: a.y + dy * t });
+}
+
+function insideCampusWalkway(point, padding = 0) {
+  if ((point.floor || "campus") !== "campus") return true;
+  return campusWalkwayCorridors.some(corridor => {
+    for (let i = 1; i < corridor.points.length; i += 1) {
+      const a = { x: corridor.points[i - 1][0], y: corridor.points[i - 1][1] };
+      const b = { x: corridor.points[i][0], y: corridor.points[i][1] };
+      if (distanceToSegment(point, a, b) <= corridor.width / 2 + padding) return true;
+    }
+    return false;
+  });
+}
+
+function segmentInsideCampusWalkway(a, b) {
+  if ((a.floor || "campus") !== "campus" && (b.floor || "campus") !== "campus") return true;
+  const steps = Math.max(2, Math.ceil(distance(a, b) / 18));
+  for (let i = 0; i <= steps; i += 1) {
+    const t = i / steps;
+    const point = { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t, floor: "campus" };
+    if (!insideCampusWalkway(point, 12)) return false;
+  }
+  return true;
+}
+
+function nearestCampusWalkwayPoint(point, obstacles) {
+  if ((point.floor || "campus") !== "campus") return null;
+  let best = null;
+  let bestDistance = Infinity;
+  for (const corridor of campusWalkwayCorridors) {
+    for (let i = 1; i < corridor.points.length; i += 1) {
+      const from = { x: corridor.points[i - 1][0], y: corridor.points[i - 1][1], floor: "campus" };
+      const to = { x: corridor.points[i][0], y: corridor.points[i][1], floor: "campus" };
+      const steps = Math.max(1, Math.ceil(distance(from, to) / 24));
+      for (let step = 0; step <= steps; step += 1) {
+        const t = step / steps;
+        const candidate = {
+          x: Math.round(from.x + (to.x - from.x) * t),
+          y: Math.round(from.y + (to.y - from.y) * t),
+          floor: "campus"
+        };
+        if (obstacles.some(rect => pointInRect(candidate, rect))) continue;
+        const d = distance(point, candidate);
+        if (d < bestDistance) {
+          best = candidate;
+          bestDistance = d;
+        }
+      }
+    }
+  }
+  return best;
 }
 
 function segmentBlocked(a, b, obstacles) {
@@ -846,7 +920,9 @@ function nearestWalkablePoint(point, obstacles, spacing = 80) {
     y: clamp(point.y, 40, CANVAS_HEIGHT - 40, CANVAS_HEIGHT / 2),
     floor: point.floor || "campus"
   };
-  if (!obstacles.some(rect => pointInRect(clamped, rect))) return clamped;
+  if (!obstacles.some(rect => pointInRect(clamped, rect)) && insideCampusWalkway(clamped, 34)) return clamped;
+  const corridorPoint = nearestCampusWalkwayPoint(clamped, obstacles);
+  if (corridorPoint) return corridorPoint;
   let best = clamped;
   let bestDistance = Infinity;
   for (let radius = spacing; radius <= 520; radius += spacing) {
@@ -858,6 +934,7 @@ function nearestWalkablePoint(point, obstacles, spacing = 80) {
           floor: clamped.floor
         };
         if (obstacles.some(rect => pointInRect(candidate, rect))) continue;
+        if (!insideCampusWalkway(candidate, 34)) continue;
         const d = distance(clamped, candidate);
         if (d < bestDistance) {
           best = candidate;
@@ -884,7 +961,28 @@ function buildWalkableGridRoute(start, destination, floor = "campus") {
     for (let y = 80; y <= CANVAS_HEIGHT - 80; y += spacing) {
       const point = { x, y, floor };
       if (obstacles.some(rect => pointInRect(point, rect))) continue;
+      if (!insideCampusWalkway(point, 24)) continue;
       nodes[`G-${x}-${y}`] = { ...point, labelZh: "可通行點", labelEn: "Walkable point" };
+    }
+  }
+
+  if (floor === "campus") {
+    for (const corridor of campusWalkwayCorridors) {
+      for (let i = 1; i < corridor.points.length; i += 1) {
+        const from = { x: corridor.points[i - 1][0], y: corridor.points[i - 1][1], floor };
+        const to = { x: corridor.points[i][0], y: corridor.points[i][1], floor };
+        const steps = Math.max(1, Math.ceil(distance(from, to) / 48));
+        for (let step = 0; step <= steps; step += 1) {
+          const t = step / steps;
+          const point = {
+            x: Math.round(from.x + (to.x - from.x) * t),
+            y: Math.round(from.y + (to.y - from.y) * t),
+            floor
+          };
+          if (obstacles.some(rect => pointInRect(point, rect))) continue;
+          nodes[`W-${corridor.id}-${i}-${step}`] = { ...point, labelZh: "步道點", labelEn: "Walkway point" };
+        }
+      }
     }
   }
 
@@ -898,6 +996,7 @@ function buildWalkableGridRoute(start, destination, floor = "campus") {
       const connectLimit = key === "START" || key === "END" || otherKey === "START" || otherKey === "END" ? spacing * 1.65 : spacing * 1.42;
       if (d > connectLimit) continue;
       if (segmentBlocked(node, other, obstacles)) continue;
+      if (!segmentInsideCampusWalkway(node, other)) continue;
       edges.push([key, otherKey]);
     }
   }
@@ -915,57 +1014,6 @@ function buildWalkableGridRoute(start, destination, floor = "campus") {
   };
 }
 
-function hamming(a = "", b = "") {
-  const len = Math.min(a.length, b.length);
-  if (!len) return Infinity;
-  let diff = Math.abs(a.length - b.length);
-  for (let i = 0; i < len; i += 1) if (a[i] !== b[i]) diff += 1;
-  return diff;
-}
-
-function locateByPhoto(body, req) {
-  const sessionId = clean(body.sessionId, 80) || randomUUID();
-  const photoHash = clean(body.photoHash, 512);
-  const hintedFloor = floors[body.floor] ? body.floor : "";
-  const candidates = state.mapBoards
-    .filter(board => !hintedFloor || board.floor === hintedFloor)
-    .map(board => {
-      const hasHash = Boolean(board.referenceHash && photoHash);
-      const diff = hasHash ? hamming(photoHash, board.referenceHash) : 999;
-      const hashScore = hasHash ? Math.max(0, 1 - diff / Math.max(photoHash.length, board.referenceHash.length)) : 0;
-      const score = Math.min(1, hashScore + (hintedFloor === board.floor ? 0.08 : 0));
-      return { board, diff, score, method: hasHash ? "photo-hash" : "floor-fallback" };
-    })
-    .sort((a, b) => b.score - a.score || a.diff - b.diff);
-  const best = candidates[0];
-  if (!best) return jsonError(404, "No registered wall maps.");
-  const confidence = Number(best.score.toFixed(3));
-  const usable = (best.method === "photo-hash" && confidence >= 0.72) || (best.method === "floor-fallback" && hintedFloor);
-  if (!usable) return jsonError(422, "Photo does not match a calibrated wall map. Please calibrate it in admin first.");
-  const location = {
-    source: best.method,
-    confidence,
-    boardId: best.board.id,
-    boardNameZh: best.board.nameZh,
-    boardNameEn: best.board.nameEn,
-    floor: best.board.floor,
-    x: Number(best.board.x),
-    y: Number(best.board.y),
-    heading: Number(best.board.heading || 0),
-    accessPoint: nearestAccessPoint(best.board)
-  };
-  recordSession(sessionId, "photo-location", { location, clientIp: clientIp(req), userAgent: clean(body.userAgent, 180) });
-  return jsonOk({ sessionId, location, candidates: candidates.slice(0, 5).map(item => ({
-    id: item.board.id,
-    nameZh: item.board.nameZh,
-    nameEn: item.board.nameEn,
-    floor: item.board.floor,
-    confidence: Number(item.score.toFixed(3)),
-    hashDiff: item.diff,
-    method: item.method
-  })) });
-}
-
 function route(body, req) {
   const allPlaces = resolvedPlaces();
   const currentFloor = floors[body.currentFloor] ? body.currentFloor : "campus";
@@ -973,9 +1021,20 @@ function route(body, req) {
   const destPlace = allPlaces[body.destPlace] ? body.destPlace : "mainGate";
   const position = { floor: currentFloor, x: Number(body.position?.x), y: Number(body.position?.y) };
   if (!Number.isFinite(position.x) || !Number.isFinite(position.y)) return jsonError(400, "position.x and position.y must be numbers.");
-  const sameFloor = currentFloor === destFloor;
-  const routeTarget = sameFloor ? destPlace : "elevator";
-  const destination = allPlaces[routeTarget];
+  const customDestination = body.destinationPoint && Number.isFinite(Number(body.destinationPoint.x)) && Number.isFinite(Number(body.destinationPoint.y))
+    ? {
+      floor: floors[body.destinationPoint.floor] ? body.destinationPoint.floor : destFloor,
+      x: clamp(body.destinationPoint.x, 0, CANVAS_WIDTH, CANVAS_WIDTH / 2),
+      y: clamp(body.destinationPoint.y, 0, CANVAS_HEIGHT, CANVAS_HEIGHT / 2),
+      labelZh: clean(body.destinationPoint.labelZh, 120) || "自訂目的地",
+      labelEn: clean(body.destinationPoint.labelEn, 120) || "Custom destination",
+      node: "CUSTOM",
+      category: "custom"
+    }
+    : null;
+  const sameFloor = currentFloor === (customDestination?.floor || destFloor);
+  const routeTarget = customDestination ? "custom" : (sameFloor ? destPlace : "elevator");
+  const destination = customDestination || allPlaces[routeTarget];
   const gridRoute = buildWalkableGridRoute(position, destination, currentFloor);
   const snap = { key: "START", distance: distance(position, gridRoute.path[0] || position) };
   if (!Number.isFinite(gridRoute.totalDistance) || gridRoute.pathKeys.length === 0) {
@@ -1009,6 +1068,7 @@ function route(body, req) {
     currentFloor,
     destFloor,
     destPlace,
+    customDestination,
     position,
     motion: normalizeMotion(body.motion),
     accessPoint: nearestAccessPoint({ floor: currentFloor, x: position.x, y: position.y }),
@@ -1022,6 +1082,7 @@ function route(body, req) {
     currentFloor,
     destFloor,
     destPlace,
+    customDestination,
     routeTarget,
     sameFloor,
     verticalDirection,
@@ -1301,6 +1362,7 @@ function adminSummary() {
     boards: state.mapBoards,
     accessPoints: state.accessPoints,
     wifiFingerprints: state.wifiFingerprints || [],
+    obstacles: state.obstacles || [],
     destinationOverrides: state.destinationOverrides || {},
     storeDirectory,
     areaExitDirectory,
@@ -1385,6 +1447,72 @@ function updateDestination(body) {
   state.destinationOverrides[id] = destination;
   void saveState();
   return jsonOk({ destination: { id, ...destination }, places: resolvedPlaces() });
+}
+
+function saveParking(body, req) {
+  const sessionId = clean(body.sessionId, 80) || randomUUID();
+  const parking = {
+    id: randomUUID(),
+    sessionId,
+    floor: floors[body.floor] ? body.floor : "campus",
+    x: clamp(body.x, 0, CANVAS_WIDTH, CANVAS_WIDTH / 2),
+    y: clamp(body.y, 0, CANVAS_HEIGHT, CANVAS_HEIGHT / 2),
+    note: clean(body.note, 180),
+    at: new Date().toISOString()
+  };
+  state.parkingRecords = [parking, ...(state.parkingRecords || []).filter(item => item.sessionId !== sessionId)].slice(0, 300);
+  recordSession(sessionId, "parking-save", { parking, clientIp: clientIp(req) });
+  void saveParkingRecord(parking);
+  void saveState();
+  return jsonOk({ parking });
+}
+
+async function saveParkingRecord(parking) {
+  if (storageMode !== "mysql" || !dbPool) return;
+  try {
+    await dbPool.query(
+      "INSERT INTO parking_records (id, session_id, floor_id, x, y, note, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+      [parking.id, parking.sessionId, parking.floor, parking.x, parking.y, parking.note || null, parking.at.replace("T", " ").replace("Z", "")]
+    );
+  } catch (error) {
+    console.warn("[storage] Failed to write parking record:", error.message);
+  }
+}
+
+function latestParking(bodyOrQuery) {
+  const sessionId = clean(bodyOrQuery.sessionId, 80);
+  const parking = (state.parkingRecords || []).find(item => item.sessionId === sessionId);
+  if (!parking) return jsonError(404, "No parking location saved.");
+  return jsonOk({ parking });
+}
+
+function history(query) {
+  const sessionId = clean(query.sessionId, 80);
+  const events = state.events
+    .filter(event => !sessionId || event.sessionId === sessionId)
+    .slice(-30)
+    .reverse();
+  return jsonOk({ events });
+}
+
+function imageSearch(body, req) {
+  const hint = normalizeSearch(`${body.hint || ""} ${body.fileName || ""}`);
+  const rules = [
+    { keys: ["parking", "park", "車", "停車"], detected: { id: "parking_sign", labelZh: "停車場標誌", labelEn: "Parking sign" }, query: "南側出口" },
+    { keys: ["restroom", "toilet", "wc", "廁所"], detected: { id: "restroom_sign", labelZh: "廁所標誌", labelEn: "Restroom sign" }, query: "廁所" },
+    { keys: ["elevator", "lift", "電梯"], detected: { id: "elevator_sign", labelZh: "電梯標誌", labelEn: "Elevator sign" }, query: "行政" },
+    { keys: ["restaurant", "food", "餐", "食"], detected: { id: "restaurant_sign", labelZh: "餐飲標誌", labelEn: "Restaurant sign" }, query: "活動中心" },
+    { keys: ["exit", "出口"], detected: { id: "exit_sign", labelZh: "出口標誌", labelEn: "Exit sign" }, query: "出口" },
+    { keys: ["map", "campus", "校園", "地圖"], detected: { id: "campus_map", labelZh: "校園地圖看板", labelEn: "Campus map" }, query: "大門" },
+    { keys: ["arcade", "game", "遊戲", "gachapon", "扭蛋"], detected: { id: "arcade_machine", labelZh: "遊戲機 / 扭蛋機", labelEn: "Arcade or gachapon" }, query: "活動中心" }
+  ];
+  const match = rules.find(rule => rule.keys.some(key => hint.includes(normalizeSearch(key)))) || rules[5];
+  const resolved = resolveDestination({ query: match.query });
+  if (resolved.status !== 200) return resolved;
+  const destination = resolved.data.best;
+  const sessionId = clean(body.sessionId, 80) || randomUUID();
+  recordSession(sessionId, "image-search", { detected: match.detected, destination: destination.id, clientIp: clientIp(req) });
+  return jsonOk({ detected: match.detected, destination });
 }
 
 function config() {
@@ -1518,16 +1646,28 @@ const server = http.createServer(async (req, res) => {
         const result = learnGpsLocation(await readJson(req), req);
         return sendJson(res, result.status, result.data);
       }
-      if (req.method === "POST" && url.pathname === "/api/location/photo") {
-      const result = locateByPhoto(await readJson(req), req);
-      return sendJson(res, result.status, result.data);
-    }
     if (req.method === "POST" && url.pathname === "/api/route") {
       const result = route(await readJson(req), req);
       return sendJson(res, result.status, result.data);
     }
     if (req.method === "POST" && url.pathname === "/api/location/wifi") {
       const result = locateByWifi(await readJson(req), req);
+      return sendJson(res, result.status, result.data);
+    }
+    if (req.method === "POST" && url.pathname === "/api/parking/save") {
+      const result = saveParking(await readJson(req), req);
+      return sendJson(res, result.status, result.data);
+    }
+    if (req.method === "GET" && url.pathname === "/api/parking/latest") {
+      const result = latestParking(Object.fromEntries(url.searchParams));
+      return sendJson(res, result.status, result.data);
+    }
+    if (req.method === "GET" && url.pathname === "/api/history") {
+      const result = history(Object.fromEntries(url.searchParams));
+      return sendJson(res, result.status, result.data);
+    }
+    if (req.method === "POST" && url.pathname === "/api/image-search") {
+      const result = imageSearch(await readJson(req), req);
       return sendJson(res, result.status, result.data);
     }
     if (req.method === "POST" && url.pathname === "/api/destination/resolve") {

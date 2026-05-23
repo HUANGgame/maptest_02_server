@@ -9,19 +9,22 @@ const i18n = {
     destinationSearchPlaceholder: "例：圖書館、活動中心、商管、工學館、公車站、克難坡",
     clearDestination: "\u6e05\u9664",
     destination: "\u76ee\u7684\u5730",
-    photoMap: "\u62cd\u651d\u7246\u4e0a\u5730\u5716",
-    locateByPhoto: "\u62cd\u7167\u5b9a\u4f4d",
     wifiScan: "Wi-Fi 指紋由後台維護",
     wifiScanPlaceholder: "",
     locateByWifi: "Wi-Fi 定位",
     wifiLocated: "Wi-Fi 定位成功",
-    publicNote: "\u62cd\u7167\u6210\u529f\u5f8c\u6703\u76f4\u63a5\u66f4\u65b0\u5e95\u5716\u3001\u6b63\u78ba\u5ea7\u6a19\u3001AP/IP \u548c\u65b9\u5411\u7bad\u982d\u8def\u7dda\u3002",
+    objectPhoto: "圖片物品搜尋 Demo",
+    objectDetected: "圖片辨識結果",
+    saveParking: "記住車位",
+    returnStart: "回到起點",
+    returnParking: "回到停車位",
+    parkingSaved: "已記住停車位",
+    historyTitle: "歷史導航",
+    noParking: "尚未記住停車位",
     centerCurrent: "\u56de\u5230\u76ee\u524d\u4f4d\u7f6e",
     serverDown: "Server \u7121\u6cd5\u9023\u7dda\u3002",
-    choosePhoto: "\u8acb\u5148\u62cd\u651d\u6216\u9078\u64c7\u4e00\u5f35\u7246\u4e0a\u5730\u5716\u7167\u7247\u3002",
-    analyzing: "\u6b63\u5728\u5206\u6790\u7167\u7247...",
     located: "\u5b9a\u4f4d\u6210\u529f",
-    failed: "\u62cd\u7167\u5b9a\u4f4d\u5931\u6557",
+    failed: "\u64cd\u4f5c\u5931\u6557",
     routeFailed: "\u8def\u7dda\u898f\u5283\u5931\u6557",
     routeTo: "\u6cbf\u8457\u7bad\u982d\u8def\u7dda\u524d\u5f80",
     goVertical: "\u8acb\u5148\u524d\u5f80\u96fb\u68af / \u6a13\u68af\uff0c\u518d\u79fb\u52d5\u5230",
@@ -49,7 +52,6 @@ const i18n = {
     motionUnavailable: "此瀏覽器未提供步數與方向資料",
     locationSource: "\u5b9a\u4f4d\u4f86\u6e90",
     sourceDefault: "\u9810\u8a2d\u4f4d\u7f6e",
-    sourcePhoto: "\u7246\u9762\u5730\u5716\u6821\u6b63",
     view: "\u8996\u91ce",
     skipToControls: "\u8df3\u5230\u64cd\u4f5c\u5340",
     audioHelp: "\u8a9e\u97f3\u5c0e\u89bd\u5df2\u5c31\u7dd2\u3002\u9078\u64c7\u76ee\u7684\u5730\u5f8c\uff0c\u6309 Wi-Fi \u5b9a\u4f4d\uff0c\u624b\u6a5f\u6b65\u6578\u8207\u65b9\u5411\u6703\u8f14\u52a9\u66f4\u65b0\u8def\u7dda\u3002",
@@ -70,7 +72,6 @@ const i18n = {
     arrivedNear: "\u4f60\u5df2\u63a5\u8fd1\u76ee\u7684\u5730",
     nextToward: "\u8acb\u671d\u4e0b\u4e00\u500b\u7bad\u982d\u65b9\u5411\u524d\u9032\uff0c\u524d\u5f80",
     routeReady: "\u8def\u7dda\u5df2\u66f4\u65b0",
-    photoLocatedSpeech: "\u62cd\u7167\u5b9a\u4f4d\u6210\u529f",
     directionStraight: "\u76f4\u8d70",
     directionSlightRight: "\u5f80\u53f3\u524d\u65b9",
     directionRight: "\u5f80\u53f3\u908a",
@@ -81,7 +82,6 @@ const i18n = {
     directionSlightLeft: "\u5f80\u5de6\u524d\u65b9",
     nextDirection: "\u4e0b\u4e00\u6b65\u65b9\u5411",
     vibrationReady: "\u624b\u6a5f\u6b65\u6578\u8207\u65b9\u5411\u8f14\u52a9\u5df2\u6e96\u5099",
-    cameraHint: "\u628a\u93e1\u982d\u5c0d\u6e96\u7246\u4e0a\u5730\u5716\uff0c\u62cd\u5b8c\u5f8c\u7cfb\u7d71\u6703\u81ea\u52d5\u5b9a\u4f4d\u4e26\u6717\u8b80\u8def\u7dda\u3002"
   },
   en: {
     appTitle: "Tamkang Campus Wi-Fi Navigation Demo",
@@ -93,19 +93,22 @@ const i18n = {
     destinationSearchPlaceholder: "e.g. library, activity center, business, engineering, bus stop",
     clearDestination: "Clear",
     destination: "Destination",
-    photoMap: "Photo of wall map",
-    locateByPhoto: "Locate by Photo",
     wifiScan: "Wi-Fi fingerprints are maintained in admin",
     wifiScanPlaceholder: "",
     locateByWifi: "Locate by Wi-Fi",
     wifiLocated: "Wi-Fi location succeeded",
-    publicNote: "After a successful photo match, the base map, accurate coordinates, AP/IP, and arrow route update automatically.",
+    objectPhoto: "Image object search demo",
+    objectDetected: "Detected image intent",
+    saveParking: "Save parking",
+    returnStart: "Return to start",
+    returnParking: "Return to parking",
+    parkingSaved: "Parking location saved",
+    historyTitle: "Navigation history",
+    noParking: "No parking location saved",
     centerCurrent: "Center current",
     serverDown: "Server is unavailable.",
-    choosePhoto: "Please take or choose a wall-map photo first.",
-    analyzing: "Analyzing photo...",
     located: "Located",
-    failed: "Photo location failed",
+    failed: "Action failed",
     routeFailed: "Route planning failed",
     routeTo: "Follow the arrow route to",
     goVertical: "Go to Elevator / Stairs first, then move to",
@@ -133,7 +136,6 @@ const i18n = {
     motionUnavailable: "This browser does not provide step or heading data",
     locationSource: "Location source",
     sourceDefault: "Default location",
-    sourcePhoto: "Wall-map photo calibration",
     view: "View",
     skipToControls: "Skip to controls",
     audioHelp: "Voice guidance is ready. Choose a destination, press Wi-Fi location, and phone steps will assist route updates.",
@@ -154,7 +156,6 @@ const i18n = {
     arrivedNear: "You are near the destination",
     nextToward: "Follow the next arrow toward",
     routeReady: "Route updated",
-    photoLocatedSpeech: "Photo location succeeded",
     directionStraight: "go straight",
     directionSlightRight: "go slightly right",
     directionRight: "turn right",
@@ -165,7 +166,6 @@ const i18n = {
     directionSlightLeft: "go slightly left",
     nextDirection: "Next direction",
     vibrationReady: "Phone step and heading assistance is ready",
-    cameraHint: "Point the camera at the wall map. After the photo is taken, the system will locate you and read the route automatically."
   }
 };
 
@@ -178,9 +178,12 @@ const destinationSearch = document.getElementById("destinationSearch");
 const destinationSuggestions = document.getElementById("destinationSuggestions");
 const clearDestinationBtn = document.getElementById("clearDestinationBtn");
 const destPlace = document.getElementById("destPlace");
-const photoInput = document.getElementById("photoInput");
-const locateBtn = document.getElementById("locateBtn");
 const wifiLocateBtn = document.getElementById("wifiLocateBtn");
+const objectPhotoInput = document.getElementById("objectPhotoInput");
+const saveParkingBtn = document.getElementById("saveParkingBtn");
+const returnStartBtn = document.getElementById("returnStartBtn");
+const returnParkingBtn = document.getElementById("returnParkingBtn");
+const historyBox = document.getElementById("historyBox");
 const zoomInBtn = document.getElementById("zoomInBtn");
 const zoomOutBtn = document.getElementById("zoomOutBtn");
 const centerBtn = document.getElementById("centerBtn");
@@ -202,6 +205,7 @@ let currentPosition = { x: 440, y: 615 };
 let currentBoard = null;
 let currentBaseMapId = "M-B1-CENTER-01";
 let currentAccessPoint = null;
+let startPosition = null;
 let routeData = null;
 let destinationActive = false;
 let currentCategory = "all";
@@ -288,6 +292,34 @@ const geoMapBounds = {
   east: 121.5228
 };
 
+const campusPlan = {
+  roads: [
+    { type: "main", labelZh: "\u6821\u5712\u4e3b\u8ef8\u6b65\u9053", labelEn: "Campus Main Walk", points: [[440, 615], [520, 700], [585, 760], [590, 1010], [840, 1010], [1000, 880], [1130, 860]] },
+    { type: "main", labelZh: "\u5357\u5074\u6b65\u9053", labelEn: "South Walk", points: [[415, 650], [535, 1125], [765, 1195], [965, 1430]] },
+    { type: "main", labelZh: "\u5de5\u5b78\u9662\u6b65\u9053", labelEn: "Engineering Walk", points: [[585, 760], [790, 735], [930, 690], [1120, 700], [1130, 860]] },
+    { type: "main", labelZh: "\u5716\u66f8\u9928\u74b0\u9053", labelEn: "Library Loop", points: [[930, 690], [1120, 700], [1120, 880], [995, 940], [925, 950], [840, 1010]] },
+    { type: "secondary", labelZh: "\u64cd\u5834\u9023\u7d61\u9053", labelEn: "Stadium Link", points: [[440, 615], [320, 345], [415, 650]] },
+    { type: "secondary", labelZh: "\u5b78\u751f\u6d3b\u52d5\u5340\u6b65\u9053", labelEn: "Student Area Walk", points: [[590, 1010], [610, 1060], [620, 1210], [620, 1330], [765, 1360], [940, 1430]] },
+    { type: "secondary", labelZh: "\u5df4\u58eb\u7ad9\u9023\u7d61\u9053", labelEn: "Bus Stop Link", points: [[790, 735], [840, 1010], [620, 1210]] },
+    { type: "secondary", labelZh: "\u5357\u51fa\u53e3\u9023\u7d61\u9053", labelEn: "South Exit Link", points: [[620, 1210], [765, 1360], [965, 1430], [1165, 1340]] }
+  ],
+  greens: [
+    { x: 70, y: 105, w: 555, h: 520, r: 34, fill: "#d7ead5", stroke: "#a5c9a2", labelZh: "\u64cd\u5834", labelEn: "Sports Field" },
+    { x: 405, y: 940, w: 200, h: 260, r: 32, fill: "#cfe8d3", stroke: "#9fc8a6", labelZh: "\u514b\u96e3\u5761", labelEn: "Scenery Slope" },
+    { x: 875, y: 565, w: 320, h: 150, r: 30, fill: "#dff0df", stroke: "#b6d7b7", labelZh: "\u6797\u9670\u6b65\u9053", labelEn: "Tree Walk" }
+  ],
+  buildings: [
+    { x: 610, y: 780, w: 165, h: 210, r: 12, fill: "#f3d2a4", stroke: "#c58c4a", labelZh: "\u884c\u653f\u5927\u6a13", labelEn: "Administration" },
+    { x: 895, y: 715, w: 210, h: 195, r: 14, fill: "#cbdaf4", stroke: "#7793c8", labelZh: "\u5716\u66f8\u9928", labelEn: "Library" },
+    { x: 1050, y: 915, w: 210, h: 235, r: 14, fill: "#f2c7be", stroke: "#c56d62", labelZh: "\u5546\u7ba1\u5927\u6a13", labelEn: "Business" },
+    { x: 650, y: 1080, w: 250, h: 240, r: 14, fill: "#e4d7f4", stroke: "#9974bf", labelZh: "\u5b78\u751f\u6d3b\u52d5\u5340", labelEn: "Student Area" },
+    { x: 760, y: 610, w: 190, h: 120, r: 12, fill: "#d9e8f1", stroke: "#6e9bb1", labelZh: "\u5de5\u5b78\u9662", labelEn: "Engineering" },
+    { x: 635, y: 715, w: 125, h: 70, r: 12, fill: "#f5e6ab", stroke: "#d0aa38", labelZh: "\u570b\u969b\u6703\u8b70\u4e2d\u5fc3", labelEn: "Conference Center" },
+    { x: 450, y: 575, w: 115, h: 90, r: 12, fill: "#e7eef8", stroke: "#8ba4c0", labelZh: "\u6821\u9580", labelEn: "Main Gate" },
+    { x: 720, y: 1160, w: 155, h: 95, r: 12, fill: "#f6e0bd", stroke: "#c79655", labelZh: "\u6d3b\u52d5\u4e2d\u5fc3", labelEn: "Activity Center" }
+  ]
+};
+
 langSelect.value = lang;
 langSelect.addEventListener("change", () => {
   lang = langSelect.value;
@@ -323,8 +355,7 @@ function applyI18n() {
     node.placeholder = t(node.dataset.i18nPlaceholder);
   });
   canvas.setAttribute("aria-label", `${t("appTitle")}. ${t("mapKeyboardHelp")}`);
-  photoInput.setAttribute("aria-describedby", "audioHelp");
-  locateBtn.setAttribute("aria-label", `${t("locateByPhoto")}. ${t("cameraHint")}`);
+  objectPhotoInput?.setAttribute("aria-describedby", "audioHelp");
   zoomInBtn.setAttribute("aria-label", lang === "en" ? "Zoom in map" : "\u653e\u5927\u5730\u5716");
   zoomOutBtn.setAttribute("aria-label", lang === "en" ? "Zoom out map" : "\u7e2e\u5c0f\u5730\u5716");
   centerBtn.setAttribute("aria-label", t("centerCurrent"));
@@ -415,6 +446,7 @@ async function init() {
     canvas.height = config.canvas.height;
     fillSelects();
     updateLocationText();
+    await refreshHistory();
     statusBox.textContent = `${health.message}\nSession: ${sessionId}`;
     draw();
     liveOnly(`${t("audioHelp")} ${t("voiceQuietHint")} ${t("mapKeyboardHelp")} ${t("vibrationReady")}`);
@@ -680,57 +712,123 @@ function draw() {
 }
 
 function drawBaseMap() {
-  ctx.fillStyle = "#f7faf8";
+  ctx.fillStyle = "#f5f7f1";
   ctx.fillRect(0, 0, canvas.width, canvas.height);
-  drawSimpleWalkways();
-  drawObstacles(config?.obstacles || []);
+  drawCampusPlan();
 }
 
-function drawSimpleWalkways() {
-  if (!config?.graphEdges || !config?.graphNodes) return;
+function drawCampusPlan() {
   ctx.save();
-  ctx.strokeStyle = "#c8d8d2";
-  ctx.lineWidth = 18;
-  ctx.lineCap = "round";
-  ctx.lineJoin = "round";
-  for (const edge of config.graphEdges) {
-    const a = config.graphNodes[edge[0]];
-    const b = config.graphNodes[edge[1]];
-    if (!a || !b) continue;
+  drawMapGrid();
+  campusPlan.greens.forEach(area => drawRoundedArea(area));
+  campusPlan.roads.forEach(road => drawCampusRoad(road, true));
+  campusPlan.roads.forEach(road => drawCampusRoad(road, false));
+  campusPlan.buildings.forEach(building => drawRoundedArea(building, true));
+  drawCampusCompass();
+  ctx.restore();
+}
+
+function drawMapGrid() {
+  ctx.save();
+  ctx.strokeStyle = "rgba(148, 163, 184, .16)";
+  ctx.lineWidth = 1;
+  for (let x = 0; x <= canvas.width; x += 100) {
     ctx.beginPath();
-    ctx.moveTo(a.x, a.y);
-    ctx.lineTo(b.x, b.y);
+    ctx.moveTo(x, 0);
+    ctx.lineTo(x, canvas.height);
     ctx.stroke();
   }
-  ctx.strokeStyle = "#ffffff";
-  ctx.lineWidth = 10;
-  for (const edge of config.graphEdges) {
-    const a = config.graphNodes[edge[0]];
-    const b = config.graphNodes[edge[1]];
-    if (!a || !b) continue;
+  for (let y = 0; y <= canvas.height; y += 100) {
     ctx.beginPath();
-    ctx.moveTo(a.x, a.y);
-    ctx.lineTo(b.x, b.y);
+    ctx.moveTo(0, y);
+    ctx.lineTo(canvas.width, y);
     ctx.stroke();
   }
   ctx.restore();
 }
 
-function drawObstacles(obstacles) {
+function drawRoundedArea(area, isBuilding = false) {
   ctx.save();
-  for (const item of obstacles) {
-    ctx.fillStyle = "#d7dde4";
-    ctx.strokeStyle = "#94a3b8";
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.roundRect(item.x, item.y, item.w, item.h, 10);
-    ctx.fill();
-    ctx.stroke();
-    ctx.fillStyle = "#334155";
-    ctx.font = "700 20px Microsoft JhengHei, Arial";
-    const label = truncateLabel(lang === "en" ? item.labelEn : item.labelZh, 10);
-    ctx.fillText(label, item.x + 14, item.y + 30);
+  ctx.fillStyle = area.fill;
+  ctx.strokeStyle = area.stroke;
+  ctx.lineWidth = isBuilding ? 2.5 : 2;
+  ctx.beginPath();
+  ctx.roundRect(area.x, area.y, area.w, area.h, area.r || 12);
+  ctx.fill();
+  ctx.stroke();
+  const label = lang === "en" ? area.labelEn : area.labelZh;
+  if (label) {
+    ctx.fillStyle = isBuilding ? "#243145" : "#2f5f46";
+    ctx.font = `${isBuilding ? "800" : "700"} ${isBuilding ? 23 : 21}px "Microsoft JhengHei", Arial, sans-serif`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    wrapMapText(label, area.x + area.w / 2, area.y + area.h / 2, Math.max(70, area.w - 24), isBuilding ? 25 : 23);
   }
+  ctx.restore();
+}
+
+function drawCampusRoad(road, casing) {
+  const width = road.type === "main" ? 28 : 18;
+  ctx.save();
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+  ctx.strokeStyle = casing ? "rgba(30, 64, 175, .18)" : (road.type === "main" ? "#ffffff" : "#f8fafc");
+  ctx.lineWidth = casing ? width + 12 : width;
+  ctx.beginPath();
+  road.points.forEach(([x, y], index) => {
+    if (index === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  });
+  ctx.stroke();
+  if (!casing) {
+    ctx.strokeStyle = road.type === "main" ? "#6aa292" : "#9bc4bb";
+    ctx.lineWidth = road.type === "main" ? 3 : 2;
+    ctx.setLineDash(road.type === "main" ? [] : [12, 10]);
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+  ctx.restore();
+}
+
+function wrapMapText(value, x, y, maxWidth, lineHeight) {
+  const chars = String(value || "").split("");
+  const lines = [];
+  let line = "";
+  for (const ch of chars) {
+    const next = line + ch;
+    if (ctx.measureText(next).width > maxWidth && line) {
+      lines.push(line);
+      line = ch;
+    } else {
+      line = next;
+    }
+  }
+  if (line) lines.push(line);
+  const top = y - (lines.length - 1) * lineHeight / 2;
+  lines.slice(0, 3).forEach((textLine, index) => ctx.fillText(textLine, x, top + index * lineHeight));
+}
+
+function drawCampusCompass() {
+  ctx.save();
+  ctx.translate(88, 142);
+  ctx.fillStyle = "rgba(255,255,255,.88)";
+  ctx.strokeStyle = "#94a3b8";
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.arc(0, 0, 38, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+  ctx.fillStyle = "#334155";
+  ctx.beginPath();
+  ctx.moveTo(0, -27);
+  ctx.lineTo(10, 12);
+  ctx.lineTo(0, 6);
+  ctx.lineTo(-10, 12);
+  ctx.closePath();
+  ctx.fill();
+  ctx.font = "800 16px Arial";
+  ctx.textAlign = "center";
+  ctx.fillText("N", 0, -47);
   ctx.restore();
 }
 
@@ -1057,60 +1155,6 @@ function centerOnCurrent(shouldAnnounce = true) {
   if (shouldAnnounce) announce(locationSpeech(), true);
 }
 
-async function imageHash(file) {
-  const bitmap = await createImageBitmap(file);
-  const side = 16;
-  const offscreen = document.createElement("canvas");
-  offscreen.width = side;
-  offscreen.height = side;
-  const tiny = offscreen.getContext("2d", { willReadFrequently: true });
-  tiny.drawImage(bitmap, 0, 0, side, side);
-  const data = tiny.getImageData(0, 0, side, side).data;
-  const values = [];
-  for (let i = 0; i < data.length; i += 4) {
-    values.push(Math.round(data[i] * .299 + data[i + 1] * .587 + data[i + 2] * .114));
-  }
-  const avg = values.reduce((sum, value) => sum + value, 0) / values.length;
-  return values.map(value => value >= avg ? "1" : "0").join("");
-}
-
-async function locateFromPhoto() {
-  await requestMotionPermission();
-  const file = photoInput.files[0];
-  if (!file) {
-    statusBox.textContent = t("choosePhoto");
-    announce(t("choosePhoto"), true);
-    return;
-  }
-  statusBox.textContent = t("analyzing");
-  announce(t("analyzing"), true);
-  try {
-    const photoHash = await imageHash(file);
-    const data = await api("/api/location/photo", {
-      method: "POST",
-      body: JSON.stringify({ sessionId, floor: currentFloor, photoHash, userAgent: navigator.userAgent })
-    });
-    currentBoard = data.location;
-    currentFloor = data.location.floor;
-    currentPosition = { x: data.location.x, y: data.location.y };
-    currentAccessPoint = data.location.accessPoint || null;
-    locationSource = "photo";
-    switchBaseMap(data.location.boardId);
-    fillSelects();
-    mapBadge.textContent = `${t("located")}: ${lang === "en" ? data.location.boardNameEn : data.location.boardNameZh}\n${t("baseMap")}: ${baseMapName()}`;
-    statusBox.textContent = `${t("baseMapSwitched")}: ${baseMapName()}\n${t("autoUpdated")}\n${t("confidence")}: ${Math.round(data.location.confidence * 100)}%`;
-    updateLocationText();
-    if (destinationActive) await requestRoute("photo-location");
-    else updateRouteText();
-    haptic([80, 60, 160]);
-    autoNavigateSpeak(`${t("photoLocatedSpeech")}。${t("baseMapSwitched")}: ${baseMapName()}。${shortLocationSpeech()}。${currentStepSpeech()}`, true);
-  } catch (error) {
-    statusBox.textContent = `${t("failed")}: ${error.message}`;
-    haptic([250, 80, 250]);
-    autoNavigateSpeak(`${t("failed")}: ${error.message}`, true);
-  }
-}
-
 async function locateFromWifi() {
   await requestMotionPermission();
   statusBox.textContent = lang === "en" ? "Locating from server-side Wi-Fi fingerprint..." : "正在由 server 端 Wi-Fi 指紋定位...";
@@ -1158,6 +1202,7 @@ async function requestRoute(reason) {
         currentFloor,
         destFloor: resolveDestinationFloor(),
         destPlace: destPlace.value,
+        destinationPoint: routeTargetPoint(),
         position: currentPosition,
         motion: motionPayload(),
         reason
@@ -1165,6 +1210,7 @@ async function requestRoute(reason) {
     });
     if (requestSeq !== routeRequestSeq) return;
     routeData = nextRoute;
+    await refreshHistory();
     routeAnimationStart = performance.now();
     updateRouteText();
   } catch (error) {
@@ -1183,7 +1229,7 @@ function updateRouteText() {
     return;
   }
   const dest = routeData.destination;
-  const finalDest = config.places[routeData.destPlace] || dest;
+  const finalDest = routeData.customDestination || config.places[routeData.destPlace] || dest;
   const intro = routeData.sameFloor
     ? `${t("routeTo")} ${text(finalDest)}.`
     : verticalRouteInstruction(finalDest);
@@ -1198,6 +1244,98 @@ function updateRouteText() {
   if (spoken && spoken !== lastSpokenRoute) {
     lastSpokenRoute = spoken;
     autoNavigateSpeak(`${t("routeReady")}。${currentStepSpeech()}`, false);
+  }
+}
+
+function routeTargetPoint() {
+  const target = window.__temporaryRouteTarget;
+  return target ? { ...target } : null;
+}
+
+function clearTemporaryTarget() {
+  window.__temporaryRouteTarget = null;
+}
+
+async function routeToPoint(point, labelZh, labelEn, reason) {
+  window.__temporaryRouteTarget = {
+    floor: point.floor || currentFloor,
+    x: Number(point.x),
+    y: Number(point.y),
+    labelZh,
+    labelEn,
+    node: "CUSTOM"
+  };
+  destinationActive = true;
+  routeData = null;
+  routeRequestSeq += 1;
+  await requestRoute(reason);
+}
+
+async function refreshHistory() {
+  if (!historyBox) return;
+  try {
+    const data = await api(`/api/history?sessionId=${encodeURIComponent(sessionId)}`);
+    const rows = (data.events || []).slice(0, 3).map(event => {
+      const label = event.type === "route" ? (lang === "en" ? "Route" : "路線") : event.type;
+      return `<li>${escapeHtml(label)} · ${escapeHtml(new Date(event.at).toLocaleTimeString(lang === "en" ? "en-US" : "zh-TW", { hour: "2-digit", minute: "2-digit" }))}</li>`;
+    }).join("");
+    historyBox.innerHTML = `<strong>${t("historyTitle")}</strong>${rows ? `<ul>${rows}</ul>` : ""}`;
+  } catch {
+    historyBox.textContent = "";
+  }
+}
+
+async function saveParking() {
+  try {
+    await api("/api/parking/save", {
+      method: "POST",
+      body: JSON.stringify({ sessionId, floor: currentFloor, x: currentPosition.x, y: currentPosition.y })
+    });
+    statusBox.textContent = t("parkingSaved");
+    await refreshHistory();
+    autoNavigateSpeak(t("parkingSaved"), true);
+  } catch (error) {
+    statusBox.textContent = `${t("failed")}: ${error.message}`;
+  }
+}
+
+async function returnToParking() {
+  try {
+    const data = await api(`/api/parking/latest?sessionId=${encodeURIComponent(sessionId)}`);
+    await routeToPoint(data.parking, lang === "en" ? "Parking location" : "停車位", "Parking location", "return-parking");
+  } catch (error) {
+    statusBox.textContent = `${t("noParking")}。${error.message}`;
+    autoNavigateSpeak(t("noParking"), true);
+  }
+}
+
+async function returnToStart() {
+  if (!startPosition) {
+    statusBox.textContent = lang === "en" ? "No start position yet. Press Wi-Fi location first." : "尚未有起點，請先按 Wi-Fi 定位。";
+    return;
+  }
+  await routeToPoint(startPosition, lang === "en" ? "Start position" : "起點", "Start position", "return-start");
+}
+
+async function searchByObjectPhoto() {
+  const file = objectPhotoInput?.files?.[0];
+  if (!file) return;
+  statusBox.textContent = lang === "en" ? "Detecting object intent..." : "正在辨識圖片物品...";
+  try {
+    const data = await api("/api/image-search", {
+      method: "POST",
+      body: JSON.stringify({ sessionId, fileName: file.name, hint: file.name })
+    });
+    const best = data.destination;
+    if (!best?.id) throw new Error("No destination");
+    destPlace.value = best.id;
+    destinationSearch.value = text(best);
+    destinationActive = true;
+    clearTemporaryTarget();
+    statusBox.textContent = `${t("objectDetected")}: ${lang === "en" ? data.detected.labelEn : data.detected.labelZh} → ${text(best)}`;
+    await requestRoute("image-search");
+  } catch (error) {
+    statusBox.textContent = `${t("failed")}: ${error.message}`;
   }
 }
 
@@ -1232,7 +1370,6 @@ function shortLocationSpeech() {
 }
 
 function locationSourceText() {
-  if (locationSource === "photo") return t("sourcePhoto");
   if (locationSource === "wifi") return lang === "en" ? "Server-side Wi-Fi fingerprint" : "Server 端 Wi-Fi 指紋定位";
   if (locationSource === "motion") return t("motion");
   if (locationSource === "floor-switch") return lang === "en" ? "Floor changed at elevator/stairs" : "已在電梯／樓梯切換樓層";
@@ -1242,7 +1379,7 @@ function locationSourceText() {
 function currentStepSpeech() {
   if (!routeData || !config) return t("noRouteYet");
   const dest = routeData.destination;
-  const finalDest = config.places[routeData.destPlace] || dest;
+  const finalDest = routeData.customDestination || config.places[routeData.destPlace] || dest;
   const nextNode = routeData.path?.[1] || routeData.path?.[0] || null;
   if (!routeData.sameFloor && distance(currentPosition, dest) < 35) return verticalArrivalInstruction(finalDest);
   if (distance(currentPosition, dest) < 35) return `${t("arrivedNear")}: ${text(finalDest)}`;
@@ -1256,7 +1393,7 @@ function currentStepSpeech() {
 function routeSpeech() {
   if (!routeData || !config) return t("noRouteYet");
   const dest = routeData.destination;
-  const finalDest = config.places[routeData.destPlace] || dest;
+  const finalDest = routeData.customDestination || config.places[routeData.destPlace] || dest;
   const destText = text(finalDest);
   const nextNode = routeData.path?.[1] || routeData.path?.[0] || null;
   const nextText = nextNode ? text(nextNode) : destText;
@@ -1352,8 +1489,11 @@ function directionFromTo(from, to) {
   return t("directionSlightRight");
 }
 
-locateBtn.addEventListener("click", locateFromPhoto);
 wifiLocateBtn?.addEventListener("click", locateFromWifi);
+saveParkingBtn?.addEventListener("click", saveParking);
+returnStartBtn?.addEventListener("click", returnToStart);
+returnParkingBtn?.addEventListener("click", returnToParking);
+objectPhotoInput?.addEventListener("change", searchByObjectPhoto);
 zoomInBtn.addEventListener("click", () => zoomAt(1.25));
 zoomOutBtn.addEventListener("click", () => zoomAt(0.8));
 centerBtn.addEventListener("click", centerOnCurrent);
@@ -1379,9 +1519,6 @@ voiceToggleBtn.addEventListener("click", () => {
     screenReaderSummary.textContent = t("voiceDisabled");
   }
 });
-photoInput.addEventListener("change", () => {
-  if (photoInput.files[0]) locateFromPhoto();
-});
 if (categorySelect) {
   categorySelect.addEventListener("change", () => {
     currentCategory = categorySelect.value;
@@ -1401,6 +1538,7 @@ destinationSearch.addEventListener("input", () => {
   routeRequestSeq += 1;
   if (destinationSearch.value.trim()) {
     destinationActive = true;
+    clearTemporaryTarget();
     updateRouteText();
   } else {
     destinationActive = false;
@@ -1431,6 +1569,7 @@ clearDestinationBtn.addEventListener("click", () => {
 });
 destPlace.addEventListener("change", () => {
   destinationActive = true;
+  clearTemporaryTarget();
   destinationSearch.value = destPlace.options[destPlace.selectedIndex]?.textContent || "";
   routeData = null;
   routeRequestSeq += 1;
