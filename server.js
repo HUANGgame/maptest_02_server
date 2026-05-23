@@ -1020,6 +1020,51 @@ function segmentBlocked(a, b, obstacles) {
   return false;
 }
 
+function segmentWalkable(a, b, obstacles) {
+  return !segmentBlocked(a, b, obstacles) && segmentInsideCampusWalkway(a, b);
+}
+
+function simplifyWalkablePath(path, obstacles) {
+  if (!Array.isArray(path) || path.length <= 2) return path || [];
+  const simplified = [path[0]];
+  let index = 0;
+  while (index < path.length - 1) {
+    let next = index + 1;
+    for (let candidate = path.length - 1; candidate > index + 1; candidate -= 1) {
+      if (segmentWalkable(path[index], path[candidate], obstacles)) {
+        next = candidate;
+        break;
+      }
+    }
+    simplified.push(path[next]);
+    index = next;
+  }
+  return simplified;
+}
+
+function routeQuality(path) {
+  if (!Array.isArray(path) || path.length < 2) return { turns: 0, sharpTurns: 0, directness: 1, score: 1 };
+  let length = 0;
+  let turns = 0;
+  let sharpTurns = 0;
+  for (let i = 1; i < path.length; i += 1) {
+    length += distance(path[i - 1], path[i]);
+    if (i < 2) continue;
+    const a = path[i - 2];
+    const b = path[i - 1];
+    const c = path[i];
+    const angle1 = Math.atan2(b.y - a.y, b.x - a.x);
+    const angle2 = Math.atan2(c.y - b.y, c.x - b.x);
+    const delta = Math.abs(Math.atan2(Math.sin(angle2 - angle1), Math.cos(angle2 - angle1))) * 180 / Math.PI;
+    if (delta > 28) turns += 1;
+    if (delta > 95) sharpTurns += 1;
+  }
+  const direct = distance(path[0], path[path.length - 1]);
+  const directness = length ? Number(Math.max(0.1, Math.min(1, direct / length)).toFixed(3)) : 1;
+  const score = Number(Math.max(0, Math.min(1, directness - turns * 0.035 - sharpTurns * 0.06)).toFixed(3));
+  return { turns, sharpTurns, directness, score };
+}
+
 function nearestWalkablePoint(point, obstacles, spacing = 80) {
   const clamped = {
     x: clamp(point.x, 40, CANVAS_WIDTH - 40, CANVAS_WIDTH / 2),
@@ -1108,16 +1153,21 @@ function buildWalkableGridRoute(start, destination, floor = "campus") {
   }
 
   const result = aStarPath("START", "END", nodes, buildAdjacency(nodes, edges));
-  const path = result.pathKeys.map(key => ({ id: key, ...nodes[key] }));
+  const rawPath = result.pathKeys.map(key => ({ id: key, ...nodes[key] }));
+  const path = simplifyWalkablePath(rawPath, obstacles);
+  const quality = routeQuality(path);
   return {
     pathKeys: result.pathKeys,
     path,
+    rawPathPoints: rawPath.length,
+    smoothedPathPoints: path.length,
     obstacles,
-    totalDistance: result.rawDistance,
+    totalDistance: path.reduce((sum, point, index) => index ? sum + distance(path[index - 1], point) : 0, 0),
     totalMeters: pathMeters(path.length ? path : [startPoint, endPoint]),
     algorithm: "A* + DQN policy",
-    model: "astar-dqn-obstacle-grid-v3",
-    dqn: result.dqn || { policy: "lightweight-q-policy", adjustedEdges: 0, averageQ: 0 }
+    model: "astar-dqn-smoothed-grid-v4",
+    dqn: result.dqn || { policy: "lightweight-q-policy", adjustedEdges: 0, averageQ: 0 },
+    quality
   };
 }
 
@@ -1185,6 +1235,7 @@ function route(body, req) {
     totalMeters,
     obstacles: gridRoute.obstacles.map(item => item.id),
     dqn: gridRoute.dqn,
+    quality: gridRoute.quality,
     clientIp: clientIp(req)
   });
   return jsonOk({
@@ -1206,7 +1257,10 @@ function route(body, req) {
     learnedNodes: Object.keys(state.learnedNodes).length,
     algorithm: gridRoute.algorithm,
     model: gridRoute.model,
-    dqn: gridRoute.dqn
+    dqn: gridRoute.dqn,
+    quality: gridRoute.quality,
+    rawPathPoints: gridRoute.rawPathPoints,
+    smoothedPathPoints: gridRoute.smoothedPathPoints
   });
 }
 

@@ -1251,7 +1251,10 @@ function updateRouteText() {
   const algoText = routeData.model?.includes("dqn")
     ? (lang === "en" ? "Algorithm: A* + DQN policy" : "演算法：A* + DQN 權重策略")
     : (routeData.algorithm || "A*");
-  routeHint.innerHTML = `<strong>${t("currentInstruction")}:</strong> ${escapeHtml(current)}<br>${t("distance")} ${routeMeters()} ${t("meters")}<br><span class="algo-note">${escapeHtml(algoText)}</span>${verticalSwitchHtml(finalDest)}${routeStepsHtml(finalDest)}`;
+  const qualityText = routeData.quality?.score !== undefined
+    ? (lang === "en" ? `Route quality ${Math.round(routeData.quality.score * 100)}%` : `路線品質 ${Math.round(routeData.quality.score * 100)}%`)
+    : "";
+  routeHint.innerHTML = `<strong>${t("currentInstruction")}:</strong> ${escapeHtml(current)}<br>${t("distance")} ${routeMeters()} ${t("meters")}<br><span class="algo-note">${escapeHtml(algoText)}${qualityText ? ` · ${escapeHtml(qualityText)}` : ""}</span>${verticalSwitchHtml(finalDest)}${routeStepsHtml(finalDest)}`;
   routeHint.classList.remove("prompt-pulse");
   void routeHint.offsetWidth;
   routeHint.classList.add("prompt-pulse");
