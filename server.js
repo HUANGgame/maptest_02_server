@@ -1532,7 +1532,16 @@ function config() {
     wifiFingerprints: state.wifiFingerprints || [],
     sources: mapSources,
     geoMapBounds: GEO_MAP_BOUNDS,
-    baseMap: { type: "simple", image: "", width: CANVAS_WIDTH, height: CANVAS_HEIGHT, nameZh: "淡江校園簡易平面圖", nameEn: "Tamkang Simplified Floor Plan" },
+    baseMap: {
+      type: "official-raster",
+      image: "/assets/tamkang-campus-map.png",
+      width: CANVAS_WIDTH,
+      height: CANVAS_HEIGHT,
+      sourceWidth: 5670,
+      sourceHeight: 5670,
+      nameZh: "淡江大學淡水校園正式平面圖",
+      nameEn: "Official Tamkang Tamsui Campus Plan"
+    },
     referenceMaps: [
       { id: "walk", labelZh: "淡水校園人行路線圖", labelEn: "Tamsui Campus Walking Route Map", image: "/assets/tamkang-walk-route-map.png" },
       { id: "parking", labelZh: "淡江校園停車場位置圖", labelEn: "Tamkang Campus Parking Map", image: "/assets/tamkang-parking-map.png" }

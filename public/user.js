@@ -293,6 +293,9 @@ const geoMapBounds = {
 const officialCampusMapImage = new Image();
 officialCampusMapImage.decoding = "async";
 officialCampusMapImage.src = "/assets/tamkang-campus-map.png";
+officialCampusMapImage.addEventListener("load", () => {
+  mapBadge.textContent = lang === "en" ? "Official Tamkang campus map loaded" : "已載入正式淡江校園地圖";
+});
 
 const campusPlan = {
   roads: [
@@ -718,9 +721,12 @@ function drawBaseMap() {
     ctx.drawImage(officialCampusMapImage, 0, 0, canvas.width, canvas.height);
     return;
   }
-  ctx.fillStyle = "#f5f7f1";
+  ctx.fillStyle = "#f3f1e8";
   ctx.fillRect(0, 0, canvas.width, canvas.height);
-  drawCampusPlan();
+  ctx.fillStyle = "#1f2937";
+  ctx.font = '800 34px "Microsoft JhengHei", Arial, sans-serif';
+  ctx.textAlign = "center";
+  ctx.fillText(lang === "en" ? "Loading official Tamkang campus map..." : "正在載入正式淡江校園地圖...", canvas.width / 2, canvas.height / 2);
 }
 
 function drawCampusPlan() {
