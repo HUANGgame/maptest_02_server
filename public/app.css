@@ -680,6 +680,13 @@ button.danger {
   white-space: nowrap;
 }
 
+.algo-note {
+  display: inline-block;
+  margin-top: 4px;
+  color: #0f766e;
+  font-weight: 900;
+}
+
 .row > * {
   flex: 1;
 }

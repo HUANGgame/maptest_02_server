@@ -281,8 +281,23 @@ let state = structuredClone(defaultState);
 let dbPool = null;
 let storageMode = "json";
 
-function place(x, y, labelZh, labelEn, node, categoryId, aliases = []) {
-  return { x, y, labelZh, labelEn, node, category: categoryId, aliases };
+function place(x, y, labelZh, labelEn, node, categoryId, aliases = [], extra = {}) {
+  return { x, y, labelZh, labelEn, node, category: categoryId, aliases, ...extra };
+}
+
+function campusBuilding(mapNo, code, x, y, nameZh, nameEn, node, categoryId = "academic", aliases = []) {
+  const no = String(mapNo);
+  const codeText = code ? `（${code}）` : "";
+  return place(
+    x,
+    y,
+    `${no} ${nameZh}${codeText}`,
+    `${no} ${nameEn}${code ? ` (${code})` : ""}`,
+    node,
+    categoryId,
+    [no, `#${no}`, `No.${no}`, `編號${no}`, `地圖${no}`, code, nameZh, nameEn, ...aliases].filter(Boolean),
+    { mapNo: no, buildingCode: code || "", buildingNameZh: nameZh, buildingNameEn: nameEn }
+  );
 }
 
 function category(id, labelZh, labelEn) {
@@ -414,6 +429,52 @@ function installTamkangCampusDemoData() {
     southExit: place(965, 1430, "南側出口", "South Exit", "southGate", "gate", ["出口", "南側"])
   };
   Object.assign(places, campusPlaces);
+  Object.assign(places, {
+    mainGate: campusBuilding(1, "GA", 440, 615, "大門管制站", "Main Entrance Guard House", "mainGate", "gate", ["大門", "校門", "入口", "guard house"]),
+    reviewingStand: campusBuilding(2, "P", 325, 360, "司令臺", "Reviewing Stand", "stadiumNorth", "sports", ["司令台", "操場"]),
+    natatorium: campusBuilding(3, "N", 510, 640, "紹謨紀念游泳館", "Shao-mo Memorial Natatorium Complex", "stadiumSouth", "sports", ["游泳館", "游泳池"]),
+    internationalCenter: campusBuilding(4, "HC", 665, 770, "守謙國際會議中心", "Hsu Shou-Chlien International Conference Center", "centerRound", "academic", ["守謙", "會議中心"]),
+    liuHsien: campusBuilding(5, "S", 705, 820, "騮先紀念科學館", "Liu-hsien Memorial Science Hall", "centerRound", "academic", ["科學館"]),
+    chemistry: campusBuilding(6, "C", 705, 1035, "鍾靈化學館", "Chung-ling Chemistry Hall", "studentRoad", "academic", ["化學館"]),
+    communicationQ: campusBuilding(7, "Q", 830, 1030, "傳播館", "Communication Hall", "studentRoad", "academic", ["傳播館Q"]),
+    communicationO: campusBuilding(8, "O", 790, 1115, "傳播館", "Communication Hall", "studentRoad", "academic", ["傳播館O"]),
+    gymnasium: campusBuilding(9, "SG", 1045, 900, "紹謨紀念體育館", "Shao-mo Memorial Gymnasium", "libraryRoad", "sports", ["體育館"]),
+    reitakuHouse: campusBuilding(10, "J", 915, 690, "麗澤國際學舍", "Reitaku International House", "engineeringRoad", "student", ["麗澤"]),
+    daZhongGuard: campusBuilding(11, "GE", 1065, 720, "大忠管制站", "Da-zhong Guard House", "engineeringRoad", "gate", ["大忠", "管制站"]),
+    liberalArts: campusBuilding(12, "L", 930, 910, "文學館", "College of Liberal Arts", "libraryRoad", "academic", ["文學館"]),
+    hweiWen: campusBuilding(13, "F", 965, 1110, "會文館", "Hwei-wen Hall", "studentRoad", "academic", ["會文館"]),
+    business: campusBuilding(14, "B", 1130, 1035, "商管大樓", "Business and Management Building", "businessRoad", "academic", ["商管", "商管大樓"]),
+    maritime: campusBuilding(15, "M", 1170, 1320, "海事博物館", "Maritime Museum", "southGate", "scenery", ["海博館", "黑天鵝展示廳"]),
+    engineering: campusBuilding(16, "G", 915, 690, "工學館", "Engineering Building", "engineeringRoad", "academic", ["工學館"]),
+    architecture: campusBuilding(17, "K", 1320, 1300, "建築系館", "Department of Architecture Hall", "southGate", "academic", ["建築系"]),
+    windTunnel: campusBuilding(18, "W", 1340, 1385, "風洞實驗室", "Wind Tunnel Laboratory", "southGate", "academic", ["風洞"]),
+    mainEngineering: campusBuilding(19, "E", 1230, 1180, "工學大樓", "Main Engineering Building", "southGate", "academic", ["工學大樓"]),
+    education: campusBuilding(20, "ED", 1045, 735, "教育館", "College of Education", "engineeringRoad", "academic", ["教育館"]),
+    motorcycleParking: campusBuilding(21, "X", 1165, 1340, "五虎崗機車停車場", "Five-Tiger Hill Motorcycle Parking Lot", "southGate", "transport", ["停車場", "機車"]),
+    sungTao1: campusBuilding(22, "Z", 845, 1440, "松濤一館", "First Sung-tao Hall", "southGate", "student", ["松濤"]),
+    sungTao2: campusBuilding(23, "Z", 900, 1450, "松濤二館 / 文錙藝術中心 / 美食廣場", "Second Sung-tao Hall / Carrie Chang Fine Arts Center / Food Court", "southGate", "student", ["松濤", "文錙", "美食廣場"]),
+    sungTao3: campusBuilding(24, "Z", 1030, 1500, "松濤三館", "Third Sung-tao Hall", "southGate", "student", ["松濤"]),
+    sungTao4: campusBuilding(25, "Z", 1165, 1490, "松濤四館", "Fourth Sung-tao Hall", "southGate", "student", ["松濤"]),
+    sungTao5: campusBuilding(26, "Z", 1190, 1515, "松濤五館", "Fifth Sung-tao Hall", "southGate", "student", ["松濤"]),
+    foreignLanguages: campusBuilding(27, "FL", 990, 1510, "外國語文大樓", "College of Foreign Languages and Literatures", "southGate", "academic", ["外語", "外語大樓"]),
+    facultyResidence: campusBuilding(28, "FP", 1175, 1415, "實棟學人宿舍", "Faculty Residences", "southGate", "student", ["學人宿舍"]),
+    chingSheng: campusBuilding(29, "T", 1090, 1210, "驚聲紀念大樓 / 音樂廳 / 國際會議廳", "Ching-sheng Memorial Hall / Music Hall / International Conference Hall", "southGate", "academic", ["驚聲", "音樂廳", "國際會議廳"]),
+    library: campusBuilding(30, "U", 995, 830, "覺生紀念圖書館", "Chueh-sheng Memorial Library", "libraryRoad", "student", ["圖書館", "library"]),
+    chuehShengHall: campusBuilding(31, "I", 900, 1250, "覺生綜合大樓 / 國際會議廳", "Chueh-sheng Memorial Hall / International Conference Hall", "studentRoad", "student", ["覺生"]),
+    guardControl: campusBuilding(32, "GO", 790, 1350, "勤務監控管制中心", "Guard Control Station", "studentRoad", "gate", ["管制中心"]),
+    activity: campusBuilding(33, "R", 795, 1210, "學生活動中心 / 郵局 / 建邦育成中心", "Student Activity Center / Post Office / Champion Incubator Center", "studentRoad", "student", ["活動中心", "郵局", "建邦"]),
+    audioVisual: campusBuilding(34, "V", 720, 1160, "視聽教育館", "Audio-visual Education Building", "studentRoad", "academic", ["視聽"]),
+    admin: campusBuilding(35, "A", 710, 900, "行政大樓", "Administration Building", "adminRoad", "student", ["行政"]),
+    palaceClassrooms: campusBuilding(36, "H", 620, 1120, "宮燈教室", "Chinese Palace-style Classrooms", "studentRoad", "academic", ["宮燈"]),
+    yingYuan: campusBuilding(37, "YY", 650, 1260, "瀛苑 / 校史館", "Ying Yuan House / Gallery of Tamkang History", "studentRoad", "student", ["瀛苑", "校史館"]),
+    chuehHsuan: campusBuilding(38, "CH", 510, 1110, "覺軒", "Chueh-hsuan House", "sceneryLoop", "student", ["覺軒"]),
+    whiteHall: campusBuilding(39, "DR", 480, 1220, "白樓", "White Hall", "sceneryLoop", "student", ["白樓"]),
+    fiveTigerCourt: campusBuilding(40, "XC", 1320, 1500, "五虎崗綜合球場", "Five-Tiger Hill Court", "southGate", "sports", ["球場"]),
+    busStop: place(790, 735, "公車站", "Bus Stop", "busStop", "transport", ["公車", "bus"], { mapNo: "bus" }),
+    sceneryA: place(500, 1015, "A 克難坡", "A Overcoming Difficulties Slope", "sceneryLoop", "scenery", ["克難坡", "A"], { mapNo: "A" }),
+    sceneryO: place(790, 1115, "O 書卷廣場", "O University Commons", "studentRoad", "scenery", ["書卷廣場", "O"], { mapNo: "O" }),
+    southExit: place(965, 1430, "南側出口", "South Exit", "southGate", "gate", ["出口", "南側"])
+  });
 }
 
 function distance(a, b) {
@@ -446,12 +507,36 @@ function pathMeters(points) {
   return Math.max(1, Math.round(total));
 }
 
-function tinyWalkModel(edge, baseDistance) {
+function dqnPolicyScore(edge, baseDistance) {
   const count = Math.max(0, Number(edge.count || 0));
   const normalizedDistance = Math.min(1, baseDistance / 180);
   const learnedConfidence = Math.min(1, Math.log1p(count) / Math.log(12));
   const score = 1 / (1 + Math.exp(-(2.2 * learnedConfidence - 1.1 * normalizedDistance)));
-  return Math.max(0.42, 1 - score * 0.48);
+  return Number(score.toFixed(4));
+}
+
+function dqnWeightFactor(edge, baseDistance) {
+  return Math.max(0.42, 1 - dqnPolicyScore(edge, baseDistance) * 0.48);
+}
+
+function learnedEdgeCountNear(aNode, bNode) {
+  const mid = { x: (aNode.x + bNode.x) / 2, y: (aNode.y + bNode.y) / 2, floor: aNode.floor || bNode.floor || "campus" };
+  let count = 0;
+  for (const edge of state.learnedEdges || []) {
+    const a = state.learnedNodes?.[edge.a];
+    const b = state.learnedNodes?.[edge.b];
+    if (!a || !b || (a.floor || "campus") !== mid.floor) continue;
+    if (distanceToSegment(mid, a, b) <= 70) count += Number(edge.count || 1);
+  }
+  return count;
+}
+
+function dqnEdgePolicy(rawEdge, aNode, bNode, baseDistance) {
+  const count = Array.isArray(rawEdge) ? learnedEdgeCountNear(aNode, bNode) : Number(rawEdge.count || 0);
+  const policy = { count, qScore: dqnPolicyScore({ count }, baseDistance) };
+  policy.weightFactor = dqnWeightFactor({ count }, baseDistance);
+  policy.weight = baseDistance * policy.weightFactor;
+  return policy;
 }
 
 function buildAdjacency(nodes = graphNodes, edges = graphEdges) {
@@ -461,9 +546,9 @@ function buildAdjacency(nodes = graphNodes, edges = graphEdges) {
     const b = Array.isArray(rawEdge) ? rawEdge[1] : rawEdge.b;
     if (!nodes[a] || !nodes[b] || !out[a] || !out[b]) continue;
     const baseDistance = distance(nodes[a], nodes[b]);
-    const weight = Array.isArray(rawEdge) ? baseDistance : baseDistance * tinyWalkModel(rawEdge, baseDistance);
-    out[a].push({ node: b, weight });
-    out[b].push({ node: a, weight });
+    const policy = dqnEdgePolicy(rawEdge, nodes[a], nodes[b], baseDistance);
+    out[a].push({ node: b, weight: policy.weight, qScore: policy.qScore, learnedCount: policy.count });
+    out[b].push({ node: a, weight: policy.weight, qScore: policy.qScore, learnedCount: policy.count });
   }
   return out;
 }
@@ -818,10 +903,31 @@ function aStarPath(startKey, endKey, nodes = graphNodes, adj = adjacency) {
   }
   if (pathKeys[0] !== startKey) return { pathKeys: [], totalDistance: Infinity, rawDistance: Infinity, algorithm: "A*" };
   let rawDistance = 0;
+  let qTotal = 0;
+  let qEdges = 0;
+  let dqnAdjustedEdges = 0;
   for (let i = 1; i < pathKeys.length; i += 1) {
-    rawDistance += distance(nodes[pathKeys[i - 1]], nodes[pathKeys[i]]);
+    const from = pathKeys[i - 1];
+    const to = pathKeys[i];
+    rawDistance += distance(nodes[from], nodes[to]);
+    const edge = (adj[from] || []).find(item => item.node === to);
+    if (edge?.qScore !== undefined) {
+      qTotal += Number(edge.qScore || 0);
+      qEdges += 1;
+      if (Number(edge.learnedCount || 0) > 0) dqnAdjustedEdges += 1;
+    }
   }
-  return { pathKeys, totalDistance: gScore[endKey], rawDistance, algorithm: "A*" };
+  return {
+    pathKeys,
+    totalDistance: gScore[endKey],
+    rawDistance,
+    algorithm: "A*",
+    dqn: {
+      policy: "lightweight-q-policy",
+      adjustedEdges: dqnAdjustedEdges,
+      averageQ: qEdges ? Number((qTotal / qEdges).toFixed(4)) : 0
+    }
+  };
 }
 
 function activeObstacles(floor = "campus") {
@@ -1009,8 +1115,9 @@ function buildWalkableGridRoute(start, destination, floor = "campus") {
     obstacles,
     totalDistance: result.rawDistance,
     totalMeters: pathMeters(path.length ? path : [startPoint, endPoint]),
-    algorithm: "A* walkable-grid",
-    model: "astar-obstacle-grid-v2"
+    algorithm: "A* + DQN policy",
+    model: "astar-dqn-obstacle-grid-v3",
+    dqn: result.dqn || { policy: "lightweight-q-policy", adjustedEdges: 0, averageQ: 0 }
   };
 }
 
@@ -1055,8 +1162,9 @@ function route(body, req) {
       obstacles: activeObstacles(currentFloor),
       learnedEdges: state.learnedEdges.length,
       learnedNodes: Object.keys(state.learnedNodes).length,
-      algorithm: "A*",
-      model: "astar-wifi-motion-v1-fallback"
+      algorithm: "A* + DQN policy",
+      model: "astar-dqn-fallback",
+      dqn: { policy: "lightweight-q-policy", adjustedEdges: 0, averageQ: 0 }
     });
   }
   const path = gridRoute.path.filter(item => Number.isFinite(item.x));
@@ -1076,6 +1184,7 @@ function route(body, req) {
     totalDistance: Math.round(gridRoute.totalDistance),
     totalMeters,
     obstacles: gridRoute.obstacles.map(item => item.id),
+    dqn: gridRoute.dqn,
     clientIp: clientIp(req)
   });
   return jsonOk({
@@ -1096,7 +1205,8 @@ function route(body, req) {
     learnedEdges: state.learnedEdges.length,
     learnedNodes: Object.keys(state.learnedNodes).length,
     algorithm: gridRoute.algorithm,
-    model: gridRoute.model
+    model: gridRoute.model,
+    dqn: gridRoute.dqn
   });
 }
 
@@ -1312,7 +1422,17 @@ function resolveDestination(body) {
   const query = normalizeSearch(body.query);
   if (!query) return jsonError(400, "query is required.");
   const candidates = Object.entries(resolvedPlaces()).map(([id, placeData]) => {
-    const tokens = [id, placeData.labelZh, placeData.labelEn, placeData.category, ...(placeData.aliases || [])].map(normalizeSearch);
+    const tokens = [
+      id,
+      placeData.mapNo,
+      placeData.buildingCode,
+      placeData.buildingNameZh,
+      placeData.buildingNameEn,
+      placeData.labelZh,
+      placeData.labelEn,
+      placeData.category,
+      ...(placeData.aliases || [])
+    ].map(normalizeSearch);
     let score = 0;
     for (const token of tokens) {
       if (!token) continue;

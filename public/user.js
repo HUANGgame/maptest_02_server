@@ -1248,7 +1248,10 @@ function updateRouteText() {
   const nextNode = routeData.path?.[1] || routeData.path?.[0] || null;
   const direction = nextNode ? directionFromTo(currentPosition, nextNode) : "";
   const current = currentStepSpeech();
-  routeHint.innerHTML = `<strong>${t("currentInstruction")}:</strong> ${escapeHtml(current)}<br>${t("distance")} ${routeMeters()} ${t("meters")}${verticalSwitchHtml(finalDest)}${routeStepsHtml(finalDest)}`;
+  const algoText = routeData.model?.includes("dqn")
+    ? (lang === "en" ? "Algorithm: A* + DQN policy" : "演算法：A* + DQN 權重策略")
+    : (routeData.algorithm || "A*");
+  routeHint.innerHTML = `<strong>${t("currentInstruction")}:</strong> ${escapeHtml(current)}<br>${t("distance")} ${routeMeters()} ${t("meters")}<br><span class="algo-note">${escapeHtml(algoText)}</span>${verticalSwitchHtml(finalDest)}${routeStepsHtml(finalDest)}`;
   routeHint.classList.remove("prompt-pulse");
   void routeHint.offsetWidth;
   routeHint.classList.add("prompt-pulse");
