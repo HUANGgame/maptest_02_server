@@ -656,6 +656,30 @@ button.danger {
   padding-left: 20px;
 }
 
+.compact-status li {
+  margin: 6px 0;
+}
+
+.history-route {
+  width: 100%;
+  border: 1px solid #b8c3d1;
+  background: #fff;
+  color: #0f172a;
+  border-radius: 7px;
+  padding: 9px 10px;
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-weight: 800;
+  text-align: left;
+}
+
+.history-route span {
+  color: #64748b;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
 .row > * {
   flex: 1;
 }

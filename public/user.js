@@ -180,9 +180,6 @@ const clearDestinationBtn = document.getElementById("clearDestinationBtn");
 const destPlace = document.getElementById("destPlace");
 const wifiLocateBtn = document.getElementById("wifiLocateBtn");
 const objectPhotoInput = document.getElementById("objectPhotoInput");
-const saveParkingBtn = document.getElementById("saveParkingBtn");
-const returnStartBtn = document.getElementById("returnStartBtn");
-const returnParkingBtn = document.getElementById("returnParkingBtn");
 const historyBox = document.getElementById("historyBox");
 const zoomInBtn = document.getElementById("zoomInBtn");
 const zoomOutBtn = document.getElementById("zoomOutBtn");
@@ -206,6 +203,7 @@ let currentBoard = null;
 let currentBaseMapId = "M-B1-CENTER-01";
 let currentAccessPoint = null;
 let startPosition = null;
+let latestHistoryEvents = [];
 let routeData = null;
 let destinationActive = false;
 let currentCategory = "all";
@@ -291,6 +289,10 @@ const geoMapBounds = {
   west: 121.5106,
   east: 121.5228
 };
+
+const officialCampusMapImage = new Image();
+officialCampusMapImage.decoding = "async";
+officialCampusMapImage.src = "/assets/tamkang-campus-map.png";
 
 const campusPlan = {
   roads: [
@@ -712,6 +714,10 @@ function draw() {
 }
 
 function drawBaseMap() {
+  if (officialCampusMapImage.complete && officialCampusMapImage.naturalWidth > 0) {
+    ctx.drawImage(officialCampusMapImage, 0, 0, canvas.width, canvas.height);
+    return;
+  }
   ctx.fillStyle = "#f5f7f1";
   ctx.fillRect(0, 0, canvas.width, canvas.height);
   drawCampusPlan();
@@ -1271,7 +1277,7 @@ async function routeToPoint(point, labelZh, labelEn, reason) {
   await requestRoute(reason);
 }
 
-async function refreshHistory() {
+async function legacyRefreshHistory() {
   if (!historyBox) return;
   try {
     const data = await api(`/api/history?sessionId=${encodeURIComponent(sessionId)}`);
@@ -1473,6 +1479,60 @@ function routeStepsHtml(finalDest) {
   return `<details class="route-details"><summary>${t("futureSteps")}</summary><ol class="route-steps">${list}</ol></details>`;
 }
 
+function historyTargetFromEvent(event) {
+  const payload = event?.payload || {};
+  if (event?.type === "route") {
+    const custom = payload.customDestination;
+    if (custom?.x !== undefined && custom?.y !== undefined) {
+      return {
+        type: "point",
+        point: custom,
+        label: lang === "en" ? (custom.labelEn || "Previous route") : (custom.labelZh || "上一條路線")
+      };
+    }
+    const place = config?.places?.[payload.destPlace];
+    if (place) return { type: "place", placeId: payload.destPlace, label: text(place) };
+  }
+  if (payload.location?.x !== undefined && payload.location?.y !== undefined) {
+    return { type: "point", point: payload.location, label: lang === "en" ? "Previous location" : "上一個定位點" };
+  }
+  if (payload.parking?.x !== undefined && payload.parking?.y !== undefined) {
+    return { type: "point", point: payload.parking, label: lang === "en" ? "Parking location" : "停車位置" };
+  }
+  return null;
+}
+
+async function refreshHistory() {
+  if (!historyBox) return;
+  try {
+    const data = await api(`/api/history?sessionId=${encodeURIComponent(sessionId)}`);
+    latestHistoryEvents = (data.events || []).filter(historyTargetFromEvent).slice(0, 8);
+    const rows = latestHistoryEvents.map(event => {
+      const target = historyTargetFromEvent(event);
+      const time = new Date(event.at).toLocaleTimeString(lang === "en" ? "en-US" : "zh-TW", { hour: "2-digit", minute: "2-digit" });
+      return `<li><button type="button" class="history-route" data-history-id="${escapeHtml(event.id)}">${escapeHtml(target.label)}<span>${escapeHtml(time)}</span></button></li>`;
+    }).join("");
+    historyBox.innerHTML = `<strong>${t("historyTitle")}</strong>${rows ? `<ul>${rows}</ul>` : ""}`;
+  } catch {
+    historyBox.textContent = "";
+  }
+}
+
+async function routeFromHistory(eventId) {
+  const event = latestHistoryEvents.find(item => item.id === eventId);
+  const target = historyTargetFromEvent(event);
+  if (!target) return;
+  if (target.type === "place") {
+    clearTemporaryTarget();
+    destPlace.value = target.placeId;
+    destinationSearch.value = destPlace.options[destPlace.selectedIndex]?.textContent || target.label;
+    destinationActive = true;
+    await requestRoute("history-route");
+    return;
+  }
+  await routeToPoint(target.point, target.label, target.label, "history-point");
+}
+
 function directionFromTo(from, to) {
   const dx = to.x - from.x;
   const dy = to.y - from.y;
@@ -1490,10 +1550,12 @@ function directionFromTo(from, to) {
 }
 
 wifiLocateBtn?.addEventListener("click", locateFromWifi);
-saveParkingBtn?.addEventListener("click", saveParking);
-returnStartBtn?.addEventListener("click", returnToStart);
-returnParkingBtn?.addEventListener("click", returnToParking);
 objectPhotoInput?.addEventListener("change", searchByObjectPhoto);
+historyBox?.addEventListener("click", event => {
+  const button = event.target.closest("[data-history-id]");
+  if (!button) return;
+  routeFromHistory(button.dataset.historyId);
+});
 zoomInBtn.addEventListener("click", () => zoomAt(1.25));
 zoomOutBtn.addEventListener("click", () => zoomAt(0.8));
 centerBtn.addEventListener("click", centerOnCurrent);
