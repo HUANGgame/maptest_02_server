@@ -3,14 +3,14 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>台北車站地下街定位後台</title>
+  <title>淡江校園定位後台</title>
   <link rel="stylesheet" href="/app.css">
 </head>
 <body class="admin-page">
   <header>
     <div>
-      <h1 data-i18n="title">台北車站地下街定位後台</h1>
-      <p class="muted header-note" data-i18n="subtitle">維護牆面地圖、IP/AP 點位與目的地資料</p>
+      <h1 data-i18n="title">淡江校園定位後台</h1>
+      <p class="muted header-note" data-i18n="subtitle">半自動維護 Wi-Fi 指紋、目的地與使用紀錄</p>
     </div>
     <div class="top-actions">
       <select id="langSelect" aria-label="Language">
@@ -35,9 +35,7 @@
 
   <main id="adminView" class="admin-shell hidden">
     <aside class="admin-nav panel">
-      <button class="nav-tab active" type="button" data-tab="dashboard" data-i18n="dashboard">總覽</button>
-      <button class="nav-tab" type="button" data-tab="boards" data-i18n="wallMaps">牆面地圖</button>
-      <button class="nav-tab" type="button" data-tab="network" data-i18n="network">IP / AP 點位</button>
+      <button class="nav-tab active" type="button" data-tab="network" data-i18n="network">Wi-Fi 指紋點位</button>
       <button class="nav-tab" type="button" data-tab="destinations" data-i18n="destinations">目的地分類</button>
       <button class="nav-tab" type="button" data-tab="activity" data-i18n="activity">使用者紀錄</button>
       <button id="refreshBtn" class="secondary full-width" type="button" data-i18n="refresh">重新整理</button>
@@ -147,7 +145,7 @@
           <p class="muted" data-i18n="destinationHelp">這裡列出目前使用者可以搜尋的地點與分類，方便你確認中英文辨識結果。</p>
           <div class="field search-field">
             <label for="destinationFilter" data-i18n="searchDestination">搜尋目的地</label>
-            <input id="destinationFilter" placeholder="M3、Y區、美食、restroom">
+            <input id="destinationFilter" placeholder="圖書館、活動中心、商管、library">
           </div>
           <div id="destinationEditor"></div>
           <div id="destinationList"></div>

@@ -1,7 +1,7 @@
 const dict = {
   zh: {
-    title: "台北車站地下街定位後台",
-    subtitle: "維護牆面地圖、IP/AP 點位與目的地資料",
+    title: "淡江校園定位後台",
+    subtitle: "半自動維護 Wi-Fi 指紋、目的地與使用紀錄",
     openUser: "開啟使用者頁",
     logout: "登出",
     adminLogin: "管理員登入",
@@ -10,7 +10,7 @@ const dict = {
     login: "登入",
     dashboard: "總覽",
     wallMaps: "牆面地圖",
-    network: "IP / AP 點位",
+    network: "Wi-Fi 指紋點位",
     destinations: "目的地分類",
     activity: "使用者紀錄",
     refresh: "重新整理",
@@ -63,8 +63,8 @@ const dict = {
     currentLocation: "目前位置"
   },
   en: {
-    title: "Taipei Station Photo Navigation Admin",
-    subtitle: "Maintain wall maps, IP/AP locations, and destination data",
+    title: "Tamkang Campus Positioning Admin",
+    subtitle: "Semi-automatic Wi-Fi fingerprints, destinations, and usage records",
     openUser: "Open User Page",
     logout: "Logout",
     adminLogin: "Admin Login",
@@ -73,7 +73,7 @@ const dict = {
     login: "Login",
     dashboard: "Dashboard",
     wallMaps: "Wall Maps",
-    network: "IP / AP Locations",
+    network: "Wi-Fi Fingerprints",
     destinations: "Destination Categories",
     activity: "User Activity",
     refresh: "Refresh",
@@ -156,7 +156,7 @@ const elements = {
 let lang = localStorage.getItem("lang") || "zh";
 let config = null;
 let summary = null;
-let activeTab = "dashboard";
+let activeTab = "network";
 let selectedDestinationId = "";
 let adminBaseMapImage = null;
 
@@ -283,7 +283,7 @@ function renderAll() {
   renderDashboard();
   renderBoards();
   renderAccessPoints();
-  renderWifiFingerprintsV2();
+  renderWifiFingerprints();
   renderDestinations();
   renderActivity();
   setTab(activeTab);
@@ -836,6 +836,7 @@ function renderWifiFingerprints() {
         <li>${lang === "en" ? "Press Save. User-side Wi-Fi location can immediately match this point." : "按儲存。使用者端 Wi-Fi 定位就能立刻比對這個點。"}</li>
       </ol>
       <p class="muted">${lang === "en" ? "A normal mobile browser cannot directly scan Wi-Fi BSSID/RSSI. This demo generates samples first; later an Android scanner can send real samples to the same API." : "一般手機瀏覽器不能直接掃 Wi-Fi BSSID/RSSI。這個 demo 先用自動產生的樣本；之後接 Android 掃描器時可沿用同一個 API。"}</p>
+      <p class="muted">${lang === "en" ? `Route algorithm: A*. Storage: ${summary.storage?.mode || config.storage?.mode || "json"}. Phone steps and heading are used on the user page for lightweight correction.` : `路線演算法：A*。資料庫：${summary.storage?.mode || config.storage?.mode || "json"}。使用者端會用手機步數與方向做輕量校正。`}</p>
     </div>
     <div class="reference-grid">
       <a href="/assets/tamkang-walk-route-map.png" target="_blank" rel="noreferrer">

@@ -758,43 +758,46 @@ function nearestNode(point, nodes = graphNodes) {
   return { key: bestKey, distance: bestDistance };
 }
 
-function shortestPath(startKey, endKey, nodes = graphNodes, adj = adjacency) {
-  const distances = {};
+function aStarPath(startKey, endKey, nodes = graphNodes, adj = adjacency) {
+  if (!nodes[startKey] || !nodes[endKey]) return { pathKeys: [], totalDistance: Infinity, rawDistance: Infinity, algorithm: "A*" };
+  const open = new Set([startKey]);
   const previous = {};
-  const open = new Set(Object.keys(nodes));
-  for (const key of open) {
-    distances[key] = Infinity;
-    previous[key] = null;
-  }
-  distances[startKey] = 0;
+  const gScore = Object.fromEntries(Object.keys(nodes).map(key => [key, Infinity]));
+  const fScore = Object.fromEntries(Object.keys(nodes).map(key => [key, Infinity]));
+  gScore[startKey] = 0;
+  fScore[startKey] = distance(nodes[startKey], nodes[endKey]);
+
   while (open.size > 0) {
     let current = null;
     for (const key of open) {
-      if (current === null || distances[key] < distances[current]) current = key;
+      if (current === null || fScore[key] < fScore[current]) current = key;
     }
-    if (!current || distances[current] === Infinity || current === endKey) break;
+    if (current === endKey) break;
     open.delete(current);
+
     for (const edge of adj[current] || []) {
-      if (!open.has(edge.node)) continue;
-      const alternative = distances[current] + edge.weight;
-      if (alternative < distances[edge.node]) {
-        distances[edge.node] = alternative;
-        previous[edge.node] = current;
-      }
+      if (!nodes[edge.node]) continue;
+      const tentative = gScore[current] + Number(edge.weight || distance(nodes[current], nodes[edge.node]));
+      if (tentative >= gScore[edge.node]) continue;
+      previous[edge.node] = current;
+      gScore[edge.node] = tentative;
+      fScore[edge.node] = tentative + distance(nodes[edge.node], nodes[endKey]);
+      open.add(edge.node);
     }
   }
+
   const pathKeys = [];
   let cursor = endKey;
   while (cursor) {
     pathKeys.unshift(cursor);
     cursor = previous[cursor];
   }
-  if (pathKeys[0] !== startKey) return { pathKeys: [], totalDistance: Infinity };
+  if (pathKeys[0] !== startKey) return { pathKeys: [], totalDistance: Infinity, rawDistance: Infinity, algorithm: "A*" };
   let rawDistance = 0;
   for (let i = 1; i < pathKeys.length; i += 1) {
     rawDistance += distance(nodes[pathKeys[i - 1]], nodes[pathKeys[i]]);
   }
-  return { pathKeys, totalDistance: distances[endKey], rawDistance };
+  return { pathKeys, totalDistance: gScore[endKey], rawDistance, algorithm: "A*" };
 }
 
 function hamming(a = "", b = "") {
@@ -861,7 +864,7 @@ function route(body, req) {
   const routing = learnedGraph();
   const adjacencyForRoute = buildAdjacency(routing.nodes, routing.edges);
   const snap = nearestNode(position, routing.nodes);
-  const result = shortestPath(snap.key, destination.node, routing.nodes, adjacencyForRoute);
+  const result = aStarPath(snap.key, destination.node, routing.nodes, adjacencyForRoute);
   if (!Number.isFinite(result.totalDistance) || result.pathKeys.length === 0) {
     const fallbackPath = [position, destination];
     return jsonOk({
@@ -879,7 +882,8 @@ function route(body, req) {
       totalMeters: pathMeters(fallbackPath),
       learnedEdges: state.learnedEdges.length,
       learnedNodes: Object.keys(state.learnedNodes).length,
-      model: "tiny-walk-v1-fallback"
+      algorithm: "A*",
+      model: "astar-wifi-motion-v1-fallback"
     });
   }
   const path = result.pathKeys.map(key => ({ id: key, ...routing.nodes[key] })).filter(item => Number.isFinite(item.x));
@@ -893,6 +897,7 @@ function route(body, req) {
     destFloor,
     destPlace,
     position,
+    motion: normalizeMotion(body.motion),
     accessPoint: nearestAccessPoint({ floor: currentFloor, x: position.x, y: position.y }),
     routeTarget,
     totalDistance: Math.round(result.rawDistance),
@@ -914,8 +919,18 @@ function route(body, req) {
     totalMeters,
     learnedEdges: state.learnedEdges.length,
     learnedNodes: Object.keys(state.learnedNodes).length,
-    model: "tiny-walk-v1"
+    algorithm: "A*",
+    model: "astar-wifi-motion-v1"
   });
+}
+
+function normalizeMotion(value = {}) {
+  return {
+    steps: clamp(value.steps, 0, 100000, 0),
+    heading: clamp(value.heading, 0, 359, 0),
+    strideMeters: clamp(value.strideMeters, 0.2, 1.2, 0.68),
+    source: clean(value.source, 60) || "phone-motion"
+  };
 }
 
 function learnGpsLocation(body, req) {
@@ -1069,6 +1084,14 @@ function updateWifiFingerprint(body) {
   const index = state.wifiFingerprints.findIndex(item => item.id === id);
   if (index >= 0) state.wifiFingerprints[index] = fingerprint;
   else state.wifiFingerprints.push(fingerprint);
+  state.events.push({
+    id: randomUUID(),
+    sessionId: "admin",
+    type: "wifi-fingerprint-save",
+    at: new Date().toISOString(),
+    payload: { id, floor: fingerprint.floor, x: fingerprint.x, y: fingerprint.y, samples: samples.length }
+  });
+  state.events = state.events.slice(-800);
   void saveState();
   return jsonOk({ fingerprint, wifiFingerprints: state.wifiFingerprints });
 }
@@ -1139,8 +1162,10 @@ async function saveNavigationLog(event) {
 
 function adminSummary() {
   return {
+    storage: { mode: storageMode, database: storageMode === "mysql" ? DB_NAME : null },
     boards: state.mapBoards,
     accessPoints: state.accessPoints,
+    wifiFingerprints: state.wifiFingerprints || [],
     destinationOverrides: state.destinationOverrides || {},
     storeDirectory,
     areaExitDirectory,
@@ -1351,7 +1376,7 @@ await loadState();
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url || "/", `http://${req.headers.host || "localhost"}`);
   try {
-    if (req.method === "GET" && url.pathname === "/api/health") return sendJson(res, 200, { ok: true, message: "Taipei Station photo navigation server is running.", port: PORT });
+    if (req.method === "GET" && url.pathname === "/api/health") return sendJson(res, 200, { ok: true, message: "Tamkang campus Wi-Fi navigation server is running.", port: PORT, storage: storageMode });
     if (req.method === "GET" && url.pathname === "/api/config") return sendJson(res, 200, config());
       if (req.method === "POST" && url.pathname === "/api/location/gps") {
         const result = learnGpsLocation(await readJson(req), req);

@@ -114,6 +114,12 @@ main {
   gap: 8px;
 }
 
+.admin-page #apForm,
+.admin-page #apList,
+.admin-page #newApBtn {
+  display: none;
+}
+
 .nav-tab {
   width: 100%;
   text-align: left;

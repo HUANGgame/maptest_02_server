@@ -6,7 +6,7 @@ const i18n = {
     destinationFloor: "\u76ee\u7684\u6a13\u5c64",
     destinationCategory: "\u76ee\u7684\u5730\u5206\u985e",
     destinationSearch: "\u8f38\u5165\u6216\u9078\u64c7\u76ee\u7684\u5730",
-    destinationSearchPlaceholder: "\u4f8b\uff1aM3\u3001Y\u5340\u3001\u52d5\u6f2b\u3001\u7f8e\u98df\u3001\u5ec1\u6240\u3001\u96fb\u68af",
+    destinationSearchPlaceholder: "例：圖書館、活動中心、商管、工學館、公車站、克難坡",
     clearDestination: "\u6e05\u9664",
     destination: "\u76ee\u7684\u5730",
     photoMap: "\u62cd\u651d\u7246\u4e0a\u5730\u5716",
@@ -43,8 +43,11 @@ const i18n = {
     noAp: "\u672a\u627e\u5230\u540c\u6a13\u5c64 AP/IP",
     autoUpdated: "\u5df2\u81ea\u52d5\u66f4\u65b0\u5e95\u5716\u8207\u8def\u7dda",
     matchedDestination: "\u5df2\u8fa8\u8b58\u76ee\u7684\u5730",
-    noDestinationMatch: "\u627e\u4e0d\u5230\u76ee\u7684\u5730\uff0c\u8acb\u8a66\u8a66 M3\u3001Y\u5340\u3001\u7f8e\u98df\u3001\u5ec1\u6240\u7b49\u95dc\u9375\u5b57",
+    noDestinationMatch: "找不到目的地，請試試圖書館、活動中心、商管、工學館、公車站等關鍵字",
     gps: "GPS",
+    motion: "步數 / 方向",
+    motionActive: "手機步數與方向輔助定位中",
+    motionUnavailable: "此瀏覽器未提供步數與方向資料",
     gpsWaiting: "\u7b49\u5f85 GPS \u6b0a\u9650\u6216\u8cc7\u6599",
     gpsUnavailable: "GPS \u7121\u6cd5\u4f7f\u7528",
     gpsMapped: "GPS \u7c97\u7565\u5b9a\u4f4d",
@@ -55,7 +58,7 @@ const i18n = {
     sourcePhoto: "\u7246\u9762\u5730\u5716\u6821\u6b63",
     view: "\u8996\u91ce",
     skipToControls: "\u8df3\u5230\u64cd\u4f5c\u5340",
-    audioHelp: "\u8a9e\u97f3\u5c0e\u89bd\u5df2\u5c31\u7dd2\u3002\u9078\u64c7\u76ee\u7684\u5730\u3001\u62cd\u651d\u7246\u4e0a\u5730\u5716\uff0c\u518d\u6839\u64da\u8a9e\u97f3\u8def\u7dda\u524d\u9032\u3002",
+    audioHelp: "\u8a9e\u97f3\u5c0e\u89bd\u5df2\u5c31\u7dd2\u3002\u9078\u64c7\u76ee\u7684\u5730\u5f8c\uff0cGPS\u3001Wi-Fi \u8207\u624b\u6a5f\u6b65\u6578\u6703\u5354\u52a9\u5b9a\u4f4d\u8207\u66f4\u65b0\u8def\u7dda\u3002",
     voiceOn: "\u5c0e\u822a\u8a9e\u97f3\u958b",
     voiceOff: "\u5c0e\u822a\u8a9e\u97f3\u95dc",
     readLocation: "\u6717\u8b80\u4f4d\u7f6e",
@@ -69,7 +72,7 @@ const i18n = {
     voiceUnsupported: "\u9019\u500b\u700f\u89bd\u5668\u4e0d\u652f\u63f4\u8a9e\u97f3\u6717\u8b80",
     mapKeyboardHelp: "\u5730\u5716\u53ef\u4ee5\u7528\u9375\u76e4\u64cd\u4f5c\uff1a\u65b9\u5411\u9375\u79fb\u52d5\uff0c\u52a0\u865f\u653e\u5927\uff0c\u6e1b\u865f\u7e2e\u5c0f\uff0c\u6578\u5b57 0 \u56de\u5230\u76ee\u524d\u4f4d\u7f6e\u3002",
     currentStep: "\u76ee\u524d\u5c0e\u822a",
-    noRouteYet: "\u5c1a\u672a\u7522\u751f\u8def\u7dda\u3002\u8acb\u5148\u9078\u64c7\u76ee\u7684\u5730\u4e26\u62cd\u651d\u7246\u4e0a\u5730\u5716\u3002",
+    noRouteYet: "\u5c1a\u672a\u7522\u751f\u8def\u7dda\u3002\u8acb\u5148\u9078\u64c7\u76ee\u7684\u5730\uff0cGPS \u6216 Wi-Fi \u6703\u5148\u5b9a\u4f4d\uff0c\u62cd\u7167\u53ea\u662f\u7cbe\u6e96\u6821\u6b63\u3002",
     arrivedNear: "\u4f60\u5df2\u63a5\u8fd1\u76ee\u7684\u5730",
     nextToward: "\u8acb\u671d\u4e0b\u4e00\u500b\u7bad\u982d\u65b9\u5411\u524d\u9032\uff0c\u524d\u5f80",
     routeReady: "\u8def\u7dda\u5df2\u66f4\u65b0",
@@ -84,7 +87,7 @@ const i18n = {
     directionLeft: "\u5f80\u5de6\u908a",
     directionSlightLeft: "\u5f80\u5de6\u524d\u65b9",
     nextDirection: "\u4e0b\u4e00\u6b65\u65b9\u5411",
-    vibrationReady: "\u624b\u6a5f\u9707\u52d5\u63d0\u793a\u5df2\u555f\u7528",
+    vibrationReady: "\u624b\u6a5f\u6b65\u6578\u8207\u65b9\u5411\u8f14\u52a9\u5df2\u6e96\u5099",
     cameraHint: "\u628a\u93e1\u982d\u5c0d\u6e96\u7246\u4e0a\u5730\u5716\uff0c\u62cd\u5b8c\u5f8c\u7cfb\u7d71\u6703\u81ea\u52d5\u5b9a\u4f4d\u4e26\u6717\u8b80\u8def\u7dda\u3002"
   },
   en: {
@@ -94,7 +97,7 @@ const i18n = {
     destinationFloor: "Destination floor",
     destinationCategory: "Destination category",
     destinationSearch: "Search or choose destination",
-    destinationSearchPlaceholder: "e.g. M3, Y area, anime, food, restroom, elevator",
+    destinationSearchPlaceholder: "e.g. library, activity center, business, engineering, bus stop",
     clearDestination: "Clear",
     destination: "Destination",
     photoMap: "Photo of wall map",
@@ -131,8 +134,11 @@ const i18n = {
     noAp: "No AP/IP found on this floor",
     autoUpdated: "Base map and route updated",
     matchedDestination: "Destination recognized",
-    noDestinationMatch: "No destination matched. Try M3, Y area, food, restroom, or elevator.",
+    noDestinationMatch: "No destination matched. Try library, activity center, business, engineering, or bus stop.",
     gps: "GPS",
+    motion: "Steps / heading",
+    motionActive: "Phone step and heading assistance is active",
+    motionUnavailable: "This browser does not provide step or heading data",
     gpsWaiting: "Waiting for GPS permission or data",
     gpsUnavailable: "GPS unavailable",
     gpsMapped: "Approximate GPS location",
@@ -143,7 +149,7 @@ const i18n = {
     sourcePhoto: "Wall-map photo calibration",
     view: "View",
     skipToControls: "Skip to controls",
-    audioHelp: "Voice guidance is ready. Choose a destination, take a wall-map photo, then follow the spoken route.",
+    audioHelp: "Voice guidance is ready. Choose a destination; GPS, Wi-Fi, and phone steps will assist positioning and route updates.",
     voiceOn: "Navigation voice on",
     voiceOff: "Navigation voice off",
     readLocation: "Read location",
@@ -157,7 +163,7 @@ const i18n = {
     voiceUnsupported: "This browser does not support speech output",
     mapKeyboardHelp: "The map supports keyboard controls: arrow keys move the map, plus zooms in, minus zooms out, and zero returns to current position.",
     currentStep: "Current navigation",
-    noRouteYet: "No route yet. Choose a destination and take a wall-map photo first.",
+    noRouteYet: "No route yet. Choose a destination first. GPS or Wi-Fi locates you; a photo only improves calibration.",
     arrivedNear: "You are near the destination",
     nextToward: "Follow the next arrow toward",
     routeReady: "Route updated",
@@ -172,7 +178,7 @@ const i18n = {
     directionLeft: "turn left",
     directionSlightLeft: "go slightly left",
     nextDirection: "Next direction",
-    vibrationReady: "Phone vibration cue is enabled",
+    vibrationReady: "Phone step and heading assistance is ready",
     cameraHint: "Point the camera at the wall map. After the photo is taken, the system will locate you and read the route automatically."
   }
 };
@@ -232,6 +238,17 @@ let lastTileSignature = "";
 let routeRequestSeq = 0;
 let routeAnimationStart = performance.now();
 let baseMapImage = null;
+let motionState = {
+  enabled: false,
+  supported: false,
+  steps: 0,
+  heading: null,
+  lastStepAt: 0,
+  lastMagnitude: 0,
+  strideMeters: 0.68,
+  pendingMeters: 0,
+  source: "phone-motion"
+};
 
 const floorStyles = {
   B1: { bg: "#edf7f3", band: "#cde7df", label: "#0f766e" },
@@ -242,8 +259,8 @@ const floorStyles = {
 const baseMapProfiles = {
   "M-B1-CENTER-01": {
     id: "M-B1-CENTER-01",
-    labelZh: "M \u5340\u4e2d\u592e\u5e95\u5716",
-    labelEn: "M Area Center Base Map",
+    labelZh: "淡江校園中央底圖",
+    labelEn: "Tamkang Campus Center Base Map",
     bg: "#edf7f3",
     band: "#cde7df",
     accent: "#0f766e",
@@ -252,8 +269,8 @@ const baseMapProfiles = {
   },
   "M-B1-EAST-01": {
     id: "M-B1-EAST-01",
-    labelZh: "M3 / M7 \u6771\u5074\u5e95\u5716",
-    labelEn: "M3 / M7 East Base Map",
+    labelZh: "淡江校園東側底圖",
+    labelEn: "Tamkang Campus East Base Map",
     bg: "#eef7ff",
     band: "#cfe5f7",
     accent: "#2f5f9f",
@@ -262,8 +279,8 @@ const baseMapProfiles = {
   },
   "M-B1-SOUTH-01": {
     id: "M-B1-SOUTH-01",
-    labelZh: "\u7ad9\u524d\u5730\u4e0b\u8857\u9023\u901a\u5e95\u5716",
-    labelEn: "Station Front Link Base Map",
+    labelZh: "淡江校園南側底圖",
+    labelEn: "Tamkang Campus South Base Map",
     bg: "#fff4e8",
     band: "#f7d8af",
     accent: "#b45309",
@@ -272,8 +289,8 @@ const baseMapProfiles = {
   },
   "M-B1-WEST-01": {
     id: "M-B1-WEST-01",
-    labelZh: "Y \u5340\u897f\u5074\u5e95\u5716",
-    labelEn: "Y Area West Base Map",
+    labelZh: "淡江校園西側底圖",
+    labelEn: "Tamkang Campus West Base Map",
     bg: "#f1f5ff",
     band: "#d7defa",
     accent: "#4f46e5",
@@ -408,6 +425,7 @@ async function api(url, options = {}) {
 async function init() {
   applyI18n();
   updateVoiceButton();
+  startMotionTracking();
   try {
     const health = await api("/api/health");
     config = await api("/api/config");
@@ -591,6 +609,91 @@ async function learnGpsPath(gps, point) {
   } catch {
     // Learning is opportunistic; navigation should keep working if logging fails.
   }
+}
+
+async function requestMotionPermission() {
+  try {
+    if (typeof DeviceMotionEvent !== "undefined" && typeof DeviceMotionEvent.requestPermission === "function") {
+      await DeviceMotionEvent.requestPermission();
+    }
+    if (typeof DeviceOrientationEvent !== "undefined" && typeof DeviceOrientationEvent.requestPermission === "function") {
+      await DeviceOrientationEvent.requestPermission();
+    }
+  } catch {
+    // iOS may deny sensor access until a user gesture; GPS/Wi-Fi still works.
+  }
+}
+
+function startMotionTracking() {
+  motionState.supported = "DeviceMotionEvent" in window || "DeviceOrientationEvent" in window;
+  if (!motionState.supported) return;
+  window.addEventListener("deviceorientation", event => {
+    const heading = Number.isFinite(event.webkitCompassHeading)
+      ? event.webkitCompassHeading
+      : Number(event.alpha);
+    if (Number.isFinite(heading)) {
+      motionState.heading = (360 - heading + 360) % 360;
+      motionState.enabled = true;
+      updateLocationText();
+    }
+  }, true);
+  window.addEventListener("devicemotion", event => {
+    const acc = event.accelerationIncludingGravity || event.acceleration;
+    if (!acc) return;
+    const magnitude = Math.hypot(Number(acc.x || 0), Number(acc.y || 0), Number(acc.z || 0));
+    const now = Date.now();
+    const isStep = magnitude > 12.4 && motionState.lastMagnitude <= 11.4 && now - motionState.lastStepAt > 420;
+    motionState.lastMagnitude = magnitude;
+    if (!isStep) return;
+    motionState.enabled = true;
+    motionState.steps += 1;
+    motionState.lastStepAt = now;
+    motionState.pendingMeters += motionState.strideMeters;
+    applyMotionStep();
+  }, true);
+}
+
+function applyMotionStep() {
+  if (!config || motionState.heading === null || motionState.pendingMeters < 0.65) {
+    updateLocationText();
+    return;
+  }
+  const meters = motionState.pendingMeters;
+  motionState.pendingMeters = 0;
+  const px = meters / 0.6;
+  const rad = (motionState.heading - 90) * Math.PI / 180;
+  currentPosition = {
+    x: Math.max(0, Math.min(canvas.width, currentPosition.x + Math.cos(rad) * px)),
+    y: Math.max(0, Math.min(canvas.height, currentPosition.y + Math.sin(rad) * px))
+  };
+  locationSource = locationSource === "default" ? "motion" : locationSource;
+  currentAccessPoint = nearestAccessPointClient(currentPosition);
+  updateLocationText();
+  draw();
+  const now = Date.now();
+  if (destinationActive && now - lastGpsRouteAt > 1800) {
+    lastGpsRouteAt = now;
+    void requestRoute("motion-step");
+  }
+  if (now - lastGpsLearnAt > 3000) {
+    lastGpsLearnAt = now;
+    void learnGpsPath(latestGps || {}, currentPosition);
+  }
+}
+
+function motionPayload() {
+  return {
+    steps: motionState.steps,
+    heading: Number.isFinite(motionState.heading) ? Math.round(motionState.heading) : 0,
+    strideMeters: motionState.strideMeters,
+    source: motionState.source
+  };
+}
+
+function formatMotion() {
+  if (!motionState.supported) return t("motionUnavailable");
+  const heading = Number.isFinite(motionState.heading) ? `${Math.round(motionState.heading)}°` : "-";
+  return `${t("motionActive")} · ${motionState.steps} steps · ${heading}`;
 }
 
 function activeBaseMap() {
@@ -1017,6 +1120,7 @@ async function imageHash(file) {
 }
 
 async function locateFromPhoto() {
+  await requestMotionPermission();
   const file = photoInput.files[0];
   if (!file) {
     statusBox.textContent = t("choosePhoto");
@@ -1067,6 +1171,7 @@ function parseWifiScanInput() {
 }
 
 async function locateFromWifi() {
+  await requestMotionPermission();
   const scan = parseWifiScanInput();
   if (!scan.length) {
     statusBox.textContent = lang === "en" ? "Paste Wi-Fi scan data first." : "請先貼上 Wi-Fi 掃描資料。";
@@ -1118,6 +1223,7 @@ async function requestRoute(reason) {
         destFloor: resolveDestinationFloor(),
         destPlace: destPlace.value,
         position: currentPosition,
+        motion: motionPayload(),
         reason
       })
     });
@@ -1175,6 +1281,7 @@ function updateLocationText() {
       ? `<strong>${t("apIp")}:</strong> ${ap.name} / ${ap.ip}<br><strong>${t("ssid")}:</strong> ${ap.ssid}`
       : `<strong>${t("apIp")}:</strong> ${t("noAp")}`,
     `<strong>${t("gps")}:</strong> ${formatGps()}`,
+    `<strong>${t("motion")}:</strong> ${formatMotion()}`,
     `<strong>${t("view")}:</strong> ${Math.round(view.scale * 100)}%`
   ].join("<br>");
 }
@@ -1206,6 +1313,7 @@ function locationSourceText() {
   if (locationSource === "photo") return t("sourcePhoto");
   if (locationSource === "gps") return t("sourceGps");
   if (locationSource === "wifi") return lang === "en" ? "Wi-Fi fingerprint" : "Wi-Fi 指紋定位";
+  if (locationSource === "motion") return t("motion");
   if (locationSource === "floor-switch") return lang === "en" ? "Floor changed at elevator/stairs" : "已在電梯／樓梯切換樓層";
   return t("sourceDefault");
 }
@@ -1402,6 +1510,7 @@ if (categorySelect) {
   });
 }
 destinationSearch.addEventListener("input", () => {
+  void requestMotionPermission();
   clearTimeout(searchTimer);
   routeData = null;
   routeRequestSeq += 1;

@@ -29,7 +29,7 @@
       </div>
       <div class="map-shell">
         <div id="tileLayer" class="tile-layer" aria-hidden="true"></div>
-        <canvas id="mapCanvas" width="1100" height="720" tabindex="0" role="img" aria-label="Taipei Station underground navigation map"></canvas>
+        <canvas id="mapCanvas" width="1100" height="720" tabindex="0" role="img" aria-label="Tamkang campus navigation map"></canvas>
         <div class="badge" id="mapBadge" role="status" aria-live="polite" data-i18n="waiting">Locating by GPS</div>
         <div class="map-attribution">&copy; OpenStreetMap contributors</div>
         <div class="map-tools">
@@ -54,11 +54,11 @@
         <label for="destPlace" data-i18n="destination">Destination</label>
         <select id="destPlace"></select>
       </div>
-      <div class="field">
+      <div class="field hidden">
         <label for="photoInput" data-i18n="photoMap">Photo of wall map</label>
         <input id="photoInput" type="file" accept="image/*" capture="environment">
       </div>
-      <div class="actions">
+      <div class="actions hidden">
         <button id="locateBtn" class="primary" type="button" data-i18n="locateByPhoto">Locate by Photo</button>
       </div>
       <div class="field">
