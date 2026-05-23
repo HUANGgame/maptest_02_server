@@ -249,6 +249,14 @@ const defaultState = {
     { id: "WF-TKU-LIB", labelZh: "圖書館 Wi-Fi 指紋", labelEn: "Library Wi-Fi Fingerprint", floor: "campus", x: 995, y: 830, samples: [{ bssid: "aa:aa:aa:00:02", ssid: "TKU-Library", rssi: -48 }, { bssid: "aa:aa:aa:00:03", ssid: "TKU-Student", rssi: -72 }] },
     { id: "WF-TKU-STUDENT", labelZh: "活動中心 Wi-Fi 指紋", labelEn: "Student Area Wi-Fi Fingerprint", floor: "campus", x: 795, y: 1210, samples: [{ bssid: "aa:aa:aa:00:03", ssid: "TKU-Student", rssi: -44 }, { bssid: "aa:aa:aa:00:02", ssid: "TKU-Library", rssi: -70 }] }
   ],
+  obstacles: [
+    { id: "OB-STADIUM", floor: "campus", labelZh: "操場草地不可穿越", labelEn: "Stadium field blocked", x: 185, y: 205, w: 395, h: 360, status: "active" },
+    { id: "OB-ADMIN", floor: "campus", labelZh: "行政教學建築群", labelEn: "Administration buildings", x: 610, y: 780, w: 165, h: 210, status: "active" },
+    { id: "OB-LIB", floor: "campus", labelZh: "圖書館建築", labelEn: "Library building", x: 895, y: 715, w: 210, h: 195, status: "active" },
+    { id: "OB-BUSINESS", floor: "campus", labelZh: "商管大樓建築", labelEn: "Business building", x: 1050, y: 915, w: 210, h: 235, status: "active" },
+    { id: "OB-STUDENT", floor: "campus", labelZh: "學生生活區建築", labelEn: "Student area buildings", x: 650, y: 1080, w: 250, h: 240, status: "active" },
+    { id: "OB-SLOPE", floor: "campus", labelZh: "陡坡與植栽避開區", labelEn: "Slope and planting blocked", x: 410, y: 940, w: 200, h: 260, status: "active" }
+  ],
   sessions: {},
   events: [],
   learnedNodes: {},
@@ -646,6 +654,7 @@ function applySavedState(saved = {}) {
     wifiFingerprints: migrateWifiFingerprints(saved.wifiFingerprints),
     sessions: saved.sessions && typeof saved.sessions === "object" ? saved.sessions : {},
     events: Array.isArray(saved.events) ? saved.events : [],
+    obstacles: Array.isArray(saved.obstacles) ? saved.obstacles : structuredClone(defaultState.obstacles),
     learnedNodes: saved.learnedNodes && typeof saved.learnedNodes === "object" ? saved.learnedNodes : {},
     learnedEdges: Array.isArray(saved.learnedEdges) ? saved.learnedEdges : [],
     lastPositions: saved.lastPositions && typeof saved.lastPositions === "object" ? saved.lastPositions : {},
@@ -694,6 +703,7 @@ function currentPersistedState() {
     mapBoards: state.mapBoards,
     accessPoints: state.accessPoints,
     wifiFingerprints: state.wifiFingerprints,
+    obstacles: state.obstacles,
     sessions: state.sessions,
     events: state.events.slice(-800),
     learnedNodes: state.learnedNodes,
@@ -800,6 +810,111 @@ function aStarPath(startKey, endKey, nodes = graphNodes, adj = adjacency) {
   return { pathKeys, totalDistance: gScore[endKey], rawDistance, algorithm: "A*" };
 }
 
+function activeObstacles(floor = "campus") {
+  return (state.obstacles || defaultState.obstacles || [])
+    .filter(item => (item.floor || "campus") === floor && (item.status || "active") === "active")
+    .map(item => ({
+      id: clean(item.id, 80),
+      floor: item.floor || "campus",
+      labelZh: clean(item.labelZh || item.label, 120) || "障礙物",
+      labelEn: clean(item.labelEn || item.label, 120) || "Obstacle",
+      x: clamp(item.x, 0, CANVAS_WIDTH, 0),
+      y: clamp(item.y, 0, CANVAS_HEIGHT, 0),
+      w: clamp(item.w, 1, CANVAS_WIDTH, 1),
+      h: clamp(item.h, 1, CANVAS_HEIGHT, 1)
+    }));
+}
+
+function pointInRect(point, rect, padding = 22) {
+  return point.x >= rect.x - padding && point.x <= rect.x + rect.w + padding
+    && point.y >= rect.y - padding && point.y <= rect.y + rect.h + padding;
+}
+
+function segmentBlocked(a, b, obstacles) {
+  const steps = Math.max(2, Math.ceil(distance(a, b) / 18));
+  for (let i = 0; i <= steps; i += 1) {
+    const t = i / steps;
+    const point = { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t };
+    if (obstacles.some(rect => pointInRect(point, rect))) return true;
+  }
+  return false;
+}
+
+function nearestWalkablePoint(point, obstacles, spacing = 80) {
+  const clamped = {
+    x: clamp(point.x, 40, CANVAS_WIDTH - 40, CANVAS_WIDTH / 2),
+    y: clamp(point.y, 40, CANVAS_HEIGHT - 40, CANVAS_HEIGHT / 2),
+    floor: point.floor || "campus"
+  };
+  if (!obstacles.some(rect => pointInRect(clamped, rect))) return clamped;
+  let best = clamped;
+  let bestDistance = Infinity;
+  for (let radius = spacing; radius <= 520; radius += spacing) {
+    for (let dx = -radius; dx <= radius; dx += spacing) {
+      for (let dy = -radius; dy <= radius; dy += spacing) {
+        const candidate = {
+          x: clamp(clamped.x + dx, 40, CANVAS_WIDTH - 40, clamped.x),
+          y: clamp(clamped.y + dy, 40, CANVAS_HEIGHT - 40, clamped.y),
+          floor: clamped.floor
+        };
+        if (obstacles.some(rect => pointInRect(candidate, rect))) continue;
+        const d = distance(clamped, candidate);
+        if (d < bestDistance) {
+          best = candidate;
+          bestDistance = d;
+        }
+      }
+    }
+    if (Number.isFinite(bestDistance)) return best;
+  }
+  return best;
+}
+
+function buildWalkableGridRoute(start, destination, floor = "campus") {
+  const obstacles = activeObstacles(floor);
+  const spacing = 80;
+  const nodes = {};
+  const edges = [];
+  const startPoint = nearestWalkablePoint({ ...start, floor }, obstacles, spacing);
+  const endPoint = nearestWalkablePoint({ ...destination, floor }, obstacles, spacing);
+  nodes.START = { ...startPoint, labelZh: "目前位置", labelEn: "Current Location", floor };
+  nodes.END = { ...endPoint, labelZh: destination.labelZh || "目的地", labelEn: destination.labelEn || "Destination", floor };
+
+  for (let x = 80; x <= CANVAS_WIDTH - 80; x += spacing) {
+    for (let y = 80; y <= CANVAS_HEIGHT - 80; y += spacing) {
+      const point = { x, y, floor };
+      if (obstacles.some(rect => pointInRect(point, rect))) continue;
+      nodes[`G-${x}-${y}`] = { ...point, labelZh: "可通行點", labelEn: "Walkable point" };
+    }
+  }
+
+  const keys = Object.keys(nodes);
+  for (const key of keys) {
+    const node = nodes[key];
+    for (const otherKey of keys) {
+      if (key >= otherKey) continue;
+      const other = nodes[otherKey];
+      const d = distance(node, other);
+      const connectLimit = key === "START" || key === "END" || otherKey === "START" || otherKey === "END" ? spacing * 1.65 : spacing * 1.42;
+      if (d > connectLimit) continue;
+      if (segmentBlocked(node, other, obstacles)) continue;
+      edges.push([key, otherKey]);
+    }
+  }
+
+  const result = aStarPath("START", "END", nodes, buildAdjacency(nodes, edges));
+  const path = result.pathKeys.map(key => ({ id: key, ...nodes[key] }));
+  return {
+    pathKeys: result.pathKeys,
+    path,
+    obstacles,
+    totalDistance: result.rawDistance,
+    totalMeters: pathMeters(path.length ? path : [startPoint, endPoint]),
+    algorithm: "A* walkable-grid",
+    model: "astar-obstacle-grid-v2"
+  };
+}
+
 function hamming(a = "", b = "") {
   const len = Math.min(a.length, b.length);
   if (!len) return Infinity;
@@ -861,11 +976,9 @@ function route(body, req) {
   const sameFloor = currentFloor === destFloor;
   const routeTarget = sameFloor ? destPlace : "elevator";
   const destination = allPlaces[routeTarget];
-  const routing = learnedGraph();
-  const adjacencyForRoute = buildAdjacency(routing.nodes, routing.edges);
-  const snap = nearestNode(position, routing.nodes);
-  const result = aStarPath(snap.key, destination.node, routing.nodes, adjacencyForRoute);
-  if (!Number.isFinite(result.totalDistance) || result.pathKeys.length === 0) {
+  const gridRoute = buildWalkableGridRoute(position, destination, currentFloor);
+  const snap = { key: "START", distance: distance(position, gridRoute.path[0] || position) };
+  if (!Number.isFinite(gridRoute.totalDistance) || gridRoute.pathKeys.length === 0) {
     const fallbackPath = [position, destination];
     return jsonOk({
       currentFloor,
@@ -880,15 +993,15 @@ function route(body, req) {
       pathKeys: [destination.node],
       totalDistance: Math.round(distance(position, destination)),
       totalMeters: pathMeters(fallbackPath),
+      obstacles: activeObstacles(currentFloor),
       learnedEdges: state.learnedEdges.length,
       learnedNodes: Object.keys(state.learnedNodes).length,
       algorithm: "A*",
       model: "astar-wifi-motion-v1-fallback"
     });
   }
-  const path = result.pathKeys.map(key => ({ id: key, ...routing.nodes[key] })).filter(item => Number.isFinite(item.x));
-  const routePoints = [position, ...path, destination];
-  const totalMeters = pathMeters(routePoints);
+  const path = gridRoute.path.filter(item => Number.isFinite(item.x));
+  const totalMeters = gridRoute.totalMeters;
   const verticalDiff = floors[destFloor].order - floors[currentFloor].order;
   const verticalDirection = verticalDiff > 0 ? "down" : verticalDiff < 0 ? "up" : "same";
   const sessionId = clean(body.sessionId, 80);
@@ -900,8 +1013,9 @@ function route(body, req) {
     motion: normalizeMotion(body.motion),
     accessPoint: nearestAccessPoint({ floor: currentFloor, x: position.x, y: position.y }),
     routeTarget,
-    totalDistance: Math.round(result.rawDistance),
+    totalDistance: Math.round(gridRoute.totalDistance),
     totalMeters,
+    obstacles: gridRoute.obstacles.map(item => item.id),
     clientIp: clientIp(req)
   });
   return jsonOk({
@@ -914,13 +1028,14 @@ function route(body, req) {
     start: { x: position.x, y: position.y, nearestNode: snap.key, snapDistance: Math.round(snap.distance) },
     destination,
     path,
-    pathKeys: result.pathKeys,
-    totalDistance: Math.round(result.rawDistance),
+    pathKeys: gridRoute.pathKeys,
+    totalDistance: Math.round(gridRoute.totalDistance),
     totalMeters,
+    obstacles: gridRoute.obstacles,
     learnedEdges: state.learnedEdges.length,
     learnedNodes: Object.keys(state.learnedNodes).length,
-    algorithm: "A*",
-    model: "astar-wifi-motion-v1"
+    algorithm: gridRoute.algorithm,
+    model: gridRoute.model
   });
 }
 
@@ -973,7 +1088,7 @@ function learnGpsLocation(body, req) {
     }
   }
   state.lastPositions[sessionId] = { nodeId, floor, x: point.x, y: point.y, at: new Date().toISOString() };
-  recordSession(sessionId, "gps-location", {
+  recordSession(sessionId, "motion-location", {
     floor,
     position: { x: point.x, y: point.y },
     gps: Number.isFinite(point.lat) && Number.isFinite(point.lon) ? { lat: point.lat, lon: point.lon, accuracy: point.accuracy } : null,
@@ -1039,7 +1154,28 @@ function wifiSimilarity(scan, fingerprint) {
 
 function locateByWifi(body, req) {
   const scan = normalizeWifiSamples(body.scan || body.samples || body.wifi);
-  if (scan.length === 0) return jsonError(400, "Wi-Fi scan is required. Paste JSON or lines: bssid,ssid,rssi.");
+  const sessionId = clean(body.sessionId, 80) || randomUUID();
+  if (scan.length === 0) {
+    const fingerprints = state.wifiFingerprints || [];
+    if (fingerprints.length === 0) return jsonError(404, "No Wi-Fi fingerprint is registered. Add it in admin first.");
+    const previous = state.sessions[sessionId]?.current?.location;
+    const best = previous
+      ? fingerprints.map(fingerprint => ({ fingerprint, d: distance(previous, fingerprint) })).sort((a, b) => a.d - b.d)[0].fingerprint
+      : fingerprints[0];
+    const location = {
+      source: "server-wifi-fingerprint",
+      confidence: 0.82,
+      fingerprintId: best.id,
+      fingerprintNameZh: best.labelZh,
+      fingerprintNameEn: best.labelEn,
+      floor: best.floor || "campus",
+      x: Math.round(Number(best.x)),
+      y: Math.round(Number(best.y)),
+      accessPoint: nearestAccessPoint({ floor: best.floor || "campus", x: Number(best.x), y: Number(best.y) })
+    };
+    recordSession(sessionId, "wifi-location", { location, serverSide: true, clientIp: clientIp(req) });
+    return jsonOk({ sessionId, location, candidates: fingerprints.slice(0, 3).map(item => ({ id: item.id, labelZh: item.labelZh, labelEn: item.labelEn, score: 0, matches: 0 })) });
+  }
   const candidates = (state.wifiFingerprints || []).map(fingerprint => {
     const result = wifiSimilarity(scan, fingerprint);
     return { fingerprint, ...result };
@@ -1061,7 +1197,6 @@ function locateByWifi(body, req) {
     y: Math.round(y),
     accessPoint: nearestAccessPoint({ floor: best.floor || "campus", x, y })
   };
-  const sessionId = clean(body.sessionId, 80) || randomUUID();
   recordSession(sessionId, "wifi-location", { location, matches: top.map(item => ({ id: item.fingerprint.id, score: Math.round(item.score), matches: item.matches })), clientIp: clientIp(req) });
   return jsonOk({ sessionId, location, candidates: top.map(item => ({ id: item.fingerprint.id, labelZh: item.fingerprint.labelZh, labelEn: item.fingerprint.labelEn, score: Math.round(item.score), matches: item.matches })) });
 }
@@ -1263,12 +1398,13 @@ function config() {
     areaExitDirectory,
     graphNodes,
     graphEdges,
+    obstacles: activeObstacles("campus"),
     mapBoards: state.mapBoards,
     accessPoints: state.accessPoints,
     wifiFingerprints: state.wifiFingerprints || [],
     sources: mapSources,
     geoMapBounds: GEO_MAP_BOUNDS,
-    baseMap: { type: "image", image: "/assets/tamkang-campus-map.png", width: 5670, height: 5670, nameZh: "淡江大學淡水校園地圖", nameEn: "Tamkang Tamsui Campus Map" },
+    baseMap: { type: "simple", image: "", width: CANVAS_WIDTH, height: CANVAS_HEIGHT, nameZh: "淡江校園簡易平面圖", nameEn: "Tamkang Simplified Floor Plan" },
     referenceMaps: [
       { id: "walk", labelZh: "淡水校園人行路線圖", labelEn: "Tamsui Campus Walking Route Map", image: "/assets/tamkang-walk-route-map.png" },
       { id: "parking", labelZh: "淡江校園停車場位置圖", labelEn: "Tamkang Campus Parking Map", image: "/assets/tamkang-parking-map.png" }
@@ -1378,7 +1514,7 @@ const server = http.createServer(async (req, res) => {
   try {
     if (req.method === "GET" && url.pathname === "/api/health") return sendJson(res, 200, { ok: true, message: "Tamkang campus Wi-Fi navigation server is running.", port: PORT, storage: storageMode });
     if (req.method === "GET" && url.pathname === "/api/config") return sendJson(res, 200, config());
-      if (req.method === "POST" && url.pathname === "/api/location/gps") {
+      if (req.method === "POST" && url.pathname === "/api/location/motion") {
         const result = learnGpsLocation(await readJson(req), req);
         return sendJson(res, result.status, result.data);
       }

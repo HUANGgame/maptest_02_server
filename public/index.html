@@ -25,20 +25,18 @@
   <main class="layout">
     <section class="panel">
       <div class="sr-only" id="audioHelp" role="status" aria-live="polite" data-i18n="audioHelp">
-        Voice guidance is ready. Choose a destination, take a wall-map photo, then follow the spoken route.
+        Voice guidance is ready. Choose a destination, press Wi-Fi location, then follow the spoken route.
       </div>
       <div class="map-shell">
-        <div id="tileLayer" class="tile-layer" aria-hidden="true"></div>
         <canvas id="mapCanvas" width="1100" height="720" tabindex="0" role="img" aria-label="Tamkang campus navigation map"></canvas>
-        <div class="badge" id="mapBadge" role="status" aria-live="polite" data-i18n="waiting">Locating by GPS</div>
-        <div class="map-attribution">&copy; OpenStreetMap contributors</div>
+        <div class="badge" id="mapBadge" role="status" aria-live="polite" data-i18n="waiting">等待 Wi-Fi 定位</div>
         <div class="map-tools">
           <button id="zoomInBtn" type="button" aria-label="Zoom in">+</button>
           <button id="zoomOutBtn" type="button" aria-label="Zoom out">-</button>
           <button id="centerBtn" type="button" data-i18n="centerCurrent">Center</button>
         </div>
       </div>
-      <div class="hint" id="routeHint" role="status" aria-live="polite" data-i18n="photoHelp">GPS keeps updating your position. A wall-map photo only improves calibration.</div>
+      <div class="hint" id="routeHint" role="status" aria-live="polite" data-i18n="photoHelp">請先按 Wi-Fi 定位；路線會用 A* 自動繞過障礙物。</div>
     </section>
 
     <aside class="panel" id="controlsPanel">
@@ -60,10 +58,6 @@
       </div>
       <div class="actions hidden">
         <button id="locateBtn" class="primary" type="button" data-i18n="locateByPhoto">Locate by Photo</button>
-      </div>
-      <div class="field">
-        <label for="wifiScanInput" data-i18n="wifiScan">Wi-Fi scan demo</label>
-        <textarea id="wifiScanInput" rows="5" spellcheck="false" data-i18n-placeholder="wifiScanPlaceholder"></textarea>
       </div>
       <div class="actions">
         <button id="wifiLocateBtn" class="primary" type="button" data-i18n="locateByWifi">Wi-Fi 定位</button>

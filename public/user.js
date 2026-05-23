@@ -1,8 +1,8 @@
 const i18n = {
   zh: {
     appTitle: "淡江校園 Wi-Fi 定位導覽 Demo",
-    waiting: "GPS \u5b9a\u4f4d\u4e2d",
-    photoHelp: "GPS \u6703\u6301\u7e8c\u66f4\u65b0\u4f60\u7684\u4f4d\u7f6e\uff1b\u62cd\u651d\u7246\u4e0a\u5730\u5716\u53ea\u662f\u7528\u4f86\u66f4\u7cbe\u6e96\u6821\u6b63\u3002",
+    waiting: "等待 Wi-Fi 定位",
+    photoHelp: "請先按 Wi-Fi 定位；路線會用 A* 自動繞過障礙物。",
     destinationFloor: "\u76ee\u7684\u6a13\u5c64",
     destinationCategory: "\u76ee\u7684\u5730\u5206\u985e",
     destinationSearch: "\u8f38\u5165\u6216\u9078\u64c7\u76ee\u7684\u5730",
@@ -11,8 +11,8 @@ const i18n = {
     destination: "\u76ee\u7684\u5730",
     photoMap: "\u62cd\u651d\u7246\u4e0a\u5730\u5716",
     locateByPhoto: "\u62cd\u7167\u5b9a\u4f4d",
-    wifiScan: "Wi-Fi 指紋定位 demo",
-    wifiScanPlaceholder: "貼上 JSON，或每行一筆：bssid,ssid,rssi\n例如：aa:aa:aa:00:02,TKU-Library,-48",
+    wifiScan: "Wi-Fi 指紋由後台維護",
+    wifiScanPlaceholder: "",
     locateByWifi: "Wi-Fi 定位",
     wifiLocated: "Wi-Fi 定位成功",
     publicNote: "\u62cd\u7167\u6210\u529f\u5f8c\u6703\u76f4\u63a5\u66f4\u65b0\u5e95\u5716\u3001\u6b63\u78ba\u5ea7\u6a19\u3001AP/IP \u548c\u65b9\u5411\u7bad\u982d\u8def\u7dda\u3002",
@@ -44,21 +44,15 @@ const i18n = {
     autoUpdated: "\u5df2\u81ea\u52d5\u66f4\u65b0\u5e95\u5716\u8207\u8def\u7dda",
     matchedDestination: "\u5df2\u8fa8\u8b58\u76ee\u7684\u5730",
     noDestinationMatch: "找不到目的地，請試試圖書館、活動中心、商管、工學館、公車站等關鍵字",
-    gps: "GPS",
     motion: "步數 / 方向",
     motionActive: "手機步數與方向輔助定位中",
     motionUnavailable: "此瀏覽器未提供步數與方向資料",
-    gpsWaiting: "\u7b49\u5f85 GPS \u6b0a\u9650\u6216\u8cc7\u6599",
-    gpsUnavailable: "GPS \u7121\u6cd5\u4f7f\u7528",
-    gpsMapped: "GPS \u7c97\u7565\u5b9a\u4f4d",
-    gpsOutside: "GPS \u5728\u5730\u5716\u7bc4\u570d\u5916",
     locationSource: "\u5b9a\u4f4d\u4f86\u6e90",
     sourceDefault: "\u9810\u8a2d\u4f4d\u7f6e",
-    sourceGps: "GPS / Google Map \u5c0d\u61c9",
     sourcePhoto: "\u7246\u9762\u5730\u5716\u6821\u6b63",
     view: "\u8996\u91ce",
     skipToControls: "\u8df3\u5230\u64cd\u4f5c\u5340",
-    audioHelp: "\u8a9e\u97f3\u5c0e\u89bd\u5df2\u5c31\u7dd2\u3002\u9078\u64c7\u76ee\u7684\u5730\u5f8c\uff0cGPS\u3001Wi-Fi \u8207\u624b\u6a5f\u6b65\u6578\u6703\u5354\u52a9\u5b9a\u4f4d\u8207\u66f4\u65b0\u8def\u7dda\u3002",
+    audioHelp: "\u8a9e\u97f3\u5c0e\u89bd\u5df2\u5c31\u7dd2\u3002\u9078\u64c7\u76ee\u7684\u5730\u5f8c\uff0c\u6309 Wi-Fi \u5b9a\u4f4d\uff0c\u624b\u6a5f\u6b65\u6578\u8207\u65b9\u5411\u6703\u8f14\u52a9\u66f4\u65b0\u8def\u7dda\u3002",
     voiceOn: "\u5c0e\u822a\u8a9e\u97f3\u958b",
     voiceOff: "\u5c0e\u822a\u8a9e\u97f3\u95dc",
     readLocation: "\u6717\u8b80\u4f4d\u7f6e",
@@ -72,12 +66,11 @@ const i18n = {
     voiceUnsupported: "\u9019\u500b\u700f\u89bd\u5668\u4e0d\u652f\u63f4\u8a9e\u97f3\u6717\u8b80",
     mapKeyboardHelp: "\u5730\u5716\u53ef\u4ee5\u7528\u9375\u76e4\u64cd\u4f5c\uff1a\u65b9\u5411\u9375\u79fb\u52d5\uff0c\u52a0\u865f\u653e\u5927\uff0c\u6e1b\u865f\u7e2e\u5c0f\uff0c\u6578\u5b57 0 \u56de\u5230\u76ee\u524d\u4f4d\u7f6e\u3002",
     currentStep: "\u76ee\u524d\u5c0e\u822a",
-    noRouteYet: "\u5c1a\u672a\u7522\u751f\u8def\u7dda\u3002\u8acb\u5148\u9078\u64c7\u76ee\u7684\u5730\uff0cGPS \u6216 Wi-Fi \u6703\u5148\u5b9a\u4f4d\uff0c\u62cd\u7167\u53ea\u662f\u7cbe\u6e96\u6821\u6b63\u3002",
+    noRouteYet: "\u5c1a\u672a\u7522\u751f\u8def\u7dda\u3002\u8acb\u5148\u9078\u64c7\u76ee\u7684\u5730\u4e26\u6309 Wi-Fi \u5b9a\u4f4d\u3002",
     arrivedNear: "\u4f60\u5df2\u63a5\u8fd1\u76ee\u7684\u5730",
     nextToward: "\u8acb\u671d\u4e0b\u4e00\u500b\u7bad\u982d\u65b9\u5411\u524d\u9032\uff0c\u524d\u5f80",
     routeReady: "\u8def\u7dda\u5df2\u66f4\u65b0",
     photoLocatedSpeech: "\u62cd\u7167\u5b9a\u4f4d\u6210\u529f",
-    gpsUpdated: "GPS \u5df2\u66f4\u65b0",
     directionStraight: "\u76f4\u8d70",
     directionSlightRight: "\u5f80\u53f3\u524d\u65b9",
     directionRight: "\u5f80\u53f3\u908a",
@@ -92,8 +85,8 @@ const i18n = {
   },
   en: {
     appTitle: "Tamkang Campus Wi-Fi Navigation Demo",
-    waiting: "Locating by GPS",
-    photoHelp: "GPS keeps updating your position. A wall-map photo only improves calibration.",
+    waiting: "Waiting for Wi-Fi location",
+    photoHelp: "Press Wi-Fi location first. A* will route around obstacles.",
     destinationFloor: "Destination floor",
     destinationCategory: "Destination category",
     destinationSearch: "Search or choose destination",
@@ -102,8 +95,8 @@ const i18n = {
     destination: "Destination",
     photoMap: "Photo of wall map",
     locateByPhoto: "Locate by Photo",
-    wifiScan: "Wi-Fi fingerprint demo",
-    wifiScanPlaceholder: "Paste JSON, or one line each: bssid,ssid,rssi\ne.g. aa:aa:aa:00:02,TKU-Library,-48",
+    wifiScan: "Wi-Fi fingerprints are maintained in admin",
+    wifiScanPlaceholder: "",
     locateByWifi: "Locate by Wi-Fi",
     wifiLocated: "Wi-Fi location succeeded",
     publicNote: "After a successful photo match, the base map, accurate coordinates, AP/IP, and arrow route update automatically.",
@@ -135,21 +128,15 @@ const i18n = {
     autoUpdated: "Base map and route updated",
     matchedDestination: "Destination recognized",
     noDestinationMatch: "No destination matched. Try library, activity center, business, engineering, or bus stop.",
-    gps: "GPS",
     motion: "Steps / heading",
     motionActive: "Phone step and heading assistance is active",
     motionUnavailable: "This browser does not provide step or heading data",
-    gpsWaiting: "Waiting for GPS permission or data",
-    gpsUnavailable: "GPS unavailable",
-    gpsMapped: "Approximate GPS location",
-    gpsOutside: "GPS is outside the map area",
     locationSource: "Location source",
     sourceDefault: "Default location",
-    sourceGps: "GPS / Google Map alignment",
     sourcePhoto: "Wall-map photo calibration",
     view: "View",
     skipToControls: "Skip to controls",
-    audioHelp: "Voice guidance is ready. Choose a destination; GPS, Wi-Fi, and phone steps will assist positioning and route updates.",
+    audioHelp: "Voice guidance is ready. Choose a destination, press Wi-Fi location, and phone steps will assist route updates.",
     voiceOn: "Navigation voice on",
     voiceOff: "Navigation voice off",
     readLocation: "Read location",
@@ -163,12 +150,11 @@ const i18n = {
     voiceUnsupported: "This browser does not support speech output",
     mapKeyboardHelp: "The map supports keyboard controls: arrow keys move the map, plus zooms in, minus zooms out, and zero returns to current position.",
     currentStep: "Current navigation",
-    noRouteYet: "No route yet. Choose a destination first. GPS or Wi-Fi locates you; a photo only improves calibration.",
+    noRouteYet: "No route yet. Choose a destination and press Wi-Fi location first.",
     arrivedNear: "You are near the destination",
     nextToward: "Follow the next arrow toward",
     routeReady: "Route updated",
     photoLocatedSpeech: "Photo location succeeded",
-    gpsUpdated: "GPS updated",
     directionStraight: "go straight",
     directionSlightRight: "go slightly right",
     directionRight: "turn right",
@@ -194,7 +180,6 @@ const clearDestinationBtn = document.getElementById("clearDestinationBtn");
 const destPlace = document.getElementById("destPlace");
 const photoInput = document.getElementById("photoInput");
 const locateBtn = document.getElementById("locateBtn");
-const wifiScanInput = document.getElementById("wifiScanInput");
 const wifiLocateBtn = document.getElementById("wifiLocateBtn");
 const zoomInBtn = document.getElementById("zoomInBtn");
 const zoomOutBtn = document.getElementById("zoomOutBtn");
@@ -221,7 +206,6 @@ let routeData = null;
 let destinationActive = false;
 let currentCategory = "all";
 let searchTimer = null;
-let latestGps = null;
 let locationSource = "default";
 let view = { scale: 1, x: 0, y: 0 };
 let dragging = false;
@@ -229,7 +213,6 @@ let dragStart = { x: 0, y: 0, viewX: 0, viewY: 0 };
 let lastTouchDistance = null;
 let lastTouchCenter = null;
 let voiceEnabled = localStorage.getItem("voiceEnabled") !== "false";
-let lastGpsSpeechAt = 0;
 let lastGpsRouteAt = 0;
 let lastGpsLearnAt = 0;
 let lastSpokenRoute = "";
@@ -237,7 +220,6 @@ let lastAutoSpeechAt = 0;
 let lastTileSignature = "";
 let routeRequestSeq = 0;
 let routeAnimationStart = performance.now();
-let baseMapImage = null;
 let motionState = {
   enabled: false,
   supported: false,
@@ -431,15 +413,11 @@ async function init() {
     config = await api("/api/config");
     canvas.width = config.canvas.width;
     canvas.height = config.canvas.height;
-    if (config.baseMap?.image) {
-      baseMapImage = new Image();
-      baseMapImage.src = config.baseMap.image;
-    }
     fillSelects();
     updateLocationText();
     statusBox.textContent = `${health.message}\nSession: ${sessionId}`;
     draw();
-    liveOnly(`${t("audioHelp")} ${t("voiceQuietHint")} ${t("cameraHint")} ${t("mapKeyboardHelp")} ${t("vibrationReady")}`);
+    liveOnly(`${t("audioHelp")} ${t("voiceQuietHint")} ${t("mapKeyboardHelp")} ${t("vibrationReady")}`);
   } catch (error) {
     statusBox.textContent = `${t("serverDown")}\n${error.message}`;
     announce(`${t("serverDown")} ${error.message}`, true);
@@ -560,49 +538,16 @@ function nearestAccessPointClient(point) {
   return { id: best.id, name: best.name, ip: best.ip, ssid: best.ssid, floor: best.floor, x: Number(best.x), y: Number(best.y), distance: Math.round(bestDistance) };
 }
 
-function applyGpsMapLocation(gps) {
-  if (!config) return;
-  const mapped = geoToMap(gps.lat, gps.lon);
-  if (!isMapPointUsable(mapped)) {
-    mapBadge.textContent = `${t("gpsOutside")}: ${gps.lat.toFixed(6)}, ${gps.lon.toFixed(6)}`;
-    updateLocationText();
-    return;
-  }
-  currentFloor = "campus";
-  currentPosition = {
-    x: Math.max(0, Math.min(canvas.width, mapped.x)),
-    y: Math.max(0, Math.min(canvas.height, mapped.y))
-  };
-  currentBoard = null;
-  locationSource = "gps";
-  currentAccessPoint = nearestAccessPointClient(currentPosition);
-  currentBaseMapId = baseMapIdFromPoint(currentPosition);
-  mapBadge.textContent = `${t("gpsMapped")}: x=${Math.round(currentPosition.x)}, y=${Math.round(currentPosition.y)}`;
-  centerOnCurrent(false);
-  updateLocationText();
-  const now = Date.now();
-  if (now - lastGpsLearnAt > 2500) {
-    lastGpsLearnAt = now;
-    void learnGpsPath(gps, currentPosition);
-  }
-  if (destinationActive && now - lastGpsRouteAt > 2500) {
-    lastGpsRouteAt = now;
-    void requestRoute("gps");
-  }
-}
-
-async function learnGpsPath(gps, point) {
+async function learnMotionPath(point) {
   try {
-    const result = await api("/api/location/gps", {
+    const result = await api("/api/location/motion", {
       method: "POST",
       body: JSON.stringify({
         sessionId,
         floor: currentFloor,
         x: point.x,
         y: point.y,
-        lat: gps.lat,
-        lon: gps.lon,
-        accuracy: gps.accuracy
+        motion: motionPayload()
       })
     });
     if (result.learned) screenReaderSummary.textContent = t("learningUpdated");
@@ -620,7 +565,7 @@ async function requestMotionPermission() {
       await DeviceOrientationEvent.requestPermission();
     }
   } catch {
-    // iOS may deny sensor access until a user gesture; GPS/Wi-Fi still works.
+    // iOS may deny sensor access until a user gesture; Wi-Fi positioning still works.
   }
 }
 
@@ -677,7 +622,7 @@ function applyMotionStep() {
   }
   if (now - lastGpsLearnAt > 3000) {
     lastGpsLearnAt = now;
-    void learnGpsPath(latestGps || {}, currentPosition);
+    void learnMotionPath(currentPosition);
   }
 }
 
@@ -714,43 +659,7 @@ function switchBaseMap(boardId) {
 }
 
 function updateTileLayer() {
-  if (!tileLayer) return;
-  if (config?.baseMap?.type === "image") {
-    tileLayer.innerHTML = "";
-    tileLayer.style.background = "#d9c6ae";
-    return;
-  }
-  const rect = canvas.getBoundingClientRect();
-  if (!rect.width || !rect.height) return;
-  const zoom = Math.max(16, Math.min(19, Math.round(18 + Math.log2(view.scale))));
-  const topLeftMap = {
-    x: Math.max(0, Math.min(canvas.width, -view.x / view.scale)),
-    y: Math.max(0, Math.min(canvas.height, -view.y / view.scale))
-  };
-  const bottomRightMap = {
-    x: Math.max(0, Math.min(canvas.width, (canvas.width - view.x) / view.scale)),
-    y: Math.max(0, Math.min(canvas.height, (canvas.height - view.y) / view.scale))
-  };
-  const nw = mapToGeo(topLeftMap.x, topLeftMap.y);
-  const se = mapToGeo(bottomRightMap.x, bottomRightMap.y);
-  const minTileX = lonToTileX(nw.lon, zoom) - 1;
-  const maxTileX = lonToTileX(se.lon, zoom) + 1;
-  const minTileY = latToTileY(nw.lat, zoom) - 1;
-  const maxTileY = latToTileY(se.lat, zoom) + 1;
-  const signature = `${zoom}:${minTileX}:${maxTileX}:${minTileY}:${maxTileY}:${Math.round(view.x)}:${Math.round(view.y)}:${Math.round(view.scale * 100)}`;
-  if (signature === lastTileSignature) return;
-  lastTileSignature = signature;
-  const html = [];
-  for (let x = minTileX; x <= maxTileX; x += 1) {
-    for (let y = minTileY; y <= maxTileY; y += 1) {
-      const nwScreen = geoToScreen(tileYToLat(y, zoom), tileXToLon(x, zoom), rect);
-      const seScreen = geoToScreen(tileYToLat(y + 1, zoom), tileXToLon(x + 1, zoom), rect);
-      const width = Math.max(1, seScreen.x - nwScreen.x + 1);
-      const height = Math.max(1, seScreen.y - nwScreen.y + 1);
-      html.push(`<img alt="" src="https://tile.openstreetmap.org/${zoom}/${x}/${y}.png" style="left:${nwScreen.x}px;top:${nwScreen.y}px;width:${width}px;height:${height}px">`);
-    }
-  }
-  tileLayer.innerHTML = html.join("");
+  if (tileLayer) tileLayer.innerHTML = "";
 }
 
 function draw() {
@@ -771,12 +680,58 @@ function draw() {
 }
 
 function drawBaseMap() {
-  if (baseMapImage?.complete) {
-    ctx.drawImage(baseMapImage, 0, 0, canvas.width, canvas.height);
-  } else {
-    ctx.fillStyle = "#d9c6ae";
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = "#f7faf8";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  drawSimpleWalkways();
+  drawObstacles(config?.obstacles || []);
+}
+
+function drawSimpleWalkways() {
+  if (!config?.graphEdges || !config?.graphNodes) return;
+  ctx.save();
+  ctx.strokeStyle = "#c8d8d2";
+  ctx.lineWidth = 18;
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+  for (const edge of config.graphEdges) {
+    const a = config.graphNodes[edge[0]];
+    const b = config.graphNodes[edge[1]];
+    if (!a || !b) continue;
+    ctx.beginPath();
+    ctx.moveTo(a.x, a.y);
+    ctx.lineTo(b.x, b.y);
+    ctx.stroke();
   }
+  ctx.strokeStyle = "#ffffff";
+  ctx.lineWidth = 10;
+  for (const edge of config.graphEdges) {
+    const a = config.graphNodes[edge[0]];
+    const b = config.graphNodes[edge[1]];
+    if (!a || !b) continue;
+    ctx.beginPath();
+    ctx.moveTo(a.x, a.y);
+    ctx.lineTo(b.x, b.y);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+function drawObstacles(obstacles) {
+  ctx.save();
+  for (const item of obstacles) {
+    ctx.fillStyle = "#d7dde4";
+    ctx.strokeStyle = "#94a3b8";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.roundRect(item.x, item.y, item.w, item.h, 10);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = "#334155";
+    ctx.font = "700 20px Microsoft JhengHei, Arial";
+    const label = truncateLabel(lang === "en" ? item.labelEn : item.labelZh, 10);
+    ctx.fillText(label, item.x + 14, item.y + 30);
+  }
+  ctx.restore();
 }
 
 function drawBaseMapFocus(profile) {
@@ -1009,7 +964,7 @@ function drawPosition() {
 
 function drawRoute() {
   if (!routeData?.path?.length) return;
-  const path = [currentPosition, ...routeData.path, routeData.destination];
+  const path = routeData.path;
   const dashOffset = -((performance.now() - routeAnimationStart) / 55 % 24);
   ctx.save();
   ctx.strokeStyle = "#0f766e";
@@ -1156,32 +1111,13 @@ async function locateFromPhoto() {
   }
 }
 
-function parseWifiScanInput() {
-  const raw = wifiScanInput?.value.trim() || "";
-  if (!raw) return [];
-  try {
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : (parsed.wifi || parsed.scan || parsed.samples || []);
-  } catch {
-    return raw.split(/\r?\n/).map(line => {
-      const [bssid, ssid, rssi] = line.split(/[,|\t]/).map(part => part.trim());
-      return { bssid, ssid, rssi: Number(rssi) };
-    }).filter(item => item.bssid || item.ssid);
-  }
-}
-
 async function locateFromWifi() {
   await requestMotionPermission();
-  const scan = parseWifiScanInput();
-  if (!scan.length) {
-    statusBox.textContent = lang === "en" ? "Paste Wi-Fi scan data first." : "請先貼上 Wi-Fi 掃描資料。";
-    return;
-  }
-  statusBox.textContent = lang === "en" ? "Matching Wi-Fi fingerprint..." : "正在比對 Wi-Fi 指紋...";
+  statusBox.textContent = lang === "en" ? "Locating from server-side Wi-Fi fingerprint..." : "正在由 server 端 Wi-Fi 指紋定位...";
   try {
     const data = await api("/api/location/wifi", {
       method: "POST",
-      body: JSON.stringify({ sessionId, scan, userAgent: navigator.userAgent })
+      body: JSON.stringify({ sessionId, userAgent: navigator.userAgent })
     });
     currentBoard = {
       boardId: data.location.fingerprintId,
@@ -1251,8 +1187,7 @@ function updateRouteText() {
   const intro = routeData.sameFloor
     ? `${t("routeTo")} ${text(finalDest)}.`
     : verticalRouteInstruction(finalDest);
-  const nextKey = routeData.pathKeys?.[1] || routeData.pathKeys?.[0];
-  const nextNode = nextKey ? config.graphNodes[nextKey] : null;
+  const nextNode = routeData.path?.[1] || routeData.path?.[0] || null;
   const direction = nextNode ? directionFromTo(currentPosition, nextNode) : "";
   const current = currentStepSpeech();
   routeHint.innerHTML = `<strong>${t("currentInstruction")}:</strong> ${escapeHtml(current)}<br>${t("distance")} ${routeMeters()} ${t("meters")}${verticalSwitchHtml(finalDest)}${routeStepsHtml(finalDest)}`;
@@ -1269,36 +1204,23 @@ function updateRouteText() {
 function updateLocationText() {
   const floor = config?.floors?.[currentFloor];
   const floorName = floor ? (lang === "en" ? floor.nameEn : floor.nameZh) : currentFloor;
-  const boardName = currentBoard ? (lang === "en" ? currentBoard.boardNameEn : currentBoard.boardNameZh) : "-";
-  const ap = currentAccessPoint;
   locationBox.innerHTML = [
     `<strong>${t("locationSource")}:</strong> ${locationSourceText()}`,
     `<strong>${t("floor")}:</strong> ${floorName}`,
     `<strong>${t("baseMap")}:</strong> ${baseMapName()}`,
     `<strong>${t("coordinate")}:</strong> x=${Math.round(currentPosition.x)}, y=${Math.round(currentPosition.y)}`,
-    `<strong>${t("board")}:</strong> ${boardName}`,
-    ap
-      ? `<strong>${t("apIp")}:</strong> ${ap.name} / ${ap.ip}<br><strong>${t("ssid")}:</strong> ${ap.ssid}`
-      : `<strong>${t("apIp")}:</strong> ${t("noAp")}`,
-    `<strong>${t("gps")}:</strong> ${formatGps()}`,
-    `<strong>${t("motion")}:</strong> ${formatMotion()}`,
-    `<strong>${t("view")}:</strong> ${Math.round(view.scale * 100)}%`
+    `<strong>${t("motion")}:</strong> ${formatMotion()}`
   ].join("<br>");
 }
 
 function locationSpeech() {
   const floor = config?.floors?.[currentFloor];
   const floorName = floor ? (lang === "en" ? floor.nameEn : floor.nameZh) : currentFloor;
-  const boardName = currentBoard ? (lang === "en" ? currentBoard.boardNameEn : currentBoard.boardNameZh) : "-";
-  const ap = currentAccessPoint;
   const parts = [
     `${t("locationSource")}: ${locationSourceText()}`,
     `${t("floor")}: ${floorName}`,
     `${t("baseMap")}: ${baseMapName()}`,
-    `${t("coordinate")}: X ${Math.round(currentPosition.x)}, Y ${Math.round(currentPosition.y)}`,
-    `${t("board")}: ${boardName}`,
-    ap ? `${t("apIp")}: ${ap.name}, ${ap.ip}. ${t("ssid")}: ${ap.ssid}` : `${t("apIp")}: ${t("noAp")}`,
-    `${t("gps")}: ${formatGps()}`
+    `${t("coordinate")}: X ${Math.round(currentPosition.x)}, Y ${Math.round(currentPosition.y)}`
   ];
   return parts.join("。");
 }
@@ -1311,8 +1233,7 @@ function shortLocationSpeech() {
 
 function locationSourceText() {
   if (locationSource === "photo") return t("sourcePhoto");
-  if (locationSource === "gps") return t("sourceGps");
-  if (locationSource === "wifi") return lang === "en" ? "Wi-Fi fingerprint" : "Wi-Fi 指紋定位";
+  if (locationSource === "wifi") return lang === "en" ? "Server-side Wi-Fi fingerprint" : "Server 端 Wi-Fi 指紋定位";
   if (locationSource === "motion") return t("motion");
   if (locationSource === "floor-switch") return lang === "en" ? "Floor changed at elevator/stairs" : "已在電梯／樓梯切換樓層";
   return t("sourceDefault");
@@ -1322,13 +1243,14 @@ function currentStepSpeech() {
   if (!routeData || !config) return t("noRouteYet");
   const dest = routeData.destination;
   const finalDest = config.places[routeData.destPlace] || dest;
-  const nextKey = routeData.pathKeys?.[1] || routeData.pathKeys?.[0];
-  const nextNode = nextKey ? config.graphNodes[nextKey] : null;
+  const nextNode = routeData.path?.[1] || routeData.path?.[0] || null;
   if (!routeData.sameFloor && distance(currentPosition, dest) < 35) return verticalArrivalInstruction(finalDest);
   if (distance(currentPosition, dest) < 35) return `${t("arrivedNear")}: ${text(finalDest)}`;
-  const nextText = nextNode ? text(nextNode) : text(dest);
   const direction = nextNode ? directionFromTo(currentPosition, nextNode) : "";
-  return `${t("nextDirection")}: ${direction || t("directionStraight")}。${t("nextToward")} ${nextText}`;
+  const meters = nextNode ? estimatedMeters(distance(currentPosition, nextNode)) : routeMeters();
+  return lang === "en"
+    ? `${t("nextDirection")}: ${direction || t("directionStraight")}. Follow the arrow for about ${meters} ${t("meters")}.`
+    : `${t("nextDirection")}: ${direction || t("directionStraight")}。沿著箭頭前進約 ${meters} ${t("meters")}。`;
 }
 
 function routeSpeech() {
@@ -1336,8 +1258,7 @@ function routeSpeech() {
   const dest = routeData.destination;
   const finalDest = config.places[routeData.destPlace] || dest;
   const destText = text(finalDest);
-  const nextKey = routeData.pathKeys?.[1] || routeData.pathKeys?.[0];
-  const nextNode = nextKey ? config.graphNodes[nextKey] : null;
+  const nextNode = routeData.path?.[1] || routeData.path?.[0] || null;
   const nextText = nextNode ? text(nextNode) : destText;
   const direction = nextNode ? directionFromTo(currentPosition, nextNode) : "";
   const intro = routeData.sameFloor
@@ -1394,16 +1315,16 @@ function verticalSwitchHtml(finalDest) {
 }
 
 function routeStepsHtml(finalDest) {
-  if (!routeData?.pathKeys?.length || !config?.graphNodes) return "";
-  const keys = routeData.pathKeys;
+  if (!routeData?.path?.length) return "";
+  const points = routeData.path;
   const steps = [];
-  for (let i = 1; i < keys.length; i += 1) {
-    const from = config.graphNodes[keys[i - 1]];
-    const to = config.graphNodes[keys[i]];
+  for (let i = 1; i < points.length; i += 1) {
+    const from = points[i - 1];
+    const to = points[i];
     if (!from || !to) continue;
     const dir = directionFromTo(from, to);
-    const placeName = text(to);
-    steps.push(lang === "en" ? `${dir || t("directionStraight")} toward ${placeName}` : `${dir || t("directionStraight")}，往${placeName}`);
+    const meters = estimatedMeters(distance(from, to));
+    steps.push(lang === "en" ? `${dir || t("directionStraight")} for about ${meters} ${t("meters")}` : `${dir || t("directionStraight")}約 ${meters} ${t("meters")}`);
   }
   if (!routeData.sameFloor) {
     steps.push(verticalArrivalInstruction(finalDest));
@@ -1429,42 +1350,6 @@ function directionFromTo(from, to) {
   if (normalized < 247.5) return t("directionSlightLeft");
   if (normalized < 292.5) return t("directionStraight");
   return t("directionSlightRight");
-}
-
-function formatGps() {
-  if (!latestGps) return t("gpsWaiting");
-  if (latestGps.error) return `${t("gpsUnavailable")}: ${latestGps.error}`;
-  return `${latestGps.lat.toFixed(6)}, ${latestGps.lon.toFixed(6)} (${Math.round(latestGps.accuracy)}m)`;
-}
-
-function startGpsWatch() {
-  if (!navigator.geolocation) {
-    latestGps = { error: "not supported" };
-    updateLocationText();
-    return;
-  }
-  navigator.geolocation.watchPosition(
-    position => {
-      latestGps = {
-        lat: position.coords.latitude,
-        lon: position.coords.longitude,
-        accuracy: position.coords.accuracy
-      };
-      applyGpsMapLocation(latestGps);
-      updateLocationText();
-      const now = Date.now();
-      if (now - lastGpsSpeechAt > 60000) {
-        lastGpsSpeechAt = now;
-        screenReaderSummary.textContent = `${t("gpsUpdated")}: ${formatGps()}`;
-      }
-    },
-    error => {
-      latestGps = { error: error.message || String(error.code) };
-      updateLocationText();
-      announce(`${t("gpsUnavailable")}: ${latestGps.error}`, false);
-    },
-    { enableHighAccuracy: true, maximumAge: 3000, timeout: 12000 }
-  );
 }
 
 locateBtn.addEventListener("click", locateFromPhoto);
@@ -1665,4 +1550,3 @@ function escapeHtml(value) {
 }
 
 init();
-startGpsWatch();
