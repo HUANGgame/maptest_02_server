@@ -131,6 +131,11 @@
       padding: 0;
       font-weight: 600;
     }
+    .map-tools button.active {
+      border-color: var(--blue);
+      background: #eff6ff;
+      color: #1d4ed8;
+    }
     .floor-switch button.active {
       border-color: var(--blue);
       background: #eff6ff;
@@ -312,6 +317,7 @@
       <div id="floorButtons" class="floor-switch"></div>
       <div class="map-tools">
         <button id="relocateButton">定位</button>
+        <button id="pointModeButton">?</button>
         <button id="zoomInButton">+</button>
         <button id="zoomOutButton">-</button>
         <button id="resetButton">2D</button>
@@ -364,6 +370,11 @@
       routeDistance: 0,
       routeTime: 0,
       zoom: 1,
+      viewOffsetX: 0,
+      viewOffsetY: 0,
+      headingFollow: false,
+      pointDisplayMode: localStorage.getItem("pointDisplayMode") || "important",
+      dragStart: null,
       navigationActive: false,
       navigationFrame: null,
       feedbackAllowed: localStorage.getItem("feedbackAllowed") === "true",
@@ -393,10 +404,19 @@
     searchInput.addEventListener("keydown", (event) => {
       if (event.key === "Enter") performSearch();
     });
-    document.querySelector("#relocateButton").addEventListener("click", relocate);
+    const compassButton = document.querySelector("#relocateButton");
+    compassButton.textContent = "⌖";
+    compassButton.title = "切換方向跟隨";
+    compassButton.setAttribute("aria-label", "切換方向跟隨");
+    compassButton.addEventListener("click", toggleHeadingFollow);
+    const pointModeButton = document.querySelector("#pointModeButton");
+    pointModeButton.title = "切換點位顯示";
+    pointModeButton.setAttribute("aria-label", "切換點位顯示");
+    pointModeButton.addEventListener("click", cyclePointDisplayMode);
+    updatePointModeButton();
     document.querySelector("#zoomInButton").addEventListener("click", () => setZoom(state.zoom * 1.2));
     document.querySelector("#zoomOutButton").addEventListener("click", () => setZoom(state.zoom / 1.2));
-    document.querySelector("#resetButton").addEventListener("click", () => setZoom(1));
+    document.querySelector("#resetButton").addEventListener("click", resetView);
     document.querySelector("#showRouteButton").addEventListener("click", showRoute);
     document.querySelector("#startButton").addEventListener("click", startNavigation);
     document.querySelector("#endButton").addEventListener("click", endNavigation);
@@ -420,6 +440,11 @@
     window.addEventListener("resize", resizeCanvas);
     window.addEventListener("deviceorientationabsolute", handleOrientation, true);
     window.addEventListener("deviceorientation", handleOrientation, true);
+    canvas.addEventListener("pointerdown", startPan);
+    canvas.addEventListener("pointermove", movePan);
+    canvas.addEventListener("pointerup", endPan);
+    canvas.addEventListener("pointercancel", endPan);
+    canvas.addEventListener("wheel", handleWheel, { passive: false });
 
     init();
 
@@ -604,10 +629,42 @@
       renderAll();
     }
 
-    function relocate() {
-      nextStep.textContent = "瀏覽器版無法讀取 Wi-Fi RSSI，暫以目前位置顯示。";
-      state.current = { x: 180, y: 620, floorId: state.currentFloorId };
+    function toggleHeadingFollow() {
+      state.headingFollow = !state.headingFollow;
+      state.viewOffsetX = 0;
+      state.viewOffsetY = 0;
+      compassButton.classList.toggle("active", state.headingFollow);
+      compassButton.textContent = state.headingFollow ? "?" : "?";
+      nextStep.textContent = state.headingFollow
+        ? "????????????"
+        : "????????????????";
       renderAll();
+    }
+
+    function cyclePointDisplayMode() {
+      const order = ["current", "important", "all"];
+      const nextIndex = (order.indexOf(state.pointDisplayMode) + 1) % order.length;
+      state.pointDisplayMode = order[nextIndex] || "important";
+      localStorage.setItem("pointDisplayMode", state.pointDisplayMode);
+      updatePointModeButton();
+      drawMap();
+    }
+
+    function updatePointModeButton() {
+      if (!pointModeButton) return;
+      const labels = {
+        current: "我",
+        important: "重",
+        all: "全",
+      };
+      const titles = {
+        current: "只顯示我的所在地",
+        important: "只顯示重要點",
+        all: "顯示全部點",
+      };
+      pointModeButton.textContent = labels[state.pointDisplayMode] || labels.important;
+      pointModeButton.title = titles[state.pointDisplayMode] || titles.important;
+      pointModeButton.classList.toggle("active", state.pointDisplayMode !== "current");
     }
 
     function buildLocalRoute() {
@@ -726,11 +783,15 @@
 
     function drawWifiSampleMap() {
       if (state.places.some((place) => place.floorId === state.currentFloorId) || state.wifiPoints.length === 0) return;
+      if (state.pointDisplayMode === "current") {
+        if (state.navigationActive) drawDestinationMarker();
+        return;
+      }
       if (state.navigationActive) {
         drawDestinationMarker();
         return;
       }
-      const points = state.wifiPoints
+      let points = state.wifiPoints
         .filter((point) => point.floorId === state.currentFloorId)
         .slice()
         .sort((left, right) => String(left.pointId).localeCompare(String(right.pointId), undefined, { numeric: true }));
@@ -738,12 +799,16 @@
 
       ctx.lineCap = "round";
       ctx.lineJoin = "round";
-      ctx.strokeStyle = "#d8e0e7";
-      ctx.lineWidth = 18;
-      drawPolyline(points);
-      ctx.strokeStyle = "#146c63";
-      ctx.lineWidth = 4;
-      drawPolyline(points);
+      if (state.pointDisplayMode === "all") {
+        ctx.strokeStyle = "#d8e0e7";
+        ctx.lineWidth = 18;
+        drawPolyline(points);
+        ctx.strokeStyle = "#146c63";
+        ctx.lineWidth = 4;
+        drawPolyline(points);
+      } else {
+        points = points.filter((point, index) => isImportantPoint(point, index, points.length));
+      }
 
       ctx.font = "12px Microsoft JhengHei, sans-serif";
       ctx.textBaseline = "middle";
@@ -758,11 +823,19 @@
         ctx.beginPath();
         ctx.arc(point.x, point.y, radius, 0, Math.PI * 2);
         ctx.fill();
-        if (index % 4 === 0 || points.length <= 20) {
+        if (state.pointDisplayMode === "important" || index % 4 === 0 || points.length <= 20) {
           ctx.fillStyle = "#1f2933";
           ctx.fillText(sample.pointId, point.x + 10, point.y - 8);
         }
       });
+    }
+
+    function isImportantPoint(point, index, total) {
+      const numeric = Number(String(point.pointId || "").replace(/\D/g, ""));
+      if (index === 0 || index === total - 1) return true;
+      if (state.destination && point.pointId === state.destination.id) return true;
+      if (Number.isFinite(numeric) && numeric % 4 === 1) return true;
+      return false;
     }
 
     function drawDestinationMarker() {
@@ -887,14 +960,27 @@
       });
     }
 
-    function screen(x, y) {
+    function baseScreen(x, y) {
       const rect = canvas.getBoundingClientRect();
       const padding = 28;
       const sx = padding + ((x - world.left) / world.width) * (rect.width - padding * 2);
       const sy = padding + ((y - world.top) / world.height) * (rect.height - padding * 2);
       return {
-        x: rect.width / 2 + (sx - rect.width / 2) * state.zoom,
-        y: rect.height / 2 + (sy - rect.height / 2) * state.zoom,
+        x: rect.width / 2 + (sx - rect.width / 2) * state.zoom + state.viewOffsetX,
+        y: rect.height / 2 + (sy - rect.height / 2) * state.zoom + state.viewOffsetY,
+      };
+    }
+
+    function screen(x, y) {
+      const point = baseScreen(x, y);
+      if (!state.headingFollow || state.heading == null) return point;
+      const center = baseScreen(state.current.x, state.current.y);
+      const angle = -state.heading * Math.PI / 180;
+      const dx = point.x - center.x;
+      const dy = point.y - center.y;
+      return {
+        x: center.x + dx * Math.cos(angle) - dy * Math.sin(angle),
+        y: center.y + dx * Math.sin(angle) + dy * Math.cos(angle),
       };
     }
 
@@ -960,8 +1046,45 @@
     }
 
     function setZoom(value) {
-      state.zoom = Math.max(0.85, Math.min(2.8, value));
+      state.zoom = Math.max(0.55, Math.min(5, value));
       drawMap();
+    }
+
+    function resetView() {
+      state.zoom = 1;
+      state.viewOffsetX = 0;
+      state.viewOffsetY = 0;
+      drawMap();
+    }
+
+    function startPan(event) {
+      state.dragStart = {
+        pointerId: event.pointerId,
+        x: event.clientX,
+        y: event.clientY,
+        offsetX: state.viewOffsetX,
+        offsetY: state.viewOffsetY,
+      };
+      canvas.setPointerCapture(event.pointerId);
+    }
+
+    function movePan(event) {
+      if (!state.dragStart || state.dragStart.pointerId !== event.pointerId) return;
+      state.viewOffsetX = state.dragStart.offsetX + event.clientX - state.dragStart.x;
+      state.viewOffsetY = state.dragStart.offsetY + event.clientY - state.dragStart.y;
+      drawMap();
+    }
+
+    function endPan(event) {
+      if (state.dragStart?.pointerId === event.pointerId) {
+        state.dragStart = null;
+      }
+    }
+
+    function handleWheel(event) {
+      event.preventDefault();
+      const factor = event.deltaY < 0 ? 1.12 : 0.88;
+      setZoom(state.zoom * factor);
     }
 
     function handleOrientation(event) {

@@ -15,15 +15,15 @@
       "floorName": "K區地下街",
       "floorLevel": 1,
       "imageUrl": "/maps/F1_M1_floor_1.jpg",
-      "width": 101,
-      "height": 52,
+      "width": 106,
+      "height": 58,
       "scaleValue": 0.102581844,
       "createdAt": "2026-06-01T19:51:39.004Z",
-      "updatedAt": "2026-06-01T20:06:30.219Z",
-      "imageLeft": 161,
-      "imageTop": 132,
-      "imageWidth": 101,
-      "imageHeight": 52
+      "updatedAt": "2026-06-01T20:19:11.564Z",
+      "imageLeft": 159,
+      "imageTop": 125,
+      "imageWidth": 106,
+      "imageHeight": 58
     }
   ],
   "places": []
