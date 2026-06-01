@@ -67,7 +67,7 @@
     "trainedAt": "2026-06-01T18:33:21.812Z",
     "isActive": true,
     "isComparisonOnly": false,
-    "notes": "? Android ?? CSV ?????? KNN ???????",
+    "notes": "Android CSV import active KNN model.",
     "createdAt": "2026-06-01T18:33:21.812Z",
     "updatedAt": "2026-06-01T18:33:21.812Z"
   }
