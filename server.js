@@ -62,7 +62,7 @@ const server = http.createServer(async (request, response) => {
       .filter((mapId) => !readMaps().some((map) => map.id === mapId))
       .map((mapId) => ({
         id: mapId,
-        name: `?????? ${mapId}`,
+        name: mapId,
         description: "? Android ???????????????",
       }));
     sendJson(response, 200, readMaps().concat(scanMaps));
@@ -1080,7 +1080,7 @@ function buildScanFloors(records) {
     return {
       id: first.floorId,
       mapId: first.mapId,
-      floorName: `???? ${first.floorId}`,
+      floorName: first.floorId,
       floorLevel: parseFloorLevel(first.floorId),
       imageUrl: null,
       width: Math.max(0, Math.max(...xs) - Math.min(...xs)),
