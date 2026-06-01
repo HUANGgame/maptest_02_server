@@ -692,6 +692,7 @@
       }
       drawSmoothPolyline(visible);
       ctx.setLineDash([]);
+      if (state.navigationActive) drawDestinationMarker();
     }
 
     function drawPlaces() {
@@ -711,6 +712,10 @@
 
     function drawWifiSampleMap() {
       if (state.places.some((place) => place.floorId === state.currentFloorId) || state.wifiPoints.length === 0) return;
+      if (state.navigationActive) {
+        drawDestinationMarker();
+        return;
+      }
       const points = state.wifiPoints
         .filter((point) => point.floorId === state.currentFloorId)
         .slice()
@@ -744,6 +749,34 @@
           ctx.fillText(sample.pointId, point.x + 10, point.y - 8);
         }
       });
+    }
+
+    function drawDestinationMarker() {
+      if (!state.destination || state.destination.floorId !== state.currentFloorId) return;
+      const point = screen(state.destination.x, state.destination.y);
+      ctx.save();
+      ctx.fillStyle = "rgba(180, 35, 24, .14)";
+      ctx.beginPath();
+      ctx.arc(point.x, point.y, 30, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = "#b42318";
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.arc(point.x, point.y, 18, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.fillStyle = "#b42318";
+      ctx.beginPath();
+      ctx.arc(point.x, point.y, 8, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#ffffff";
+      ctx.beginPath();
+      ctx.arc(point.x, point.y, 3, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#1f2933";
+      ctx.font = "700 15px Microsoft JhengHei, sans-serif";
+      ctx.textBaseline = "middle";
+      ctx.fillText(`目的地 ${state.destination.name}`, point.x + 24, point.y - 2);
+      ctx.restore();
     }
 
     function drawCurrent() {
