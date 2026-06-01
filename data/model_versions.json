@@ -1,0 +1,58 @@
+[
+  {
+    "id": "model-1780273428818",
+    "versionName": "KNN-2026-06-01T00:23:48.818Z",
+    "mapId": "tkut-demo",
+    "floorId": "tkut-demo-ground",
+    "algorithm": "knn",
+    "trainingDataCount": 4,
+    "averageError": 446.88,
+    "modelPath": "",
+    "trainedAt": "2026-06-01T00:23:48.818Z",
+    "isActive": false,
+    "createdAt": "2026-06-01T00:23:48.818Z",
+    "updatedAt": "2026-06-01T00:24:18.604Z"
+  },
+  {
+    "id": "model-1780273428835",
+    "versionName": "KNN-feedback-2026-06-01T00:23:48.835Z",
+    "mapId": "tkut-demo",
+    "floorId": "tkut-demo-ground",
+    "algorithm": "knn",
+    "trainingDataCount": 5,
+    "averageError": 446.88,
+    "modelPath": "",
+    "trainedAt": "2026-06-01T00:23:48.835Z",
+    "isActive": false,
+    "createdAt": "2026-06-01T00:23:48.835Z",
+    "updatedAt": "2026-06-01T00:24:18.604Z"
+  },
+  {
+    "id": "model-1780273458593",
+    "versionName": "KNN-2026-06-01T00:24:18.593Z",
+    "mapId": "tkut-demo",
+    "floorId": "tkut-demo-ground",
+    "algorithm": "knn",
+    "trainingDataCount": 8,
+    "averageError": 446.88,
+    "modelPath": "",
+    "trainedAt": "2026-06-01T00:24:18.593Z",
+    "isActive": false,
+    "createdAt": "2026-06-01T00:24:18.593Z",
+    "updatedAt": "2026-06-01T00:24:18.604Z"
+  },
+  {
+    "id": "model-1780273458604",
+    "versionName": "KNN-feedback-2026-06-01T00:24:18.604Z",
+    "mapId": "tkut-demo",
+    "floorId": "tkut-demo-ground",
+    "algorithm": "knn",
+    "trainingDataCount": 10,
+    "averageError": 446.88,
+    "modelPath": "",
+    "trainedAt": "2026-06-01T00:24:18.604Z",
+    "isActive": true,
+    "createdAt": "2026-06-01T00:24:18.604Z",
+    "updatedAt": "2026-06-01T00:24:18.604Z"
+  }
+]

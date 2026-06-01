@@ -1,19 +1,16 @@
 {
-  "name": "maptest-02-photo-location-server",
-  "version": "2.0.0",
-  "type": "module",
-  "description": "Indoor map navigation with fixed wall-map photo localization and admin monitoring.",
+  "name": "maptest-02-server",
+  "version": "3.0.0",
+  "private": true,
+  "description": "地下街室內導航系統 Render 後端與用戶端介面。",
   "main": "server.js",
   "engines": {
     "node": ">=20"
   },
   "scripts": {
     "start": "node server.js",
-    "start:3015": "node start-3015.js",
-    "dev": "node --watch server.js"
+    "start:3015": "PORT=3015 node server.js",
+    "smoke": "node scripts/smoke-test.js"
   },
-  "license": "MIT",
-  "dependencies": {
-    "mysql2": "^3.22.3"
-  }
+  "license": "MIT"
 }

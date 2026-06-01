@@ -3,161 +3,630 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>淡江校園定位後台</title>
-  <link rel="stylesheet" href="/app.css">
+  <title>地下街室內導航系統後台</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f6f7f8;
+      --panel: #ffffff;
+      --line: #d8dde3;
+      --text: #1f2933;
+      --muted: #657181;
+      --accent: #146c63;
+      --warn: #9a5b00;
+      --bad: #a32929;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: "Noto Sans TC", "Microsoft JhengHei", system-ui, sans-serif;
+      line-height: 1.5;
+    }
+    header {
+      background: #ffffff;
+      border-bottom: 1px solid var(--line);
+      padding: 18px 24px;
+    }
+    h1 {
+      margin: 0;
+      font-size: 22px;
+      letter-spacing: 0;
+    }
+    main {
+      display: grid;
+      gap: 16px;
+      grid-template-columns: 280px 1fr;
+      padding: 16px;
+    }
+    section, aside {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 14px;
+    }
+    h2 {
+      margin: 0 0 10px;
+      font-size: 16px;
+    }
+    label {
+      display: block;
+      margin-top: 10px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+    select, input, button {
+      width: 100%;
+      min-height: 38px;
+      margin-top: 4px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: #fff;
+      color: var(--text);
+      font: inherit;
+      padding: 7px 10px;
+    }
+    button {
+      margin-top: 12px;
+      border-color: var(--accent);
+      background: var(--accent);
+      color: #fff;
+      cursor: pointer;
+    }
+    .grid {
+      display: grid;
+      gap: 16px;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 14px;
+    }
+    th, td {
+      border-bottom: 1px solid var(--line);
+      padding: 8px;
+      text-align: left;
+      vertical-align: top;
+    }
+    th {
+      color: var(--muted);
+      font-weight: 600;
+      white-space: nowrap;
+    }
+    .metric {
+      display: grid;
+      gap: 8px;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      margin-bottom: 12px;
+    }
+    .metric div {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 10px;
+    }
+    .metric strong {
+      display: block;
+      font-size: 22px;
+      color: var(--accent);
+    }
+    .muted { color: var(--muted); }
+    .warn { color: var(--warn); }
+    .bad { color: var(--bad); }
+    @media (max-width: 900px) {
+      main, .grid { grid-template-columns: 1fr; }
+    }
+  </style>
 </head>
-<body class="admin-page">
+<body>
   <header>
-    <div>
-      <h1 data-i18n="title">淡江校園定位後台</h1>
-      <p class="muted header-note" data-i18n="subtitle">半自動維護 Wi-Fi 指紋、目的地與使用紀錄</p>
-    </div>
-    <div class="top-actions">
-      <select id="langSelect" aria-label="Language">
-        <option value="zh">中文</option>
-        <option value="en">English</option>
-      </select>
-      <a class="button-link" href="/" data-i18n="openUser">開啟使用者頁</a>
-      <button id="logoutBtn" class="danger hidden" type="button" data-i18n="logout">登出</button>
-    </div>
+    <h1>地下街室內導航系統後台</h1>
+    <div class="muted">Demo 場域：淡江大學淡水校園</div>
+    <div id="healthInfo" class="muted">後端狀態：檢查中</div>
+    <div id="adminNotice" class="muted">操作狀態：待命</div>
   </header>
+  <main>
+    <aside>
+      <h2>查詢條件</h2>
+      <label for="mapSelect">地圖</label>
+      <select id="mapSelect"></select>
+      <label for="floorSelect">樓層</label>
+      <select id="floorSelect"></select>
+      <button id="reloadButton">重新整理</button>
+      <button id="exportScopeButton">匯出目前範圍 JSON</button>
 
-  <main id="loginView" class="login-card panel">
-    <h2 data-i18n="adminLogin">管理員登入</h2>
-    <p class="muted" data-i18n="loginHint">請輸入管理員密碼後再維護資料。</p>
-    <div class="field">
-      <label for="passwordInput" data-i18n="password">密碼</label>
-      <input id="passwordInput" type="password" autocomplete="current-password">
-    </div>
-    <button id="loginBtn" class="primary full-width" type="button" data-i18n="login">登入</button>
-    <div id="loginStatus" class="status hidden"></div>
-  </main>
+      <h2 style="margin-top:18px">新增資料</h2>
+      <label for="newMapName">新增地圖名稱</label>
+      <input id="newMapName" placeholder="例如 淡江 Demo">
+      <button id="createMapButton">新增地圖</button>
 
-  <main id="adminView" class="admin-shell hidden">
-    <aside class="admin-nav panel">
-      <button class="nav-tab active" type="button" data-tab="network" data-i18n="network">Wi-Fi 指紋點位</button>
-      <button class="nav-tab" type="button" data-tab="destinations" data-i18n="destinations">目的地分類</button>
-      <button class="nav-tab" type="button" data-tab="activity" data-i18n="activity">使用者紀錄</button>
-      <button id="refreshBtn" class="secondary full-width" type="button" data-i18n="refresh">重新整理</button>
+      <label for="newFloorName">新增樓層名稱</label>
+      <input id="newFloorName" placeholder="例如 B1">
+      <button id="createFloorButton">新增樓層</button>
+
+      <label for="newPlaceName">新增地點名稱</label>
+      <input id="newPlaceName" placeholder="例如 服務台">
+      <label for="newPlaceCategory">分類</label>
+      <input id="newPlaceCategory" placeholder="例如 設施">
+      <label for="newPlaceX">座標 X</label>
+      <input id="newPlaceX" type="number" placeholder="0">
+      <label for="newPlaceY">座標 Y</label>
+      <input id="newPlaceY" type="number" placeholder="0">
+      <button id="createPlaceButton">新增地點</button>
     </aside>
-
-    <section class="admin-content">
-      <section id="dashboardTab" class="admin-tab">
-        <div id="statCards" class="stat-grid"></div>
-        <div class="panel quick-panel">
-          <h2 data-i18n="quickActions">快速維護</h2>
-          <div class="quick-grid">
-            <button type="button" class="quick-action" data-jump="boards">
-              <strong data-i18n="addWallMap">新增或校正牆面地圖</strong>
-              <span data-i18n="addWallMapHint">現場拍一張牆上地圖，填入位置後儲存。</span>
-            </button>
-            <button type="button" class="quick-action" data-jump="network">
-              <strong data-i18n="addNetwork">維護 IP / AP 點位</strong>
-              <span data-i18n="addNetworkHint">更新每個區域的 IP、SSID 與地圖座標。</span>
-            </button>
-            <button type="button" class="quick-action" data-jump="destinations">
-              <strong data-i18n="checkDestinations">查看目的地分類</strong>
-              <span data-i18n="checkDestinationsHint">確認使用者搜尋能對到正確區域。</span>
-            </button>
-          </div>
+    <div class="grid">
+      <section>
+        <h2>地點資料</h2>
+        <table>
+          <thead><tr><th>名稱</th><th>分類</th><th>座標</th><th>狀態</th></tr></thead>
+          <tbody id="placesBody"></tbody>
+        </table>
+      </section>
+      <section>
+        <h2>Wi-Fi 指紋點</h2>
+        <div class="metric">
+          <div><span class="muted">掃描紀錄</span><strong id="totalRecords">0</strong></div>
+          <div><span class="muted">採樣點</span><strong id="pointCount">0</strong></div>
+          <div><span class="muted">AP 數</span><strong id="bssidCount">0</strong></div>
         </div>
-        <div id="dashboardLists" class="admin-grid"></div>
+        <table>
+          <thead><tr><th>點位</th><th>座標</th><th>掃描數</th><th>AP 數</th></tr></thead>
+          <tbody id="pointsBody"></tbody>
+        </table>
       </section>
-
-      <section id="boardsTab" class="admin-tab hidden">
-        <div class="panel">
-          <div class="section-head">
-            <div>
-              <h2 data-i18n="wallMaps">牆面地圖</h2>
-              <p class="muted" data-i18n="wallMapHelp">每一張固定牆面地圖都要先在這裡存座標與校正照片。使用者拍照後會自動切換底圖、更新位置與 IP。</p>
-            </div>
-            <button id="newBoardBtn" type="button" data-i18n="newWallMap">新增牆面地圖</button>
-          </div>
-          <form id="boardForm" class="easy-form">
-            <div class="form-card">
-              <h3 data-i18n="basicInfo">基本資料</h3>
-              <div class="field"><label for="boardId">ID</label><input id="boardId" value="M-B1-CENTER-01"></div>
-              <div class="field"><label for="boardNameZh" data-i18n="nameZh">中文名稱</label><input id="boardNameZh" value="M 區中央牆面地圖"></div>
-              <div class="field"><label for="boardNameEn" data-i18n="nameEn">英文名稱</label><input id="boardNameEn" value="M Area Center Wall Map"></div>
-              <div class="row">
-                <div class="field"><label for="boardFloor" data-i18n="floor">樓層</label><select id="boardFloor"></select></div>
-                <div class="field"><label for="boardHeading" data-i18n="heading">地圖面向</label><input id="boardHeading" type="number" min="0" max="359" value="0"></div>
-              </div>
-            </div>
-            <div class="form-card">
-              <h3 data-i18n="locationOnMap">地圖座標</h3>
-              <div class="row">
-                <div class="field"><label for="boardX">X</label><input id="boardX" type="number" min="0" max="1100" value="545"></div>
-                <div class="field"><label for="boardY">Y</label><input id="boardY" type="number" min="0" max="720" value="360"></div>
-              </div>
-              <div class="field"><label for="boardNote" data-i18n="note">備註</label><textarea id="boardNote"></textarea></div>
-            </div>
-            <div class="form-card wide">
-              <h3 data-i18n="photoCalibration">拍照校正</h3>
-              <p class="muted" data-i18n="photoHelp">現場對著牆面地圖拍照，系統會產生影像指紋。之後使用者拍到同一張地圖，就能自動定位。</p>
-              <div class="field"><label for="calibrationPhoto" data-i18n="calibrationPhoto">校正照片</label><input id="calibrationPhoto" type="file" accept="image/*" capture="environment"></div>
-              <div class="field"><label for="referenceHash" data-i18n="imageHash">影像指紋</label><textarea id="referenceHash"></textarea></div>
-              <button class="primary" type="submit" data-i18n="saveWallMap">儲存牆面地圖</button>
-            </div>
-          </form>
+      <section>
+        <h2>資料品質</h2>
+        <div class="muted">只有 highConfidence 匿名回饋會進入再訓練；pending、lowConfidence、rejected 不會直接訓練模型。</div>
+        <table>
+          <thead><tr><th>項目</th><th>結果</th><th>建議動作</th></tr></thead>
+          <tbody id="qualityBody"></tbody>
+        </table>
+      </section>
+      <section>
+        <h2>障礙路段</h2>
+        <table>
+          <thead><tr><th>路段</th><th>距離</th><th>狀態</th><th>操作</th></tr></thead>
+          <tbody id="routeEdgesBody"></tbody>
+        </table>
+      </section>
+      <section>
+        <h2>目前範圍</h2>
+        <div id="scopeInfo" class="muted"></div>
+      </section>
+      <section>
+        <h2>匿名回饋</h2>
+        <div class="metric">
+          <div><span class="muted">待評估</span><strong id="pendingFeedback">0</strong></div>
+          <div><span class="muted">高可信</span><strong id="highFeedback">0</strong></div>
+          <div><span class="muted">拒用</span><strong id="rejectedFeedback">0</strong></div>
         </div>
-        <div id="boardList" class="panel"></div>
+        <button id="evaluateFeedbackButton">評估回饋品質</button>
+        <button id="retrainFeedbackButton">用高可信回饋再訓練</button>
       </section>
-
-      <section id="networkTab" class="admin-tab hidden">
-        <div class="panel">
-          <div class="section-head">
-            <div>
-              <h2 data-i18n="network">IP / AP 點位</h2>
-              <p class="muted" data-i18n="networkHelp">把現場網路設備的位置記在這裡，使用者定位後會顯示最近的 IP/AP。</p>
-            </div>
-            <button id="newApBtn" type="button" data-i18n="newAp">新增 AP/IP</button>
-          </div>
-          <form id="apForm" class="easy-form">
-            <div class="form-card">
-              <h3 data-i18n="basicInfo">基本資料</h3>
-              <div class="field"><label for="apId">AP ID</label><input id="apId" value="AP-M-CENTER"></div>
-              <div class="field"><label for="apName" data-i18n="apName">設備名稱</label><input id="apName" value="M Area Wi-Fi AP Center"></div>
-              <div class="row">
-                <div class="field"><label for="apIp">IP</label><input id="apIp" value="10.10.20.11"></div>
-                <div class="field"><label for="apSsid">SSID</label><input id="apSsid" value="TPE-Free"></div>
-              </div>
-            </div>
-            <div class="form-card">
-              <h3 data-i18n="locationOnMap">地圖座標</h3>
-              <div class="row">
-                <div class="field"><label for="apFloor" data-i18n="floor">樓層</label><select id="apFloor"></select></div>
-                <div class="field"><label for="apX">X</label><input id="apX" type="number" value="545"></div>
-                <div class="field"><label for="apY">Y</label><input id="apY" type="number" value="360"></div>
-              </div>
-              <div class="field"><label for="apNote" data-i18n="note">備註</label><textarea id="apNote"></textarea></div>
-              <button class="primary" type="submit" data-i18n="saveAp">儲存 AP/IP</button>
-            </div>
-          </form>
-        </div>
-        <div id="apList" class="panel"></div>
-        <div id="wifiFingerprintPanel" class="panel"></div>
+      <section>
+        <h2>模型版本</h2>
+        <button id="trainKnnButton">用人工指紋訓練 KNN</button>
+        <button id="trainRfButton">建立 Random Forest 比較</button>
+        <table>
+          <thead><tr><th>版本</th><th>演算法</th><th>資料量</th><th>用途</th><th>狀態</th><th>操作</th></tr></thead>
+          <tbody id="modelsBody"></tbody>
+        </table>
       </section>
-
-      <section id="destinationsTab" class="admin-tab hidden">
-        <div class="panel">
-          <h2 data-i18n="destinations">目的地分類</h2>
-          <p class="muted" data-i18n="destinationHelp">這裡列出目前使用者可以搜尋的地點與分類，方便你確認中英文辨識結果。</p>
-          <div class="field search-field">
-            <label for="destinationFilter" data-i18n="searchDestination">搜尋目的地</label>
-            <input id="destinationFilter" placeholder="圖書館、活動中心、商管、library">
-          </div>
-          <div id="destinationEditor"></div>
-          <div id="destinationList"></div>
-        </div>
+      <section>
+        <h2>訓練紀錄</h2>
+        <table>
+          <thead><tr><th>類型</th><th>狀態</th><th>資料</th></tr></thead>
+          <tbody id="jobsBody"></tbody>
+        </table>
       </section>
-
-      <section id="activityTab" class="admin-tab hidden">
-        <div id="activityPanel" class="panel"></div>
+      <section>
+        <h2>導航策略版本</h2>
+        <button id="trainPolicyButton">執行策略模擬訓練</button>
+        <table>
+          <thead><tr><th>回合</th><th>平均獎勵</th><th>成功率</th><th>摘要</th><th>狀態</th></tr></thead>
+          <tbody id="policyRunsBody"></tbody>
+        </table>
       </section>
-    </section>
+      <section>
+        <h2>策略決策紀錄</h2>
+        <table>
+          <thead><tr><th>建議動作</th><th>Wi-Fi</th><th>狀態</th></tr></thead>
+          <tbody id="policyLogsBody"></tbody>
+        </table>
+      </section>
+      <section>
+        <h2>使用者回報</h2>
+        <table>
+          <thead><tr><th>類型</th><th>狀態</th><th>說明</th></tr></thead>
+          <tbody id="reportsBody"></tbody>
+        </table>
+      </section>
+      <section>
+        <h2>路線測試</h2>
+        <button id="testLibraryRouteButton">測試本樓層路線</button>
+        <button id="testSecondFloorRouteButton">測試跨樓層</button>
+        <div id="routeTestResult" class="muted">尚未測試</div>
+      </section>
+    </div>
   </main>
+  <script>
+    const mapSelect = document.querySelector("#mapSelect");
+    const floorSelect = document.querySelector("#floorSelect");
+    const reloadButton = document.querySelector("#reloadButton");
+    let currentPlaces = [];
+    let currentFloors = [];
 
-  <script src="/admin.js"></script>
+    reloadButton.addEventListener("click", loadDashboard);
+    document.querySelector("#exportScopeButton").addEventListener("click", async () => {
+      await runAdminAction("已匯出目前範圍資料", async () => {
+        const mapId = mapSelect.value;
+        const floorId = floorSelect.value;
+        const data = await getJson(`/api/data/export?mapId=${encodeURIComponent(mapId)}&floorId=${encodeURIComponent(floorId)}`);
+        const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json;charset=utf-8" });
+        const link = document.createElement("a");
+        link.href = URL.createObjectURL(blob);
+        link.download = `indoor-navigation-${mapId}-${floorId}.json`;
+        link.click();
+        URL.revokeObjectURL(link.href);
+      });
+    });
+    document.querySelector("#evaluateFeedbackButton").addEventListener("click", async () => {
+      await runAdminAction("已完成回饋品質評估", async () => {
+        await postJson("/api/navigation-feedback/evaluate", {});
+        await loadDashboard();
+      });
+    });
+    document.querySelector("#retrainFeedbackButton").addEventListener("click", async () => {
+      await runAdminAction("已完成高可信回饋再訓練", async () => {
+        await postJson("/api/models/retrain-from-feedback", {
+          mapId: mapSelect.value,
+          floorId: floorSelect.value,
+        });
+        await loadDashboard();
+      });
+    });
+    document.querySelector("#trainKnnButton").addEventListener("click", async () => {
+      await runAdminAction("已完成 KNN 初始訓練", async () => {
+        await postJson("/api/models/train", {
+          mapId: mapSelect.value,
+          floorId: floorSelect.value,
+          algorithm: "knn",
+          activate: true,
+        });
+        await loadDashboard();
+      });
+    });
+    document.querySelector("#trainRfButton").addEventListener("click", async () => {
+      await runAdminAction("已建立 Random Forest 比較模型", async () => {
+        await postJson("/api/models/train", {
+          mapId: mapSelect.value,
+          floorId: floorSelect.value,
+          algorithm: "randomForest",
+          activate: false,
+        });
+        await loadDashboard();
+      });
+    });
+    document.querySelector("#trainPolicyButton").addEventListener("click", async () => {
+      await runAdminAction("已建立導航策略訓練紀錄", async () => {
+        await postJson("/api/navigation-policy/train", {
+          mapId: mapSelect.value,
+          floorId: floorSelect.value,
+          trainingEpisodes: 100,
+        });
+        await loadDashboard();
+      });
+    });
+    document.querySelector("#createMapButton").addEventListener("click", async () => {
+      const name = document.querySelector("#newMapName").value.trim();
+      await runAdminAction("已新增地圖", async () => {
+        await postJson("/api/maps", { name, description: "由後台建立的 Demo 地圖" });
+        await init();
+      });
+    });
+    document.querySelector("#createFloorButton").addEventListener("click", async () => {
+      const floorName = document.querySelector("#newFloorName").value.trim();
+      await runAdminAction("已新增樓層", async () => {
+        await postJson("/api/floors", {
+          mapId: mapSelect.value,
+          floorName,
+          floorLevel: floorSelect.options.length + 1,
+          width: 1200,
+          height: 800,
+          scale: 1,
+        });
+        await loadFloors();
+        await loadDashboard();
+      });
+    });
+    document.querySelector("#createPlaceButton").addEventListener("click", async () => {
+      const name = document.querySelector("#newPlaceName").value.trim();
+      const category = document.querySelector("#newPlaceCategory").value.trim() || "未分類";
+      const x = Number(document.querySelector("#newPlaceX").value);
+      const y = Number(document.querySelector("#newPlaceY").value);
+      await runAdminAction("已新增地點", async () => {
+        await postJson("/api/places", {
+          mapId: mapSelect.value,
+          floorId: floorSelect.value,
+          name,
+          category,
+          x,
+          y,
+          description: "由後台建立的 Demo 地點",
+          searchable: true,
+        });
+        await loadDashboard();
+      });
+    });
+    document.querySelector("#testLibraryRouteButton").addEventListener("click", async () => {
+      const place = currentPlaces.find(item => item.floorId === floorSelect.value) || currentPlaces[0];
+      if (!place) {
+        document.querySelector("#routeTestResult").textContent = "目前沒有可測試的地點。";
+        return;
+      }
+      await testRoute(place.id, place.floorId);
+    });
+    document.querySelector("#testSecondFloorRouteButton").addEventListener("click", async () => {
+      const place = currentPlaces.find(item => item.floorId !== floorSelect.value);
+      if (!place) {
+        document.querySelector("#routeTestResult").textContent = "目前沒有其他樓層的地點可測試。";
+        return;
+      }
+      await testRoute(place.id, place.floorId);
+    });
+    mapSelect.addEventListener("change", async () => {
+      await loadFloors();
+      await loadDashboard();
+    });
+    floorSelect.addEventListener("change", loadDashboard);
+
+    init();
+
+    async function init() {
+      const maps = await getJson("/api/maps");
+      mapSelect.innerHTML = maps.map(map => `<option value="${escapeHtml(map.id)}">${escapeHtml(map.name)}</option>`).join("");
+      await loadFloors();
+      await loadHealth();
+      await loadDashboard();
+    }
+
+    async function loadHealth() {
+      const health = await getJson("/api/health");
+      document.querySelector("#healthInfo").textContent = `後端狀態：正常，階段：${health.phase}`;
+    }
+
+    async function loadFloors() {
+      const mapId = mapSelect.value;
+      const floors = await getJson(`/api/floors?mapId=${encodeURIComponent(mapId)}`);
+      currentFloors = floors;
+      floorSelect.innerHTML = floors.map(floor => `<option value="${escapeHtml(floor.id)}">${escapeHtml(floor.floorName)}</option>`).join("");
+    }
+
+    async function loadDashboard() {
+      const mapId = mapSelect.value;
+      const floorId = floorSelect.value;
+      const [places, summary, points, quality, routeEdges, feedback, models, jobs, policyRuns, policyLogs, reports] = await Promise.all([
+        getJson(`/api/places?mapId=${encodeURIComponent(mapId)}&floorId=${encodeURIComponent(floorId)}`),
+        getJson(`/api/wifi-scans/summary?mapId=${encodeURIComponent(mapId)}&floorId=${encodeURIComponent(floorId)}`),
+        getJson(`/api/wifi-scans/points?mapId=${encodeURIComponent(mapId)}&floorId=${encodeURIComponent(floorId)}`),
+        getJson(`/api/wifi-scans/quality?mapId=${encodeURIComponent(mapId)}&floorId=${encodeURIComponent(floorId)}`),
+        getJson(`/api/route-edges?mapId=${encodeURIComponent(mapId)}&floorId=${encodeURIComponent(floorId)}`),
+        getJson(`/api/navigation-feedback/quality-summary?mapId=${encodeURIComponent(mapId)}&floorId=${encodeURIComponent(floorId)}`),
+        getJson(`/api/models?mapId=${encodeURIComponent(mapId)}&floorId=${encodeURIComponent(floorId)}`),
+        getJson(`/api/model-training-jobs?mapId=${encodeURIComponent(mapId)}&floorId=${encodeURIComponent(floorId)}`),
+        getJson(`/api/navigation-policy/runs?mapId=${encodeURIComponent(mapId)}&floorId=${encodeURIComponent(floorId)}`),
+        getJson(`/api/navigation-policy/logs?mapId=${encodeURIComponent(mapId)}&floorId=${encodeURIComponent(floorId)}`),
+        getJson(`/api/user-reports?mapId=${encodeURIComponent(mapId)}&floorId=${encodeURIComponent(floorId)}`),
+      ]);
+      currentPlaces = places;
+
+      document.querySelector("#placesBody").innerHTML = places.map(place => `
+        <tr>
+          <td>${escapeHtml(place.name)}</td>
+          <td>${escapeHtml(place.category)}</td>
+          <td>${place.x}, ${place.y}</td>
+          <td>
+            <select data-place-status="${escapeHtml(place.id)}">
+              ${["open", "closed", "suspended", "unset"].map(status => `<option value="${status}" ${place.businessStatus === status ? "selected" : ""}>${statusText(status)}</option>`).join("")}
+            </select>
+          </td>
+        </tr>
+      `).join("") || `<tr><td colspan="4" class="muted">目前沒有地點資料</td></tr>`;
+      document.querySelectorAll("[data-place-status]").forEach(select => {
+        select.addEventListener("change", async () => {
+          await postJson("/api/places/status", {
+            placeId: select.getAttribute("data-place-status"),
+            businessStatus: select.value,
+          });
+          await loadDashboard();
+        });
+      });
+
+      document.querySelector("#totalRecords").textContent = summary.totalRecords;
+      document.querySelector("#pointCount").textContent = summary.pointCount;
+      document.querySelector("#bssidCount").textContent = summary.bssidCount;
+
+      document.querySelector("#pointsBody").innerHTML = points.points.map(point => `
+        <tr>
+          <td>${escapeHtml(point.pointId)}</td>
+          <td>${point.x}, ${point.y}</td>
+          <td>${point.scanCount}</td>
+          <td>${point.bssidCount}</td>
+        </tr>
+      `).join("") || `<tr><td colspan="4" class="muted">目前沒有 Wi-Fi 採樣點</td></tr>`;
+
+      document.querySelector("#qualityBody").innerHTML = quality.items.map(item => `
+        <tr>
+          <td>${escapeHtml(item.name)}</td>
+          <td class="${item.level === "bad" ? "bad" : item.level === "warn" ? "warn" : ""}">${escapeHtml(item.message)}</td>
+          <td>${escapeHtml(item.action || "-")}</td>
+        </tr>
+      `).join("");
+
+      document.querySelector("#routeEdgesBody").innerHTML = routeEdges.map(edge => `
+        <tr>
+          <td>${escapeHtml(edge.fromNodeId)} -> ${escapeHtml(edge.toNodeId)}</td>
+          <td>${edge.distance}</td>
+          <td>${edge.isBlocked ? "封鎖" : "可通行"}</td>
+          <td><button data-route-edge="${escapeHtml(edge.id)}" data-blocked="${edge.isBlocked ? "false" : "true"}">${edge.isBlocked ? "解除" : "封鎖"}</button></td>
+        </tr>
+      `).join("") || `<tr><td colspan="4" class="muted">目前沒有路段資料</td></tr>`;
+      document.querySelectorAll("[data-route-edge]").forEach(button => {
+        button.addEventListener("click", async () => {
+          await runAdminAction("已更新路段狀態", async () => {
+            await postJson("/api/route-edges/block", {
+              edgeId: button.getAttribute("data-route-edge"),
+              isBlocked: button.getAttribute("data-blocked") === "true",
+            });
+            await loadDashboard();
+          });
+        });
+      });
+
+      document.querySelector("#scopeInfo").textContent = `mapId=${mapId}，floorId=${floorId}`;
+      document.querySelector("#pendingFeedback").textContent = feedback.pendingCount;
+      document.querySelector("#highFeedback").textContent = feedback.highConfidenceCount;
+      document.querySelector("#rejectedFeedback").textContent = feedback.rejectedCount;
+      document.querySelector("#modelsBody").innerHTML = models.map(model => `
+        <tr>
+          <td>${escapeHtml(model.versionName)}</td>
+          <td>${escapeHtml(model.algorithm)}</td>
+          <td>${model.trainingDataCount}</td>
+          <td>${model.isComparisonOnly ? "比較模型" : "主定位模型"}</td>
+          <td>${model.isActive ? "啟用" : "未啟用"}</td>
+          <td>${model.isActive || model.isComparisonOnly ? "" : `<button data-activate-model="${escapeHtml(model.id)}">啟用</button>`}</td>
+        </tr>
+      `).join("") || `<tr><td colspan="6" class="muted">目前沒有模型版本</td></tr>`;
+      document.querySelectorAll("[data-activate-model]").forEach(button => {
+        button.addEventListener("click", async () => {
+          await runAdminAction("已切換啟用模型", async () => {
+            await postJson("/api/models/activate", { modelVersionId: button.getAttribute("data-activate-model") });
+            await loadDashboard();
+          });
+        });
+      });
+      document.querySelector("#jobsBody").innerHTML = jobs.map(job => `
+        <tr>
+          <td>${trainingTypeText(job.trainingType)}</td>
+          <td>${job.status}</td>
+          <td>人工 ${job.trainingDataCount}，回饋 ${job.feedbackDataCount}</td>
+        </tr>
+      `).join("") || `<tr><td colspan="3" class="muted">目前沒有訓練紀錄</td></tr>`;
+      document.querySelector("#policyRunsBody").innerHTML = policyRuns.map(run => `
+        <tr>
+          <td>${run.trainingEpisodes}</td>
+          <td>${run.averageReward ?? "-"}</td>
+          <td>${run.successRate ?? "-"}</td>
+          <td>${escapeHtml(run.simulationSummary || "-")}</td>
+          <td>${run.isActive ? "啟用" : "未啟用"}</td>
+        </tr>
+      `).join("") || `<tr><td colspan="5" class="muted">目前沒有策略版本</td></tr>`;
+      document.querySelector("#policyLogsBody").innerHTML = policyLogs.map(log => `
+        <tr>
+          <td>${policyActionText(log.recommendedAction)}</td>
+          <td>${log.wifiConfidence}</td>
+          <td>${log.isOffRoute ? "偏離路線" : log.obstacleNearby ? "有障礙" : "一般"}</td>
+        </tr>
+      `).join("") || `<tr><td colspan="3" class="muted">目前沒有策略決策紀錄</td></tr>`;
+      document.querySelector("#reportsBody").innerHTML = reports.map(report => `
+        <tr>
+          <td>${reportTypeText(report.reportType)}</td>
+          <td>${escapeHtml(report.status)}</td>
+          <td>${escapeHtml(report.description || "-")}</td>
+        </tr>
+      `).join("") || `<tr><td colspan="3" class="muted">目前沒有使用者回報</td></tr>`;
+    }
+
+    async function getJson(path) {
+      const response = await fetch(path);
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      return response.json();
+    }
+
+    async function postJson(path, payload) {
+      const response = await fetch(path, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}));
+        throw new Error(body.message || `HTTP ${response.status}`);
+      }
+      return response.json();
+    }
+
+    async function runAdminAction(successMessage, action) {
+      const notice = document.querySelector("#adminNotice");
+      notice.textContent = "操作狀態：處理中";
+      notice.className = "muted";
+      try {
+        await action();
+        notice.textContent = `操作狀態：${successMessage}`;
+        notice.className = "muted";
+      } catch (error) {
+        notice.textContent = `操作狀態：失敗，${error.message}`;
+        notice.className = "bad";
+      }
+    }
+
+    async function testRoute(destinationPlaceId, targetFloorId) {
+      const result = await postJson("/api/routes", {
+        mapId: mapSelect.value,
+        startFloorId: floorSelect.value,
+        targetFloorId,
+        startX: 180,
+        startY: 620,
+        destinationPlaceId,
+      });
+      const transitionText = result.floorTransitions?.length
+        ? `，換樓層：${result.floorTransitions.map(item => item.name).join("、")}`
+        : "";
+      document.querySelector("#routeTestResult").textContent = `距離 ${result.distance}，預估 ${result.estimatedTime} 分鐘${transitionText}`;
+    }
+
+    function statusText(value) {
+      return { open: "營業中", closed: "休息中", suspended: "暫停服務", unset: "未設定" }[value] || "未設定";
+    }
+
+    function escapeHtml(value) {
+      return String(value ?? "").replace(/[&<>"']/g, char => ({
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+        "'": "&#039;",
+      }[char]));
+    }
+
+    function trainingTypeText(value) {
+      return {
+        initialManualFingerprint: "人工初始訓練",
+        feedbackIncrementalTraining: "回饋再訓練",
+        fullRetraining: "完整再訓練",
+      }[value] || value;
+    }
+
+    function policyActionText(value) {
+      return {
+        continueNavigation: "繼續導航",
+        reroute: "重新規劃",
+        relocalize: "重新定位",
+        guideBackToRoute: "導回路線",
+        useElevator: "使用電梯",
+        useStairs: "使用樓梯",
+      }[value] || value;
+    }
+
+    function reportTypeText(value) {
+      return {
+        blockedRoute: "路線不通",
+        closedPlace: "地點關閉",
+        obstacle: "障礙物",
+        wrongPlace: "地點錯誤",
+      }[value] || value;
+    }
+  </script>
 </body>
 </html>

@@ -1,78 +1,78 @@
-# 台北車站地下街拍照定位導覽
+# 地下街室內導航系統後端
 
-這版不使用 QR code。使用者拍攝牆上的固定地圖後，系統用校正照片的影像指紋比對固定牆面地圖，更新樓層、座標與路線。管理員後台已和使用者介面分開，並加上登入保護。
+本後端支援「地下街室內導航系統」第一階段展示。正式題目仍是地下街室內導航系統；目前以淡江大學淡水校園資料模擬地下街常見情境，例如找建築、找設施、找路線、找停車位、回到原位置、障礙物回報與歷史導航。
 
-## 啟動
+目前狀態是 Demo 階段，不代表已正式部署在地下街或校園。
 
-PowerShell 可能會擋 `npm.ps1`，請用：
+## 固定網址
 
-```powershell
-cd C:\Users\金魚\Downloads\maptest_02_server\maptest_02_server
-npm.cmd start
-```
-
-如果 3000 被占用，可用固定 3015：
-
-```powershell
-npm.cmd run start:3015
-```
-
-開啟：
+之後統一使用 Render 免費網址：
 
 ```text
-使用者頁：http://localhost:3000/
-管理後台：http://localhost:3000/admin
+https://maptest-02-server.onrender.com
 ```
 
-若使用 3015，網址改成：
+用戶端正式介面：
+
+```text
+https://maptest-02-server.onrender.com/
+https://maptest-02-server.onrender.com/app
+https://maptest-02-server.onrender.com/navigation
+```
+
+Web 管理後台：
+
+```text
+https://maptest-02-server.onrender.com/admin
+```
+
+Android 採樣工具預設後端也使用：
+
+```text
+https://maptest-02-server.onrender.com
+```
+
+不要再使用 Cloudflare Tunnel 或 localtunnel 的臨時網址作為預設值。
+
+## 本機開發
+
+```powershell
+node backend/server.js
+```
+
+本機用戶端：
 
 ```text
 http://localhost:3015/
+```
+
+本機後台：
+
+```text
 http://localhost:3015/admin
 ```
 
-## 管理員登入
+## 資料庫結構
 
-開發預設密碼：
+正式資料表以 `backend/schema` 為準：
 
-```text
-TaipeiStationAdmin2026!
+```sql
+SOURCE backend/schema/001_initial_must_have.sql;
+SOURCE backend/schema/002_seed_tamkang_demo.sql;
+SOURCE backend/schema/003_navigation_feedback.sql;
+SOURCE backend/schema/004_training_jobs.sql;
+SOURCE backend/schema/005_dqn_policy.sql;
+SOURCE backend/schema/006_history_saved_locations.sql;
+SOURCE backend/schema/007_floor_transitions.sql;
+SOURCE backend/schema/008_user_reports.sql;
 ```
 
-正式部署請改用環境變數：
+目前 Node 後端使用 JSON 檔作為 Demo store，方便在沒有 MySQL 的環境展示。
+
+## 測試
 
 ```powershell
-$env:ADMIN_PASSWORD="你的強密碼"
-npm.cmd start
+node backend/scripts/smoke-test.js
 ```
 
-## 已完成
-
-- `/` 是使用者介面，不顯示管理功能。
-- `/admin` 是管理員後台，需要登入。
-- `/api/admin/*` 全部需要管理員 cookie。
-- 使用者介面支援中文 / English 切換。
-- 後台可維護固定牆面地圖、校正照片影像指紋。
-- 後台可維護 IP / Wi-Fi AP 位置資料。
-- 後台可看使用者 session、client IP、目前定位、目的地、事件紀錄。
-- 資料儲存在 `data/state.json`。
-
-## 台北車站地下街資料
-
-目前內建的是根據公開資料整理的 M 區原型圖資，重點放在 M1/M2、M3-M8、台北地下街 Y 區方向、站前地下街 Z 區方向。正式上線時請換成授權明確的站內平面圖或自行繪製圖資。
-
-公開參考：
-
-- 台北車站地下商場 / M 區說明：`https://zh.wikipedia.org/wiki/台北車站地下商場`
-- 台北車站地下街配置圖：`https://commons.wikimedia.org/wiki/File:台北車站地下街配置圖.png`
-- 台北車站 Y/Z/K/M/R 地下街互動地圖：`https://ju0520.github.io/Taipei_Station/`
-
-## 關於 IP 位置
-
-瀏覽器不能直接讀取使用者手機連到哪一台 Wi-Fi AP，也不能可靠用 IP 推出地下街精確位置。這版做法是：
-
-- Server 會記錄請求看到的 client IP，讓後台可觀察。
-- 管理員可建立 AP/IP 清冊，把 AP、SSID、IP、樓層、X/Y 座標輸入後台。
-- 若你有現場網管資料或 Wi-Fi 掃描資料，可匯入後台作為輔助定位資料。
-
-商用等級定位建議改接 Wi-Fi RTT、藍牙 beacon、UWB，或由現場網路控制器提供 AP association 資料。
+smoke test 會檢查健康檢查、地圖、樓層、地點搜尋、Wi-Fi 指紋、模型、定位、路線、回饋、歷史紀錄與策略 API。

@@ -5,59 +5,775 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>地下街室內導航系統</title>
   <style>
-    :root{color-scheme:light;--bg:#f5f6f7;--panel:#fff;--line:#d8dee6;--text:#1f2933;--muted:#667085;--blue:#2563eb;--route:#146c63;--walk:#dde4ea;--danger:#b42318}*{box-sizing:border-box}html,body{height:100%}body{margin:0;background:var(--bg);color:var(--text);font-family:"Noto Sans TC","Microsoft JhengHei",system-ui,sans-serif;letter-spacing:0}.app{min-height:100%;display:grid;grid-template-rows:auto 1fr auto}.topbar{display:grid;grid-template-columns:1fr auto;gap:10px;padding:calc(12px + env(safe-area-inset-top)) 12px 10px;background:var(--panel);border-bottom:1px solid var(--line)}.brand{grid-column:1/-1;display:flex;align-items:baseline;justify-content:space-between;gap:12px}.brand h1{margin:0;font-size:18px;line-height:1.2}.brand span{color:var(--muted);font-size:13px;white-space:nowrap}.search{display:grid;grid-template-columns:1fr auto;gap:8px}input,select,button{font:inherit;color:inherit}input,select{width:100%;min-height:44px;border:1px solid var(--line);border-radius:8px;background:#fff;padding:0 12px;outline:none}input:focus,select:focus{border-color:var(--blue)}button{min-height:44px;border:1px solid var(--line);border-radius:8px;background:#fff;padding:0 12px;cursor:pointer}.primary{border-color:var(--blue);background:var(--blue);color:#fff}.map-shell{position:relative;min-height:465px;overflow:hidden;background:#fafbfc}canvas{width:100%;height:100%;display:block;touch-action:none}.status-chip{position:absolute;left:12px;right:12px;top:12px;min-height:40px;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 12px;background:rgba(255,255,255,.96);border:1px solid var(--line);border-radius:8px;color:var(--muted);font-size:13px}.floor-switch,.map-tools{position:absolute;top:76px;display:grid;gap:8px;padding:8px;background:rgba(255,255,255,.94);border:1px solid var(--line);border-radius:8px}.floor-switch{left:12px}.map-tools{right:12px}.floor-switch button,.map-tools button{width:48px;height:44px;padding:0;font-weight:600}.floor-switch button.active{border-color:var(--blue);background:#eff6ff;color:#1d4ed8}.sheet{background:var(--panel);border-top:1px solid var(--line);padding:12px 12px calc(12px + env(safe-area-inset-bottom))}.next-step{margin:0 0 8px;font-size:18px;font-weight:700}.meta{display:flex;gap:12px;flex-wrap:wrap;color:var(--muted);font-size:14px;margin-bottom:10px}.actions{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.results{max-height:220px;overflow:auto;border:1px solid var(--line);border-radius:8px;background:#fff;margin-top:10px}.result{width:100%;display:grid;gap:2px;text-align:left;border:0;border-bottom:1px solid var(--line);border-radius:0;padding:10px 12px;min-height:auto}.result:last-child{border-bottom:0}.result strong{font-size:15px}.result span{color:var(--muted);font-size:13px}.privacy{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:10px;color:var(--muted);font-size:13px}.privacy input{width:auto;min-height:auto}dialog{border:1px solid var(--line);border-radius:10px;padding:18px;width:min(420px,calc(100vw - 32px));color:var(--text)}dialog::backdrop{background:rgba(15,23,42,.32)}.dialog-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}@media(min-width:900px){.app{width:min(1180px,100%);margin:0 auto}.map-shell{min-height:680px}.sheet{border:1px solid var(--line);border-radius:8px 8px 0 0;margin:0 12px}}
+    :root {
+      color-scheme: light;
+      --bg: #f5f6f7;
+      --panel: #ffffff;
+      --line: #d9dee5;
+      --text: #1f2933;
+      --muted: #667085;
+      --accent: #146c63;
+      --accent-strong: #0f5b53;
+      --blue: #2563eb;
+      --danger: #b42318;
+      --walkway: #dde4ea;
+      --route: #146c63;
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: "Noto Sans TC", "Microsoft JhengHei", system-ui, sans-serif;
+      letter-spacing: 0;
+    }
+    button, input, select {
+      font: inherit;
+      color: inherit;
+    }
+    .app {
+      min-height: 100%;
+      display: grid;
+      grid-template-rows: auto 1fr auto;
+    }
+    .topbar {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 10px;
+      padding: calc(12px + env(safe-area-inset-top)) 12px 10px;
+      background: var(--panel);
+      border-bottom: 1px solid var(--line);
+    }
+    .brand {
+      grid-column: 1 / -1;
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 12px;
+    }
+    .brand h1 {
+      margin: 0;
+      font-size: 18px;
+      line-height: 1.2;
+    }
+    .brand span {
+      color: var(--muted);
+      font-size: 13px;
+      white-space: nowrap;
+    }
+    .search {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 8px;
+    }
+    input, select {
+      width: 100%;
+      min-height: 44px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+      padding: 0 12px;
+      outline: none;
+    }
+    input:focus, select:focus {
+      border-color: var(--accent);
+    }
+    button {
+      min-height: 44px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+      padding: 0 12px;
+      cursor: pointer;
+    }
+    .primary {
+      border-color: var(--blue);
+      background: var(--blue);
+      color: #fff;
+    }
+    .map-shell {
+      position: relative;
+      min-height: 460px;
+      overflow: hidden;
+      background: #fafbfc;
+    }
+    canvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+      touch-action: none;
+    }
+    .floor-switch {
+      position: absolute;
+      left: 12px;
+      top: 76px;
+      display: grid;
+      gap: 8px;
+      padding: 8px;
+      background: rgba(255,255,255,.94);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+    }
+    .floor-switch button,
+    .map-tools button {
+      width: 48px;
+      height: 44px;
+      padding: 0;
+      font-weight: 600;
+    }
+    .floor-switch button.active {
+      border-color: var(--blue);
+      background: #eff6ff;
+      color: #1d4ed8;
+    }
+    .map-tools {
+      position: absolute;
+      right: 12px;
+      top: 76px;
+      display: grid;
+      gap: 8px;
+      padding: 8px;
+      background: rgba(255,255,255,.94);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+    }
+    .status-chip {
+      position: absolute;
+      left: 12px;
+      right: 12px;
+      top: 12px;
+      min-height: 40px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 8px 12px;
+      background: rgba(255,255,255,.96);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+    .sheet {
+      background: var(--panel);
+      border-top: 1px solid var(--line);
+      padding: 12px 12px calc(12px + env(safe-area-inset-bottom));
+    }
+    .next-step {
+      margin: 0 0 8px;
+      font-size: 18px;
+      font-weight: 700;
+    }
+    .meta {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      color: var(--muted);
+      font-size: 14px;
+      margin-bottom: 10px;
+    }
+    .actions {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+    }
+    .results {
+      max-height: 210px;
+      overflow: auto;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+      margin-top: 10px;
+    }
+    .result {
+      width: 100%;
+      display: grid;
+      gap: 2px;
+      text-align: left;
+      border: 0;
+      border-bottom: 1px solid var(--line);
+      border-radius: 0;
+      padding: 10px 12px;
+      min-height: auto;
+    }
+    .result:last-child { border-bottom: 0; }
+    .result strong { font-size: 15px; }
+    .result span { color: var(--muted); font-size: 13px; }
+    .privacy {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-top: 10px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+    .privacy input {
+      width: auto;
+      min-height: auto;
+    }
+    dialog {
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 18px;
+      width: min(420px, calc(100vw - 32px));
+      color: var(--text);
+    }
+    dialog::backdrop { background: rgba(15, 23, 42, .32); }
+    .dialog-actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-top: 12px;
+    }
+    @media (min-width: 900px) {
+      .app {
+        width: min(1180px, 100%);
+        margin: 0 auto;
+      }
+      .map-shell { min-height: 680px; }
+      .sheet {
+        border: 1px solid var(--line);
+        border-radius: 8px 8px 0 0;
+        margin: 0 12px;
+      }
+    }
   </style>
 </head>
 <body>
   <div class="app">
     <header class="topbar">
-      <div class="brand"><h1>地下街室內導航系統</h1><span>用戶端</span></div>
-      <div class="search"><input id="searchInput" type="search" placeholder="輸入地點、設施或分類"><button id="searchButton" class="primary">搜尋</button></div>
-      <select id="mapSelect" aria-label="選擇地圖"><option value="tkut-demo">淡江校園展示場域</option></select>
+      <div class="brand">
+        <h1>地下街室內導航系統</h1>
+        <span>用戶端</span>
+      </div>
+      <div class="search">
+        <input id="searchInput" type="search" placeholder="輸入地點、設施或分類">
+        <button id="searchButton" class="primary">搜尋</button>
+      </div>
+      <select id="mapSelect" aria-label="選擇地圖"></select>
     </header>
+
     <main class="map-shell">
       <canvas id="mapCanvas"></canvas>
-      <div class="status-chip"><span id="floorLabel">地面層</span><span id="dataStatus">使用展示資料</span></div>
+      <div class="status-chip">
+        <span id="floorLabel">地面層</span>
+        <span id="dataStatus">讀取資料中</span>
+      </div>
       <div id="floorButtons" class="floor-switch"></div>
-      <div class="map-tools"><button id="relocateButton">定位</button><button id="zoomInButton">+</button><button id="zoomOutButton">-</button><button id="resetButton">2D</button></div>
+      <div class="map-tools">
+        <button id="relocateButton">定位</button>
+        <button id="zoomInButton">+</button>
+        <button id="zoomOutButton">-</button>
+        <button id="resetButton">2D</button>
+      </div>
     </main>
+
     <section class="sheet">
       <p id="nextStep" class="next-step">請搜尋目的地，或從結果中選擇地點。</p>
-      <div class="meta"><span id="destinationText">目的地：尚未選擇</span><span id="distanceText">距離：-- 公尺</span><span id="timeText">時間：-- 分鐘</span><span id="headingText">方向：--</span></div>
-      <div class="actions"><button id="showRouteButton">顯示路線</button><button id="startButton" class="primary">開始導航</button><button id="endButton">結束導航</button></div>
+      <div class="meta">
+        <span id="destinationText">目的地：尚未選擇</span>
+        <span id="distanceText">距離：-- 公尺</span>
+        <span id="timeText">時間：-- 分鐘</span>
+        <span id="headingText">方向：--</span>
+      </div>
+      <div class="actions">
+        <button id="showRouteButton">顯示路線</button>
+        <button id="startButton" class="primary">開始導航</button>
+        <button id="endButton">結束導航</button>
+      </div>
       <div id="results" class="results" hidden></div>
-      <label class="privacy"><span>協助改善定位：匿名上傳必要定位狀態，不包含姓名或聯絡資訊。</span><input id="feedbackSwitch" type="checkbox"></label>
+      <label class="privacy">
+        <span>協助改善定位：匿名上傳必要定位狀態，不包含姓名或聯絡資訊。</span>
+        <input id="feedbackSwitch" type="checkbox">
+      </label>
     </section>
   </div>
-  <dialog id="privacyDialog"><h2>協助改善定位</h2><p>系統可在導航過程中匿名記錄必要定位狀態，用於改善定位品質。不包含姓名、電話或個人聯絡資訊。瀏覽器版無法讀取 Wi-Fi RSSI，因此不會從網頁蒐集 Wi-Fi 指紋。</p><div class="dialog-actions"><button id="declinePrivacy">先不要</button><button id="acceptPrivacy" class="primary">同意</button></div></dialog>
+
+  <dialog id="privacyDialog">
+    <h2>協助改善定位</h2>
+    <p>系統可在導航過程中匿名上傳必要定位狀態，用於改善定位品質。不包含姓名、電話或個人聯絡資訊。瀏覽器版無法讀取 Wi-Fi RSSI，因此不會從網頁蒐集 Wi-Fi 指紋。</p>
+    <div class="dialog-actions">
+      <button id="declinePrivacy">先不要</button>
+      <button id="acceptPrivacy" class="primary">同意</button>
+    </div>
+  </dialog>
+
   <script>
-    const floors=[{id:'ground',name:'地面層',short:'1F'},{id:'second',name:'二樓',short:'2F'}];
-    const places=[{id:'gate',name:'校門入口',category:'出口',floorId:'ground',x:120,y:680},{id:'parking',name:'停車場 A',category:'停車場',floorId:'ground',x:250,y:570},{id:'restroom',name:'廁所 A',category:'廁所',floorId:'ground',x:430,y:420},{id:'service',name:'服務台',category:'服務台',floorId:'ground',x:610,y:500},{id:'library',name:'圖書館',category:'設施',floorId:'ground',x:520,y:330},{id:'engineering',name:'工學大樓',category:'建築',floorId:'ground',x:790,y:360},{id:'office2',name:'二樓辦公室',category:'辦公室',floorId:'second',x:610,y:300},{id:'elevator2',name:'二樓電梯口',category:'電梯',floorId:'second',x:610,y:500}];
-    const state={floorId:'ground',current:{x:180,y:620,floorId:'ground'},heading:null,destination:null,route:[],distance:0,time:0,zoom:1,feedbackAllowed:localStorage.getItem('feedbackAllowed')==='true'};
-    const world={left:0,top:250,width:900,height:480};
-    const $=s=>document.querySelector(s),canvas=$('#mapCanvas'),ctx=canvas.getContext('2d');
-    $('#searchButton').onclick=search;$('#searchInput').addEventListener('keydown',e=>{if(e.key==='Enter')search()});$('#relocateButton').onclick=relocate;$('#zoomInButton').onclick=()=>zoom(state.zoom*1.2);$('#zoomOutButton').onclick=()=>zoom(state.zoom/1.2);$('#resetButton').onclick=()=>zoom(1);$('#showRouteButton').onclick=showRoute;$('#startButton').onclick=startNavigation;$('#endButton').onclick=endNavigation;$('#acceptPrivacy').onclick=()=>setFeedback(true);$('#declinePrivacy').onclick=()=>setFeedback(false);$('#feedbackSwitch').onchange=()=>$('#feedbackSwitch').checked?$('#privacyDialog').showModal():setFeedback(false);window.addEventListener('resize',resize);window.addEventListener('deviceorientation',e=>{if(Number.isFinite(Number(e.alpha))){state.heading=Number(e.alpha);$('#headingText').textContent=`方向：${Math.round(state.heading)}°`;draw()}});
+    const state = {
+      maps: [],
+      floors: [],
+      places: [],
+      currentMapId: "tkut-demo",
+      currentFloorId: "tkut-demo-ground",
+      current: { x: 180, y: 620, floorId: "tkut-demo-ground" },
+      heading: null,
+      destination: null,
+      route: [],
+      routeDistance: 0,
+      routeTime: 0,
+      zoom: 1,
+      navigationActive: false,
+      feedbackAllowed: localStorage.getItem("feedbackAllowed") === "true",
+    };
+
+    const canvas = document.querySelector("#mapCanvas");
+    const ctx = canvas.getContext("2d");
+    const mapSelect = document.querySelector("#mapSelect");
+    const searchInput = document.querySelector("#searchInput");
+    const results = document.querySelector("#results");
+    const floorButtons = document.querySelector("#floorButtons");
+    const floorLabel = document.querySelector("#floorLabel");
+    const dataStatus = document.querySelector("#dataStatus");
+    const nextStep = document.querySelector("#nextStep");
+    const destinationText = document.querySelector("#destinationText");
+    const distanceText = document.querySelector("#distanceText");
+    const timeText = document.querySelector("#timeText");
+    const headingText = document.querySelector("#headingText");
+    const feedbackSwitch = document.querySelector("#feedbackSwitch");
+    const privacyDialog = document.querySelector("#privacyDialog");
+
+    const world = { left: 0, top: 250, width: 900, height: 480 };
+
+    document.querySelector("#searchButton").addEventListener("click", performSearch);
+    searchInput.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") performSearch();
+    });
+    document.querySelector("#relocateButton").addEventListener("click", relocate);
+    document.querySelector("#zoomInButton").addEventListener("click", () => setZoom(state.zoom * 1.2));
+    document.querySelector("#zoomOutButton").addEventListener("click", () => setZoom(state.zoom / 1.2));
+    document.querySelector("#resetButton").addEventListener("click", () => setZoom(1));
+    document.querySelector("#showRouteButton").addEventListener("click", showRoute);
+    document.querySelector("#startButton").addEventListener("click", startNavigation);
+    document.querySelector("#endButton").addEventListener("click", endNavigation);
+    document.querySelector("#acceptPrivacy").addEventListener("click", () => setFeedbackAllowed(true));
+    document.querySelector("#declinePrivacy").addEventListener("click", () => setFeedbackAllowed(false));
+    feedbackSwitch.addEventListener("change", () => {
+      if (feedbackSwitch.checked) {
+        privacyDialog.showModal();
+      } else {
+        setFeedbackAllowed(false);
+      }
+    });
+    mapSelect.addEventListener("change", async () => {
+      state.currentMapId = mapSelect.value;
+      await loadFloors();
+      await loadPlaces();
+      renderAll();
+    });
+
+    window.addEventListener("resize", resizeCanvas);
+    window.addEventListener("deviceorientationabsolute", handleOrientation, true);
+    window.addEventListener("deviceorientation", handleOrientation, true);
+
     init();
-    function init(){if(!localStorage.getItem('feedbackConsentAsked'))$('#privacyDialog').showModal();$('#feedbackSwitch').checked=state.feedbackAllowed;renderFloors();resize();search();draw()}
-    function renderFloors(){const box=$('#floorButtons');box.innerHTML='';floors.forEach(f=>{const b=document.createElement('button');b.textContent=f.short;b.className=f.id===state.floorId?'active':'';b.onclick=()=>{state.floorId=f.id;state.current.floorId=f.id;renderFloors();updateLabels();draw()};box.appendChild(b)})}
-    function search(){const key=$('#searchInput').value.trim().toLowerCase();const matched=places.filter(p=>!key?p.floorId===state.floorId:[p.name,p.category].some(v=>v.toLowerCase().includes(key))).slice(0,20);const r=$('#results');r.hidden=!matched.length;r.innerHTML=matched.map(p=>`<button class="result" data-id="${p.id}"><strong>${p.name}</strong><span>${floorName(p.floorId)}｜${p.category}｜${Math.round(dist(p,state.current))} 公尺｜可導航</span></button>`).join('');r.querySelectorAll('.result').forEach(b=>b.onclick=()=>selectPlace(b.dataset.id));draw()}
-    function selectPlace(id){state.destination=places.find(p=>p.id===id)||null;state.route=[];if(state.destination){$('#destinationText').textContent=`目的地：${state.destination.name}`;$('#nextStep').textContent=`${state.destination.name} 已設為目的地。`}draw()}
-    function showRoute(){if(!state.destination){$('#nextStep').textContent='請先選擇目的地。';return}state.route=buildRoute();state.distance=routeDistance(state.route);state.time=Math.max(1,Math.ceil(state.distance/80));$('#distanceText').textContent=`距離：${Math.round(state.distance)} 公尺`;$('#timeText').textContent=`時間：${state.time} 分鐘`;$('#nextStep').textContent=nextStep();draw()}
-    function startNavigation(){if(!state.destination){$('#nextStep').textContent='請先選擇目的地。';return}if(!state.route.length)showRoute();$('#nextStep').textContent=nextStep()}
-    function endNavigation(){state.route=[];$('#nextStep').textContent='導航已結束。';draw()}
-    function relocate(){$('#nextStep').textContent='瀏覽器版暫以展示目前位置顯示；Wi-Fi 指紋採樣請使用 Android 管理者工具。';state.current={x:180,y:620,floorId:state.floorId};draw()}
-    function buildRoute(){const d=state.destination;if(!d)return[];if(d.floorId!==state.current.floorId)return[{x:state.current.x,y:state.current.y,floorId:state.current.floorId},{x:250,y:570,floorId:state.current.floorId},{x:390,y:500,floorId:state.current.floorId},{x:610,y:500,floorId:state.current.floorId},{x:610,y:500,floorId:d.floorId},{x:610,y:390,floorId:d.floorId},{x:d.x,y:d.y,floorId:d.floorId}];return[{x:state.current.x,y:state.current.y,floorId:state.current.floorId},{x:250,y:570,floorId:state.current.floorId},{x:390,y:500,floorId:state.current.floorId},{x:d.x,y:d.y,floorId:d.floorId}]}
-    function nextStep(){if(!state.destination)return'請搜尋目的地，或從結果中選擇地點。';if(state.destination.floorId!==state.current.floorId)return`請前往樓層連接點，再切換到 ${floorName(state.destination.floorId)}。`;return`沿著路線前進，目的地是 ${state.destination.name}。`}
-    function updateLabels(){$('#floorLabel').textContent=floorName(state.floorId);$('#headingText').textContent=state.heading==null?'方向：--':`方向：${Math.round(state.heading)}°`}
-    function resize(){const r=canvas.getBoundingClientRect(),ratio=devicePixelRatio||1;canvas.width=Math.max(1,Math.round(r.width*ratio));canvas.height=Math.max(1,Math.round(r.height*ratio));ctx.setTransform(ratio,0,0,ratio,0,0);draw()}
-    function draw(){updateLabels();const r=canvas.getBoundingClientRect();ctx.clearRect(0,0,r.width,r.height);ctx.fillStyle='#fafbfc';ctx.fillRect(0,0,r.width,r.height);walkways();route();placeDots();currentArrow()}
-    function walkways(){ctx.lineWidth=28;ctx.lineCap='round';ctx.lineJoin='round';ctx.strokeStyle=getComputedStyle(document.documentElement).getPropertyValue('--walk').trim();if(state.floorId==='second'){line([{x:610,y:500},{x:610,y:390},{x:610,y:300}]);line([{x:610,y:390},{x:700,y:390}])}else{line([{x:120,y:680},{x:250,y:570},{x:390,y:500},{x:610,y:500},{x:790,y:360}]);line([{x:390,y:500},{x:430,y:420},{x:520,y:330}])}}
-    function route(){const pts=state.route.filter(p=>p.floorId===state.floorId);if(pts.length<2)return;ctx.lineCap='round';ctx.lineJoin='round';ctx.lineWidth=18;ctx.strokeStyle='#fff';line(pts);ctx.lineWidth=10;ctx.strokeStyle=getComputedStyle(document.documentElement).getPropertyValue('--route').trim();line(pts)}
-    function placeDots(){ctx.font='14px Microsoft JhengHei, sans-serif';ctx.textBaseline='middle';places.filter(p=>p.floorId===state.floorId).forEach(p=>{const s=screen(p.x,p.y),selected=state.destination&&state.destination.id===p.id;ctx.fillStyle=selected?'#b42318':'#55606c';ctx.beginPath();ctx.arc(s.x,s.y,selected?7:5,0,Math.PI*2);ctx.fill();ctx.fillStyle='#1f2933';ctx.fillText(p.name,s.x+10,s.y-8)})}
-    function currentArrow(){const p=screen(state.current.x,state.current.y);ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(p.x,p.y,14,0,Math.PI*2);ctx.fill();if(state.heading==null){ctx.fillStyle='#2563eb';ctx.beginPath();ctx.arc(p.x,p.y,8,0,Math.PI*2);ctx.fill()}else{const rad=state.heading*Math.PI/180;ctx.fillStyle='#2563eb';ctx.strokeStyle='#fff';ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(p.x+Math.sin(rad)*20,p.y-Math.cos(rad)*20);ctx.lineTo(p.x+Math.sin(rad+2.44)*13,p.y-Math.cos(rad+2.44)*13);ctx.lineTo(p.x,p.y);ctx.lineTo(p.x+Math.sin(rad-2.44)*13,p.y-Math.cos(rad-2.44)*13);ctx.closePath();ctx.fill();ctx.stroke()}ctx.fillStyle='#1f2933';ctx.font='14px Microsoft JhengHei, sans-serif';ctx.fillText('目前位置',p.x+18,p.y+4)}
-    function line(pts){ctx.beginPath();pts.forEach((p,i)=>{const s=screen(p.x,p.y);i?ctx.lineTo(s.x,s.y):ctx.moveTo(s.x,s.y)});ctx.stroke()}
-    function screen(x,y){const r=canvas.getBoundingClientRect(),pad=28,sx=pad+((x-world.left)/world.width)*(r.width-pad*2),sy=pad+((y-world.top)/world.height)*(r.height-pad*2);return{x:r.width/2+(sx-r.width/2)*state.zoom,y:r.height/2+(sy-r.height/2)*state.zoom}}
-    function zoom(v){state.zoom=Math.max(.85,Math.min(2.8,v));draw()}function floorName(id){return floors.find(f=>f.id===id)?.name||id}function dist(a,b){return Math.hypot(a.x-b.x,a.y-b.y)}function routeDistance(pts){return pts.slice(1).reduce((s,p,i)=>s+dist(p,pts[i]),0)}function setFeedback(v){state.feedbackAllowed=v;$('#feedbackSwitch').checked=v;localStorage.setItem('feedbackConsentAsked','true');localStorage.setItem('feedbackAllowed',String(v));$('#privacyDialog').close()}
+
+    async function init() {
+      feedbackSwitch.checked = state.feedbackAllowed;
+      if (!localStorage.getItem("feedbackConsentAsked")) {
+        privacyDialog.showModal();
+      }
+      await loadMaps();
+      await loadFloors();
+      await loadPlaces();
+      resizeCanvas();
+      performSearch();
+      renderAll();
+    }
+
+    async function loadMaps() {
+      const maps = await fetchJson("/api/maps");
+      state.maps = maps.length ? maps : [{ id: "tkut-demo", name: "地下街室內導航展示場域" }];
+      if (!state.maps.some((map) => map.id === state.currentMapId)) {
+        state.currentMapId = state.maps[0].id;
+      }
+      mapSelect.innerHTML = state.maps.map((map) => `<option value="${escapeHtml(map.id)}">${escapeHtml(map.name || map.id)}</option>`).join("");
+      mapSelect.value = state.currentMapId;
+    }
+
+    async function loadFloors() {
+      const floors = await fetchJson(`/api/floors?mapId=${encodeURIComponent(state.currentMapId)}`);
+      state.floors = floors.length ? floors : [
+        { id: "tkut-demo-ground", floorName: "地面層" },
+        { id: "tkut-demo-second", floorName: "二樓" },
+      ];
+      if (!state.floors.some((floor) => floor.id === state.currentFloorId)) {
+        state.currentFloorId = state.floors[0].id;
+        state.current.floorId = state.currentFloorId;
+      }
+      renderFloorButtons();
+    }
+
+    async function loadPlaces() {
+      state.places = await fetchJson(`/api/places?mapId=${encodeURIComponent(state.currentMapId)}`);
+      dataStatus.textContent = state.places.length ? "已載入地點資料" : "尚無地點資料";
+    }
+
+    function renderFloorButtons() {
+      floorButtons.innerHTML = "";
+      state.floors.forEach((floor, index) => {
+        const button = document.createElement("button");
+        button.textContent = shortFloorName(floor, index);
+        button.className = floor.id === state.currentFloorId ? "active" : "";
+        button.addEventListener("click", () => {
+          state.currentFloorId = floor.id;
+          state.current.floorId = floor.id;
+          renderAll();
+        });
+        floorButtons.appendChild(button);
+      });
+    }
+
+    function performSearch() {
+      const keyword = searchInput.value.trim().toLowerCase();
+      const matched = state.places
+        .filter((place) => {
+          if (!keyword) return place.floorId === state.currentFloorId;
+          return [place.name, place.category, place.description].some((value) => String(value || "").toLowerCase().includes(keyword));
+        })
+        .slice(0, 20);
+      results.hidden = matched.length === 0;
+      results.innerHTML = matched.map((place) => `
+        <button class="result" data-id="${escapeHtml(place.id)}">
+          <strong>${escapeHtml(place.name)}</strong>
+          <span>${escapeHtml(floorName(place.floorId))}｜${escapeHtml(place.category || "地點")}｜${distance(place.x, place.y, state.current.x, state.current.y).toFixed(0)} 公尺｜可導航</span>
+        </button>
+      `).join("");
+      results.querySelectorAll(".result").forEach((button) => {
+        button.addEventListener("click", () => selectDestination(button.dataset.id));
+      });
+      renderAll();
+    }
+
+    function selectDestination(id) {
+      state.destination = state.places.find((place) => place.id === id) || null;
+      state.route = [];
+      if (state.destination) {
+        destinationText.textContent = `目的地：${state.destination.name}`;
+        nextStep.textContent = `${state.destination.name} 已設為目的地。`;
+        if (state.destination.floorId !== state.currentFloorId) {
+          state.currentFloorId = state.destination.floorId;
+          state.current.floorId = state.currentFloorId;
+          renderFloorButtons();
+        }
+      }
+      renderAll();
+    }
+
+    async function showRoute() {
+      if (!state.destination) {
+        nextStep.textContent = "請先選擇目的地。";
+        return;
+      }
+      const body = {
+        mapId: state.currentMapId,
+        startFloorId: state.current.floorId,
+        targetFloorId: state.destination.floorId,
+        startX: state.current.x,
+        startY: state.current.y,
+        destinationPlaceId: state.destination.id,
+      };
+      try {
+        const route = await postJson("/api/routes", body);
+        state.route = (route.routePoints || []).map((point) => ({
+          x: Number(point.x || 0),
+          y: Number(point.y || 0),
+          floorId: point.floorId || state.currentFloorId,
+        }));
+        state.routeDistance = Number(route.distance || 0);
+        state.routeTime = Math.max(1, Number(route.estimatedTime || 1));
+      } catch {
+        state.route = buildLocalRoute();
+        state.routeDistance = routeDistance(state.route);
+        state.routeTime = Math.max(1, Math.ceil(state.routeDistance / 80));
+      }
+      distanceText.textContent = `距離：${Math.round(state.routeDistance)} 公尺`;
+      timeText.textContent = `時間：${state.routeTime} 分鐘`;
+      nextStep.textContent = nextStepText();
+      renderAll();
+    }
+
+    function startNavigation() {
+      if (!state.destination) {
+        nextStep.textContent = "請先選擇目的地。";
+        return;
+      }
+      state.navigationActive = true;
+      nextStep.textContent = nextStepText();
+      submitFeedback(false);
+    }
+
+    function endNavigation() {
+      state.navigationActive = false;
+      state.route = [];
+      nextStep.textContent = "導航已結束。";
+      submitFeedback(true);
+      renderAll();
+    }
+
+    function relocate() {
+      nextStep.textContent = "瀏覽器版無法讀取 Wi-Fi RSSI，暫以目前位置顯示。";
+      state.current = { x: 180, y: 620, floorId: state.currentFloorId };
+      renderAll();
+    }
+
+    function buildLocalRoute() {
+      if (!state.destination) return [];
+      if (state.destination.floorId !== state.current.floorId) {
+        return [
+          { x: state.current.x, y: state.current.y, floorId: state.current.floorId },
+          { x: 250, y: 570, floorId: state.current.floorId },
+          { x: 390, y: 500, floorId: state.current.floorId },
+          { x: 610, y: 500, floorId: state.current.floorId },
+          { x: 610, y: 500, floorId: state.destination.floorId },
+          { x: 610, y: 390, floorId: state.destination.floorId },
+          { x: state.destination.x, y: state.destination.y, floorId: state.destination.floorId },
+        ];
+      }
+      return [
+        { x: state.current.x, y: state.current.y, floorId: state.current.floorId },
+        { x: 250, y: 570, floorId: state.current.floorId },
+        { x: 390, y: 500, floorId: state.current.floorId },
+        { x: state.destination.x, y: state.destination.y, floorId: state.current.floorId },
+      ];
+    }
+
+    function renderAll() {
+      renderFloorButtons();
+      floorLabel.textContent = floorName(state.currentFloorId);
+      destinationText.textContent = state.destination ? `目的地：${state.destination.name}` : "目的地：尚未選擇";
+      headingText.textContent = state.heading == null ? "方向：--" : `方向：${Math.round(state.heading)}°`;
+      drawMap();
+    }
+
+    function resizeCanvas() {
+      const rect = canvas.getBoundingClientRect();
+      const ratio = window.devicePixelRatio || 1;
+      canvas.width = Math.max(1, Math.round(rect.width * ratio));
+      canvas.height = Math.max(1, Math.round(rect.height * ratio));
+      ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+      drawMap();
+    }
+
+    function drawMap() {
+      const rect = canvas.getBoundingClientRect();
+      ctx.clearRect(0, 0, rect.width, rect.height);
+      ctx.fillStyle = "#fafbfc";
+      ctx.fillRect(0, 0, rect.width, rect.height);
+      drawWalkways();
+      drawRoute();
+      drawPlaces();
+      drawCurrent();
+    }
+
+    function drawWalkways() {
+      ctx.lineWidth = 28;
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
+      ctx.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue("--walkway").trim();
+      if (isSecondFloor(state.currentFloorId)) {
+        drawPolyline([{ x: 610, y: 500 }, { x: 610, y: 390 }, { x: 610, y: 300 }]);
+        drawPolyline([{ x: 610, y: 390 }, { x: 700, y: 390 }]);
+      } else {
+        drawPolyline([{ x: 120, y: 680 }, { x: 250, y: 570 }, { x: 390, y: 500 }, { x: 610, y: 500 }, { x: 790, y: 360 }]);
+        drawPolyline([{ x: 390, y: 500 }, { x: 430, y: 420 }, { x: 520, y: 330 }]);
+      }
+    }
+
+    function drawRoute() {
+      const visible = state.route.filter((point) => !point.floorId || point.floorId === state.currentFloorId);
+      if (visible.length < 2) return;
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
+      ctx.lineWidth = 18;
+      ctx.strokeStyle = "#ffffff";
+      drawPolyline(visible);
+      ctx.lineWidth = 10;
+      ctx.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue("--route").trim();
+      drawPolyline(visible);
+    }
+
+    function drawPlaces() {
+      ctx.font = "14px Microsoft JhengHei, sans-serif";
+      ctx.textBaseline = "middle";
+      state.places.filter((place) => place.floorId === state.currentFloorId).forEach((place) => {
+        const point = screen(place.x, place.y);
+        const selected = state.destination && state.destination.id === place.id;
+        ctx.fillStyle = selected ? "#b42318" : "#55606c";
+        ctx.beginPath();
+        ctx.arc(point.x, point.y, selected ? 7 : 5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = "#1f2933";
+        ctx.fillText(place.name, point.x + 10, point.y - 8);
+      });
+    }
+
+    function drawCurrent() {
+      const point = screen(state.current.x, state.current.y);
+      ctx.fillStyle = "#ffffff";
+      ctx.beginPath();
+      ctx.arc(point.x, point.y, 14, 0, Math.PI * 2);
+      ctx.fill();
+      if (state.heading == null) {
+        ctx.fillStyle = "#2563eb";
+        ctx.beginPath();
+        ctx.arc(point.x, point.y, 8, 0, Math.PI * 2);
+        ctx.fill();
+      } else {
+        const rad = state.heading * Math.PI / 180;
+        const tip = { x: point.x + Math.sin(rad) * 20, y: point.y - Math.cos(rad) * 20 };
+        const leftRad = rad + 140 * Math.PI / 180;
+        const rightRad = rad - 140 * Math.PI / 180;
+        ctx.fillStyle = "#2563eb";
+        ctx.strokeStyle = "#ffffff";
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(tip.x, tip.y);
+        ctx.lineTo(point.x + Math.sin(leftRad) * 13, point.y - Math.cos(leftRad) * 13);
+        ctx.lineTo(point.x, point.y);
+        ctx.lineTo(point.x + Math.sin(rightRad) * 13, point.y - Math.cos(rightRad) * 13);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+      }
+      ctx.fillStyle = "#1f2933";
+      ctx.font = "14px Microsoft JhengHei, sans-serif";
+      ctx.fillText("目前位置", point.x + 18, point.y + 4);
+    }
+
+    function drawPolyline(points) {
+      ctx.beginPath();
+      points.forEach((point, index) => {
+        const next = screen(point.x, point.y);
+        if (index === 0) ctx.moveTo(next.x, next.y);
+        else ctx.lineTo(next.x, next.y);
+      });
+      ctx.stroke();
+    }
+
+    function screen(x, y) {
+      const rect = canvas.getBoundingClientRect();
+      const padding = 28;
+      const sx = padding + ((x - world.left) / world.width) * (rect.width - padding * 2);
+      const sy = padding + ((y - world.top) / world.height) * (rect.height - padding * 2);
+      return {
+        x: rect.width / 2 + (sx - rect.width / 2) * state.zoom,
+        y: rect.height / 2 + (sy - rect.height / 2) * state.zoom,
+      };
+    }
+
+    function setZoom(value) {
+      state.zoom = Math.max(0.85, Math.min(2.8, value));
+      drawMap();
+    }
+
+    function handleOrientation(event) {
+      const alpha = Number(event.alpha);
+      if (Number.isFinite(alpha)) {
+        state.heading = alpha;
+        headingText.textContent = `方向：${Math.round(alpha)}°`;
+        drawMap();
+      }
+    }
+
+    async function submitFeedback(arrivedDestination) {
+      if (!state.feedbackAllowed || !state.destination) return;
+      await postJson("/api/navigation-feedback", {
+        anonymousUserId: anonymousId(),
+        mapId: state.currentMapId,
+        floorId: state.currentFloorId,
+        estimatedX: state.current.x,
+        estimatedY: state.current.y,
+        currentRouteId: "web-demo-route",
+        nearestRouteNodeId: "web-demo",
+        currentWifiList: [],
+        heading: state.heading,
+        stepDelta: 0,
+        confidence: 35,
+        estimatedError: 20,
+        isOffRoute: false,
+        relocalizeCount: 0,
+        arrivedDestination,
+        deviceInfo: navigator.userAgent,
+        collectedAt: Date.now(),
+      }).catch(() => {});
+    }
+
+    function nextStepText() {
+      if (!state.destination) return "請搜尋目的地，或從結果中選擇地點。";
+      if (state.destination.floorId !== state.current.floorId) {
+        return `請先前往樓層連接點，再切換到 ${floorName(state.destination.floorId)}。`;
+      }
+      return `沿著路線前進，目的地是 ${state.destination.name}。`;
+    }
+
+    function setFeedbackAllowed(allowed) {
+      state.feedbackAllowed = allowed;
+      feedbackSwitch.checked = allowed;
+      localStorage.setItem("feedbackConsentAsked", "true");
+      localStorage.setItem("feedbackAllowed", String(allowed));
+      privacyDialog.close();
+    }
+
+    function floorName(id) {
+      const floor = state.floors.find((item) => item.id === id);
+      return floor ? (floor.floorName || floor.name || floor.id) : id;
+    }
+
+    function shortFloorName(floor, index) {
+      const name = floor.floorName || floor.name || floor.id;
+      if (/ground|地面|一樓|1f/i.test(`${floor.id} ${name}`)) return "1F";
+      if (/second|二樓|2f|2/i.test(`${floor.id} ${name}`)) return "2F";
+      return name.length <= 3 ? name : `${index + 1}F`;
+    }
+
+    function isSecondFloor(id) {
+      return /second|2|二樓/i.test(`${id} ${floorName(id)}`);
+    }
+
+    function routeDistance(points) {
+      return points.slice(1).reduce((sum, point, index) => sum + distance(point.x, point.y, points[index].x, points[index].y), 0);
+    }
+
+    function distance(x1, y1, x2, y2) {
+      return Math.hypot(x1 - x2, y1 - y2);
+    }
+
+    async function fetchJson(url) {
+      const response = await fetch(url);
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      return response.json();
+    }
+
+    async function postJson(url, body) {
+      const response = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      return response.json();
+    }
+
+    function anonymousId() {
+      let id = localStorage.getItem("anonymousUserId");
+      if (!id) {
+        id = crypto.randomUUID ? crypto.randomUUID() : `web-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+        localStorage.setItem("anonymousUserId", id);
+      }
+      return id;
+    }
+
+    function escapeHtml(value) {
+      return String(value ?? "").replace(/[&<>"']/g, (char) => ({
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        "\"": "&quot;",
+        "'": "&#039;",
+      }[char]));
+    }
   </script>
 </body>
 </html>
