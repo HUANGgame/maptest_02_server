@@ -10,6 +10,7 @@
   "scripts": {
     "start": "node server.js",
     "start:3015": "PORT=3015 node server.js",
+    "import:android-wifi": "node scripts/import-android-wifi-csv.js",
     "smoke": "node scripts/smoke-test.js"
   },
   "license": "MIT"

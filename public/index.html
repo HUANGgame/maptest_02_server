@@ -39,7 +39,7 @@
     }
     .topbar {
       display: grid;
-      grid-template-columns: 1fr auto;
+      grid-template-columns: 1fr;
       gap: 10px;
       padding: calc(12px + env(safe-area-inset-top)) 12px 10px;
       background: var(--panel);
@@ -64,8 +64,11 @@
     }
     .search {
       display: grid;
-      grid-template-columns: 1fr auto;
+      grid-template-columns: minmax(0, 1fr) auto;
       gap: 8px;
+    }
+    #searchInput {
+      min-width: 0;
     }
     input, select {
       width: 100%;
@@ -231,6 +234,9 @@
       .app {
         width: min(1180px, 100%);
         margin: 0 auto;
+      }
+      .topbar {
+        grid-template-columns: minmax(360px, 1fr) minmax(260px, auto);
       }
       .map-shell { min-height: 680px; }
       .sheet {
