@@ -310,14 +310,14 @@
     <main class="map-shell">
       <canvas id="mapCanvas"></canvas>
       <div class="status-chip">
-        <span id="floorLabel">地面層</span>
+        <span id="floorLabel">樓層</span>
         <span id="dataStatus">讀取資料中</span>
       </div>
       <div id="navFlash" class="nav-flash">開始導航</div>
       <div id="floorButtons" class="floor-switch"></div>
       <div class="map-tools">
-        <button id="relocateButton">定位</button>
-        <button id="pointModeButton">?</button>
+        <button id="relocateButton">北</button>
+        <button id="pointModeButton">顯示</button>
         <button id="zoomInButton">+</button>
         <button id="zoomOutButton">-</button>
         <button id="resetButton">2D</button>
@@ -330,7 +330,7 @@
         <span id="destinationText">目的地：尚未選擇</span>
         <span id="distanceText">距離：-- 公尺</span>
         <span id="timeText">時間：-- 分鐘</span>
-        <span id="headingText">方向：--</span>
+        <span id="headingText" hidden></span>
       </div>
       <div class="actions">
         <button id="showRouteButton">顯示路線</button>
@@ -339,17 +339,17 @@
       </div>
       <div id="results" class="results" hidden></div>
       <label class="privacy">
-        <span>協助改善定位：匿名上傳必要定位狀態，不包含姓名或聯絡資訊。</span>
+        <span>協助改善定位：匿名上傳必要定位狀態，不包含姓名或個人身分資料。</span>
         <input id="feedbackSwitch" type="checkbox">
       </label>
     </section>
   </div>
 
   <dialog id="privacyDialog">
-    <h2>協助改善定位</h2>
-    <p>系統可在導航過程中匿名上傳必要定位狀態，用於改善定位品質。不包含姓名、電話或個人聯絡資訊。瀏覽器版無法讀取 Wi-Fi RSSI，因此不會從網頁蒐集 Wi-Fi 指紋。</p>
+    <h2>定位資料說明</h2>
+    <p>系統可在取得同意後，匿名上傳導航過程中的 Wi-Fi 訊號與定位狀態，用於改善定位準確度，不包含姓名、電話或個人身分資料。</p>
     <div class="dialog-actions">
-      <button id="declinePrivacy">先不要</button>
+      <button id="declinePrivacy">不同意</button>
       <button id="acceptPrivacy" class="primary">同意</button>
     </div>
   </dialog>
@@ -372,7 +372,7 @@
       zoom: 1,
       viewOffsetX: 0,
       viewOffsetY: 0,
-      headingFollow: false,
+      viewFollow: false,
       pointDisplayMode: localStorage.getItem("pointDisplayMode") || "important",
       dragStart: null,
       navigationActive: false,
@@ -405,10 +405,10 @@
       if (event.key === "Enter") performSearch();
     });
     const compassButton = document.querySelector("#relocateButton");
-    compassButton.textContent = "⌖";
-    compassButton.title = "切換方向跟隨";
-    compassButton.setAttribute("aria-label", "切換方向跟隨");
-    compassButton.addEventListener("click", toggleHeadingFollow);
+    compassButton.textContent = "北";
+    compassButton.title = "切換視角跟隨";
+    compassButton.setAttribute("aria-label", "切換視角跟隨");
+    compassButton.addEventListener("click", toggleViewFollow);
     const pointModeButton = document.querySelector("#pointModeButton");
     pointModeButton.title = "切換點位顯示";
     pointModeButton.setAttribute("aria-label", "切換點位顯示");
@@ -464,7 +464,7 @@
 
     async function loadMaps() {
       const maps = await fetchJson("/api/maps");
-      state.maps = maps.length ? maps : [{ id: "tkut-demo", name: "地下街室內導航展示場域" }];
+      state.maps = maps.length ? maps : [{ id: "tkut-demo", name: "淡江大學淡水校園 Demo" }];
       if (!state.maps.some((map) => map.id === state.currentMapId)) {
         state.currentMapId = state.maps[0].id;
       }
@@ -629,15 +629,14 @@
       renderAll();
     }
 
-    function toggleHeadingFollow() {
-      state.headingFollow = !state.headingFollow;
-      state.viewOffsetX = 0;
-      state.viewOffsetY = 0;
-      compassButton.classList.toggle("active", state.headingFollow);
-      compassButton.textContent = state.headingFollow ? "?" : "?";
-      nextStep.textContent = state.headingFollow
-        ? "????????????"
-        : "????????????????";
+    function toggleViewFollow() {
+      state.viewFollow = !state.viewFollow;
+      compassButton.classList.toggle("active", state.viewFollow);
+      compassButton.textContent = "北";
+      nextStep.textContent = state.viewFollow
+        ? "視角會跟著目前位置移動，地圖方向固定。"
+        : "地圖方向固定，可拖曳移動視角。";
+      if (state.viewFollow) centerOnCurrent();
       renderAll();
     }
 
@@ -652,17 +651,12 @@
 
     function updatePointModeButton() {
       if (!pointModeButton) return;
-      const labels = {
-        current: "我",
-        important: "重",
-        all: "全",
-      };
       const titles = {
         current: "只顯示我的所在地",
         important: "只顯示重要點",
         all: "顯示全部點",
       };
-      pointModeButton.textContent = labels[state.pointDisplayMode] || labels.important;
+      pointModeButton.textContent = "顯示";
       pointModeButton.title = titles[state.pointDisplayMode] || titles.important;
       pointModeButton.classList.toggle("active", state.pointDisplayMode !== "current");
     }
@@ -694,7 +688,6 @@
       renderFloorButtons();
       floorLabel.textContent = floorName(state.currentFloorId);
       destinationText.textContent = state.destination ? `目的地：${state.destination.name}` : "目的地：尚未選擇";
-      headingText.textContent = state.heading == null ? "方向：--" : `方向：${Math.round(state.heading)}°`;
       drawMap();
     }
 
@@ -862,7 +855,7 @@
       ctx.fillStyle = "#1f2933";
       ctx.font = "700 15px Microsoft JhengHei, sans-serif";
       ctx.textBaseline = "middle";
-      ctx.fillText(`目的地 ${state.destination.name}`, point.x + 24, point.y - 2);
+      ctx.fillText(`目的地：${state.destination.name}`, point.x + 24, point.y - 2);
       ctx.restore();
     }
 
@@ -972,16 +965,20 @@
     }
 
     function screen(x, y) {
-      const point = baseScreen(x, y);
-      if (!state.headingFollow || state.heading == null) return point;
-      const center = baseScreen(state.current.x, state.current.y);
-      const angle = -state.heading * Math.PI / 180;
-      const dx = point.x - center.x;
-      const dy = point.y - center.y;
-      return {
-        x: center.x + dx * Math.cos(angle) - dy * Math.sin(angle),
-        y: center.y + dx * Math.sin(angle) + dy * Math.cos(angle),
-      };
+      return baseScreen(x, y);
+    }
+
+    function centerOnCurrent() {
+      const rect = canvas.getBoundingClientRect();
+      const savedX = state.viewOffsetX;
+      const savedY = state.viewOffsetY;
+      state.viewOffsetX = 0;
+      state.viewOffsetY = 0;
+      const point = baseScreen(state.current.x, state.current.y);
+      state.viewOffsetX = savedX;
+      state.viewOffsetY = savedY;
+      state.viewOffsetX = rect.width / 2 - point.x;
+      state.viewOffsetY = rect.height / 2 - point.y;
     }
 
     function updateWorldFromData() {
@@ -1091,7 +1088,6 @@
       const alpha = Number(event.alpha);
       if (Number.isFinite(alpha)) {
         state.heading = alpha;
-        headingText.textContent = `方向：${Math.round(alpha)}°`;
         drawMap();
       }
     }
