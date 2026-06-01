@@ -2,70 +2,62 @@
 <html lang="zh-Hant">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>淡江校園 Wi-Fi 定位導覽 Demo</title>
-  <link rel="stylesheet" href="/app.css">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>地下街室內導航系統</title>
+  <style>
+    :root{color-scheme:light;--bg:#f5f6f7;--panel:#fff;--line:#d8dee6;--text:#1f2933;--muted:#667085;--blue:#2563eb;--route:#146c63;--walk:#dde4ea;--danger:#b42318}*{box-sizing:border-box}html,body{height:100%}body{margin:0;background:var(--bg);color:var(--text);font-family:"Noto Sans TC","Microsoft JhengHei",system-ui,sans-serif;letter-spacing:0}.app{min-height:100%;display:grid;grid-template-rows:auto 1fr auto}.topbar{display:grid;grid-template-columns:1fr auto;gap:10px;padding:calc(12px + env(safe-area-inset-top)) 12px 10px;background:var(--panel);border-bottom:1px solid var(--line)}.brand{grid-column:1/-1;display:flex;align-items:baseline;justify-content:space-between;gap:12px}.brand h1{margin:0;font-size:18px;line-height:1.2}.brand span{color:var(--muted);font-size:13px;white-space:nowrap}.search{display:grid;grid-template-columns:1fr auto;gap:8px}input,select,button{font:inherit;color:inherit}input,select{width:100%;min-height:44px;border:1px solid var(--line);border-radius:8px;background:#fff;padding:0 12px;outline:none}input:focus,select:focus{border-color:var(--blue)}button{min-height:44px;border:1px solid var(--line);border-radius:8px;background:#fff;padding:0 12px;cursor:pointer}.primary{border-color:var(--blue);background:var(--blue);color:#fff}.map-shell{position:relative;min-height:465px;overflow:hidden;background:#fafbfc}canvas{width:100%;height:100%;display:block;touch-action:none}.status-chip{position:absolute;left:12px;right:12px;top:12px;min-height:40px;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 12px;background:rgba(255,255,255,.96);border:1px solid var(--line);border-radius:8px;color:var(--muted);font-size:13px}.floor-switch,.map-tools{position:absolute;top:76px;display:grid;gap:8px;padding:8px;background:rgba(255,255,255,.94);border:1px solid var(--line);border-radius:8px}.floor-switch{left:12px}.map-tools{right:12px}.floor-switch button,.map-tools button{width:48px;height:44px;padding:0;font-weight:600}.floor-switch button.active{border-color:var(--blue);background:#eff6ff;color:#1d4ed8}.sheet{background:var(--panel);border-top:1px solid var(--line);padding:12px 12px calc(12px + env(safe-area-inset-bottom))}.next-step{margin:0 0 8px;font-size:18px;font-weight:700}.meta{display:flex;gap:12px;flex-wrap:wrap;color:var(--muted);font-size:14px;margin-bottom:10px}.actions{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.results{max-height:220px;overflow:auto;border:1px solid var(--line);border-radius:8px;background:#fff;margin-top:10px}.result{width:100%;display:grid;gap:2px;text-align:left;border:0;border-bottom:1px solid var(--line);border-radius:0;padding:10px 12px;min-height:auto}.result:last-child{border-bottom:0}.result strong{font-size:15px}.result span{color:var(--muted);font-size:13px}.privacy{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:10px;color:var(--muted);font-size:13px}.privacy input{width:auto;min-height:auto}dialog{border:1px solid var(--line);border-radius:10px;padding:18px;width:min(420px,calc(100vw - 32px));color:var(--text)}dialog::backdrop{background:rgba(15,23,42,.32)}.dialog-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}@media(min-width:900px){.app{width:min(1180px,100%);margin:0 auto}.map-shell{min-height:680px}.sheet{border:1px solid var(--line);border-radius:8px 8px 0 0;margin:0 12px}}
+  </style>
 </head>
 <body>
-  <a class="skip-link" href="#controlsPanel" data-i18n="skipToControls">Skip to controls</a>
-  <header>
-    <h1 data-i18n="appTitle">淡江校園 Wi-Fi 定位導覽 Demo</h1>
-    <div class="top-actions">
-      <select id="langSelect" aria-label="Language">
-        <option value="zh">中文</option>
-        <option value="en">English</option>
-      </select>
-      <button id="voiceToggleBtn" class="voice-toggle" type="button" aria-pressed="true">
-        <span class="voice-icon" aria-hidden="true"></span>
-        <span id="voiceToggleText" data-i18n="voiceOn">Voice on</span>
-      </button>
-    </div>
-  </header>
-
-  <main class="layout">
-    <section class="panel">
-      <div class="sr-only" id="audioHelp" role="status" aria-live="polite" data-i18n="audioHelp">
-        Voice guidance is ready. Choose a destination, press Wi-Fi location, then follow the spoken route.
-      </div>
-      <div class="map-shell">
-        <canvas id="mapCanvas" width="1100" height="720" tabindex="0" role="img" aria-label="Tamkang campus navigation map"></canvas>
-        <div class="badge" id="mapBadge" role="status" aria-live="polite" data-i18n="waiting">等待 Wi-Fi 定位</div>
-        <div class="map-tools">
-          <button id="zoomInBtn" type="button" aria-label="Zoom in">+</button>
-          <button id="zoomOutBtn" type="button" aria-label="Zoom out">-</button>
-          <button id="centerBtn" type="button" data-i18n="centerCurrent">Center</button>
-        </div>
-      </div>
-      <div class="hint" id="routeHint" role="status" aria-live="polite" data-i18n="photoHelp">請先按 Wi-Fi 定位；路線會用 A* 自動繞過障礙物。</div>
+  <div class="app">
+    <header class="topbar">
+      <div class="brand"><h1>地下街室內導航系統</h1><span>用戶端</span></div>
+      <div class="search"><input id="searchInput" type="search" placeholder="輸入地點、設施或分類"><button id="searchButton" class="primary">搜尋</button></div>
+      <select id="mapSelect" aria-label="選擇地圖"><option value="tkut-demo">淡江校園展示場域</option></select>
+    </header>
+    <main class="map-shell">
+      <canvas id="mapCanvas"></canvas>
+      <div class="status-chip"><span id="floorLabel">地面層</span><span id="dataStatus">使用展示資料</span></div>
+      <div id="floorButtons" class="floor-switch"></div>
+      <div class="map-tools"><button id="relocateButton">定位</button><button id="zoomInButton">+</button><button id="zoomOutButton">-</button><button id="resetButton">2D</button></div>
+    </main>
+    <section class="sheet">
+      <p id="nextStep" class="next-step">請搜尋目的地，或從結果中選擇地點。</p>
+      <div class="meta"><span id="destinationText">目的地：尚未選擇</span><span id="distanceText">距離：-- 公尺</span><span id="timeText">時間：-- 分鐘</span><span id="headingText">方向：--</span></div>
+      <div class="actions"><button id="showRouteButton">顯示路線</button><button id="startButton" class="primary">開始導航</button><button id="endButton">結束導航</button></div>
+      <div id="results" class="results" hidden></div>
+      <label class="privacy"><span>協助改善定位：匿名上傳必要定位狀態，不包含姓名或聯絡資訊。</span><input id="feedbackSwitch" type="checkbox"></label>
     </section>
-
-    <aside class="panel" id="controlsPanel">
-      <div class="field">
-        <label for="destinationSearch" data-i18n="destinationSearch">Search or choose destination</label>
-        <div class="destination-input-row">
-          <input id="destinationSearch" list="destinationSuggestions" autocomplete="off" data-i18n-placeholder="destinationSearchPlaceholder">
-          <button id="clearDestinationBtn" class="secondary clear-destination" type="button" aria-label="Clear destination" data-i18n="clearDestination">Clear</button>
-        </div>
-        <datalist id="destinationSuggestions"></datalist>
-      </div>
-      <div class="field sr-only">
-        <label for="destPlace" data-i18n="destination">Destination</label>
-        <select id="destPlace"></select>
-      </div>
-      <div class="actions">
-        <button id="wifiLocateBtn" class="primary" type="button" data-i18n="locateByWifi">Wi-Fi 定位</button>
-      </div>
-      <div class="field">
-        <label for="objectPhotoInput" data-i18n="objectPhoto">圖片物品搜尋 Demo</label>
-        <input id="objectPhotoInput" type="file" accept="image/*" capture="environment">
-      </div>
-      <div class="status compact-status" id="historyBox" role="status" aria-live="polite"></div>
-      <div class="status" id="locationBox" role="status" aria-live="polite">-</div>
-      <div class="status" id="statusBox" role="status" aria-live="polite">Server...</div>
-      <div class="sr-only" id="screenReaderSummary" aria-live="assertive"></div>
-    </aside>
-  </main>
-
-  <script src="/user.js"></script>
+  </div>
+  <dialog id="privacyDialog"><h2>協助改善定位</h2><p>系統可在導航過程中匿名記錄必要定位狀態，用於改善定位品質。不包含姓名、電話或個人聯絡資訊。瀏覽器版無法讀取 Wi-Fi RSSI，因此不會從網頁蒐集 Wi-Fi 指紋。</p><div class="dialog-actions"><button id="declinePrivacy">先不要</button><button id="acceptPrivacy" class="primary">同意</button></div></dialog>
+  <script>
+    const floors=[{id:'ground',name:'地面層',short:'1F'},{id:'second',name:'二樓',short:'2F'}];
+    const places=[{id:'gate',name:'校門入口',category:'出口',floorId:'ground',x:120,y:680},{id:'parking',name:'停車場 A',category:'停車場',floorId:'ground',x:250,y:570},{id:'restroom',name:'廁所 A',category:'廁所',floorId:'ground',x:430,y:420},{id:'service',name:'服務台',category:'服務台',floorId:'ground',x:610,y:500},{id:'library',name:'圖書館',category:'設施',floorId:'ground',x:520,y:330},{id:'engineering',name:'工學大樓',category:'建築',floorId:'ground',x:790,y:360},{id:'office2',name:'二樓辦公室',category:'辦公室',floorId:'second',x:610,y:300},{id:'elevator2',name:'二樓電梯口',category:'電梯',floorId:'second',x:610,y:500}];
+    const state={floorId:'ground',current:{x:180,y:620,floorId:'ground'},heading:null,destination:null,route:[],distance:0,time:0,zoom:1,feedbackAllowed:localStorage.getItem('feedbackAllowed')==='true'};
+    const world={left:0,top:250,width:900,height:480};
+    const $=s=>document.querySelector(s),canvas=$('#mapCanvas'),ctx=canvas.getContext('2d');
+    $('#searchButton').onclick=search;$('#searchInput').addEventListener('keydown',e=>{if(e.key==='Enter')search()});$('#relocateButton').onclick=relocate;$('#zoomInButton').onclick=()=>zoom(state.zoom*1.2);$('#zoomOutButton').onclick=()=>zoom(state.zoom/1.2);$('#resetButton').onclick=()=>zoom(1);$('#showRouteButton').onclick=showRoute;$('#startButton').onclick=startNavigation;$('#endButton').onclick=endNavigation;$('#acceptPrivacy').onclick=()=>setFeedback(true);$('#declinePrivacy').onclick=()=>setFeedback(false);$('#feedbackSwitch').onchange=()=>$('#feedbackSwitch').checked?$('#privacyDialog').showModal():setFeedback(false);window.addEventListener('resize',resize);window.addEventListener('deviceorientation',e=>{if(Number.isFinite(Number(e.alpha))){state.heading=Number(e.alpha);$('#headingText').textContent=`方向：${Math.round(state.heading)}°`;draw()}});
+    init();
+    function init(){if(!localStorage.getItem('feedbackConsentAsked'))$('#privacyDialog').showModal();$('#feedbackSwitch').checked=state.feedbackAllowed;renderFloors();resize();search();draw()}
+    function renderFloors(){const box=$('#floorButtons');box.innerHTML='';floors.forEach(f=>{const b=document.createElement('button');b.textContent=f.short;b.className=f.id===state.floorId?'active':'';b.onclick=()=>{state.floorId=f.id;state.current.floorId=f.id;renderFloors();updateLabels();draw()};box.appendChild(b)})}
+    function search(){const key=$('#searchInput').value.trim().toLowerCase();const matched=places.filter(p=>!key?p.floorId===state.floorId:[p.name,p.category].some(v=>v.toLowerCase().includes(key))).slice(0,20);const r=$('#results');r.hidden=!matched.length;r.innerHTML=matched.map(p=>`<button class="result" data-id="${p.id}"><strong>${p.name}</strong><span>${floorName(p.floorId)}｜${p.category}｜${Math.round(dist(p,state.current))} 公尺｜可導航</span></button>`).join('');r.querySelectorAll('.result').forEach(b=>b.onclick=()=>selectPlace(b.dataset.id));draw()}
+    function selectPlace(id){state.destination=places.find(p=>p.id===id)||null;state.route=[];if(state.destination){$('#destinationText').textContent=`目的地：${state.destination.name}`;$('#nextStep').textContent=`${state.destination.name} 已設為目的地。`}draw()}
+    function showRoute(){if(!state.destination){$('#nextStep').textContent='請先選擇目的地。';return}state.route=buildRoute();state.distance=routeDistance(state.route);state.time=Math.max(1,Math.ceil(state.distance/80));$('#distanceText').textContent=`距離：${Math.round(state.distance)} 公尺`;$('#timeText').textContent=`時間：${state.time} 分鐘`;$('#nextStep').textContent=nextStep();draw()}
+    function startNavigation(){if(!state.destination){$('#nextStep').textContent='請先選擇目的地。';return}if(!state.route.length)showRoute();$('#nextStep').textContent=nextStep()}
+    function endNavigation(){state.route=[];$('#nextStep').textContent='導航已結束。';draw()}
+    function relocate(){$('#nextStep').textContent='瀏覽器版暫以展示目前位置顯示；Wi-Fi 指紋採樣請使用 Android 管理者工具。';state.current={x:180,y:620,floorId:state.floorId};draw()}
+    function buildRoute(){const d=state.destination;if(!d)return[];if(d.floorId!==state.current.floorId)return[{x:state.current.x,y:state.current.y,floorId:state.current.floorId},{x:250,y:570,floorId:state.current.floorId},{x:390,y:500,floorId:state.current.floorId},{x:610,y:500,floorId:state.current.floorId},{x:610,y:500,floorId:d.floorId},{x:610,y:390,floorId:d.floorId},{x:d.x,y:d.y,floorId:d.floorId}];return[{x:state.current.x,y:state.current.y,floorId:state.current.floorId},{x:250,y:570,floorId:state.current.floorId},{x:390,y:500,floorId:state.current.floorId},{x:d.x,y:d.y,floorId:d.floorId}]}
+    function nextStep(){if(!state.destination)return'請搜尋目的地，或從結果中選擇地點。';if(state.destination.floorId!==state.current.floorId)return`請前往樓層連接點，再切換到 ${floorName(state.destination.floorId)}。`;return`沿著路線前進，目的地是 ${state.destination.name}。`}
+    function updateLabels(){$('#floorLabel').textContent=floorName(state.floorId);$('#headingText').textContent=state.heading==null?'方向：--':`方向：${Math.round(state.heading)}°`}
+    function resize(){const r=canvas.getBoundingClientRect(),ratio=devicePixelRatio||1;canvas.width=Math.max(1,Math.round(r.width*ratio));canvas.height=Math.max(1,Math.round(r.height*ratio));ctx.setTransform(ratio,0,0,ratio,0,0);draw()}
+    function draw(){updateLabels();const r=canvas.getBoundingClientRect();ctx.clearRect(0,0,r.width,r.height);ctx.fillStyle='#fafbfc';ctx.fillRect(0,0,r.width,r.height);walkways();route();placeDots();currentArrow()}
+    function walkways(){ctx.lineWidth=28;ctx.lineCap='round';ctx.lineJoin='round';ctx.strokeStyle=getComputedStyle(document.documentElement).getPropertyValue('--walk').trim();if(state.floorId==='second'){line([{x:610,y:500},{x:610,y:390},{x:610,y:300}]);line([{x:610,y:390},{x:700,y:390}])}else{line([{x:120,y:680},{x:250,y:570},{x:390,y:500},{x:610,y:500},{x:790,y:360}]);line([{x:390,y:500},{x:430,y:420},{x:520,y:330}])}}
+    function route(){const pts=state.route.filter(p=>p.floorId===state.floorId);if(pts.length<2)return;ctx.lineCap='round';ctx.lineJoin='round';ctx.lineWidth=18;ctx.strokeStyle='#fff';line(pts);ctx.lineWidth=10;ctx.strokeStyle=getComputedStyle(document.documentElement).getPropertyValue('--route').trim();line(pts)}
+    function placeDots(){ctx.font='14px Microsoft JhengHei, sans-serif';ctx.textBaseline='middle';places.filter(p=>p.floorId===state.floorId).forEach(p=>{const s=screen(p.x,p.y),selected=state.destination&&state.destination.id===p.id;ctx.fillStyle=selected?'#b42318':'#55606c';ctx.beginPath();ctx.arc(s.x,s.y,selected?7:5,0,Math.PI*2);ctx.fill();ctx.fillStyle='#1f2933';ctx.fillText(p.name,s.x+10,s.y-8)})}
+    function currentArrow(){const p=screen(state.current.x,state.current.y);ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(p.x,p.y,14,0,Math.PI*2);ctx.fill();if(state.heading==null){ctx.fillStyle='#2563eb';ctx.beginPath();ctx.arc(p.x,p.y,8,0,Math.PI*2);ctx.fill()}else{const rad=state.heading*Math.PI/180;ctx.fillStyle='#2563eb';ctx.strokeStyle='#fff';ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(p.x+Math.sin(rad)*20,p.y-Math.cos(rad)*20);ctx.lineTo(p.x+Math.sin(rad+2.44)*13,p.y-Math.cos(rad+2.44)*13);ctx.lineTo(p.x,p.y);ctx.lineTo(p.x+Math.sin(rad-2.44)*13,p.y-Math.cos(rad-2.44)*13);ctx.closePath();ctx.fill();ctx.stroke()}ctx.fillStyle='#1f2933';ctx.font='14px Microsoft JhengHei, sans-serif';ctx.fillText('目前位置',p.x+18,p.y+4)}
+    function line(pts){ctx.beginPath();pts.forEach((p,i)=>{const s=screen(p.x,p.y);i?ctx.lineTo(s.x,s.y):ctx.moveTo(s.x,s.y)});ctx.stroke()}
+    function screen(x,y){const r=canvas.getBoundingClientRect(),pad=28,sx=pad+((x-world.left)/world.width)*(r.width-pad*2),sy=pad+((y-world.top)/world.height)*(r.height-pad*2);return{x:r.width/2+(sx-r.width/2)*state.zoom,y:r.height/2+(sy-r.height/2)*state.zoom}}
+    function zoom(v){state.zoom=Math.max(.85,Math.min(2.8,v));draw()}function floorName(id){return floors.find(f=>f.id===id)?.name||id}function dist(a,b){return Math.hypot(a.x-b.x,a.y-b.y)}function routeDistance(pts){return pts.slice(1).reduce((s,p,i)=>s+dist(p,pts[i]),0)}function setFeedback(v){state.feedbackAllowed=v;$('#feedbackSwitch').checked=v;localStorage.setItem('feedbackConsentAsked','true');localStorage.setItem('feedbackAllowed',String(v));$('#privacyDialog').close()}
+  </script>
 </body>
 </html>
