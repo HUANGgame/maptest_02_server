@@ -462,12 +462,14 @@
 
     function performSearch() {
       const keyword = searchInput.value.trim().toLowerCase();
-      const matched = state.places
+      const matched = navigationTargets()
         .filter((place) => {
           if (!keyword) return place.floorId === state.currentFloorId;
-          return [place.name, place.category, place.description].some((value) => String(value || "").toLowerCase().includes(keyword));
+          return [place.id, place.name, place.category, place.description].some((value) => String(value || "").toLowerCase().includes(keyword));
         })
-        .slice(0, 20);
+        .slice(0, 30);
+      const exact = matched.find((place) => keyword && (String(place.id).toLowerCase() === keyword || String(place.name).toLowerCase() === keyword));
+      if (exact) selectDestination(exact.id);
       results.hidden = matched.length === 0;
       results.innerHTML = matched.map((place) => `
         <button class="result" data-id="${escapeHtml(place.id)}">
@@ -482,7 +484,7 @@
     }
 
     function selectDestination(id) {
-      state.destination = state.places.find((place) => place.id === id) || null;
+      state.destination = navigationTargets().find((place) => place.id === id) || null;
       state.route = [];
       if (state.destination) {
         destinationText.textContent = `目的地：${state.destination.name}`;
@@ -491,8 +493,10 @@
           state.currentFloorId = state.destination.floorId;
           state.current.floorId = state.currentFloorId;
           renderFloorButtons();
+          loadWifiPoints();
         }
       }
+      showRoute();
       renderAll();
     }
 
@@ -510,6 +514,7 @@
         destinationPlaceId: state.destination.id,
       };
       try {
+        if (state.destination.source === "wifiPoint") throw new Error("sampled route");
         const route = await postJson("/api/routes", body);
         state.route = (route.routePoints || []).map((point) => ({
           x: Number(point.x || 0),
@@ -555,6 +560,8 @@
 
     function buildLocalRoute() {
       if (!state.destination) return [];
+      const sampledRoute = sampledRouteToDestination();
+      if (sampledRoute.length >= 2) return sampledRoute;
       if (state.destination.floorId !== state.current.floorId) {
         return [
           { x: state.current.x, y: state.current.y, floorId: state.current.floorId },
@@ -623,10 +630,10 @@
       if (visible.length < 2) return;
       ctx.lineCap = "round";
       ctx.lineJoin = "round";
-      ctx.lineWidth = 18;
+      ctx.lineWidth = state.destination?.source === "wifiPoint" ? 12 : 18;
       ctx.strokeStyle = "#ffffff";
       drawPolyline(visible);
-      ctx.lineWidth = 10;
+      ctx.lineWidth = state.destination?.source === "wifiPoint" ? 6 : 10;
       ctx.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue("--route").trim();
       drawPolyline(visible);
     }
@@ -803,7 +810,66 @@
       if (state.destination.floorId !== state.current.floorId) {
         return `請先前往樓層連接點，再切換到 ${floorName(state.destination.floorId)}。`;
       }
+      if (state.destination.source === "wifiPoint") {
+        return `沿著採樣點路線前進，目的地是 ${state.destination.name}。`;
+      }
       return `沿著路線前進，目的地是 ${state.destination.name}。`;
+    }
+
+    function navigationTargets() {
+      const wifiTargets = state.wifiPoints.map((point) => ({
+        id: point.pointId,
+        name: point.pointId,
+        mapId: point.mapId,
+        floorId: point.floorId,
+        category: "Wi-Fi 採樣點",
+        x: Number(point.x),
+        y: Number(point.y),
+        description: `掃描 ${point.scanCount || 0} 筆，AP ${point.bssidCount || 0} 個`,
+        searchable: true,
+        businessStatus: "unset",
+        source: "wifiPoint",
+      }));
+      return state.places.concat(wifiTargets);
+    }
+
+    function orderedWifiPoints() {
+      return state.wifiPoints
+        .filter((point) => point.floorId === state.currentFloorId)
+        .slice()
+        .sort((left, right) => String(left.pointId).localeCompare(String(right.pointId), undefined, { numeric: true }));
+    }
+
+    function sampledRouteToDestination() {
+      if (!state.destination || state.destination.source !== "wifiPoint") return [];
+      const points = orderedWifiPoints();
+      if (points.length === 0) return [];
+      const startIndex = nearestPointIndex(points, state.current);
+      const endIndex = points.findIndex((point) => point.pointId === state.destination.id);
+      if (startIndex < 0 || endIndex < 0) return [];
+      const from = Math.min(startIndex, endIndex);
+      const to = Math.max(startIndex, endIndex);
+      const segment = points.slice(from, to + 1);
+      const ordered = startIndex <= endIndex ? segment : segment.reverse();
+      return ordered.map((point) => ({
+        id: point.pointId,
+        x: Number(point.x),
+        y: Number(point.y),
+        floorId: point.floorId,
+      }));
+    }
+
+    function nearestPointIndex(points, current) {
+      let bestIndex = -1;
+      let bestDistance = Infinity;
+      points.forEach((point, index) => {
+        const nextDistance = distance(Number(point.x), Number(point.y), Number(current.x), Number(current.y));
+        if (nextDistance < bestDistance) {
+          bestDistance = nextDistance;
+          bestIndex = index;
+        }
+      });
+      return bestIndex;
     }
 
     function setFeedbackAllowed(allowed) {
