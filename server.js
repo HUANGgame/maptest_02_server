@@ -40,6 +40,18 @@ const server = http.createServer(async (request, response) => {
     return;
   }
 
+  if (request.method === "GET" && url.pathname.startsWith("/maps/")) {
+    const fileName = path.basename(decodeURIComponent(url.pathname.slice("/maps/".length)));
+    const extension = path.extname(fileName).toLowerCase();
+    const contentType = extension === ".png"
+      ? "image/png"
+      : extension === ".webp"
+        ? "image/webp"
+        : "image/jpeg";
+    sendFile(response, path.join(__dirname, "public", "maps", fileName), contentType);
+    return;
+  }
+
   if (request.method === "GET" && url.pathname === "/download/apk") {
     sendDownload(
       response,

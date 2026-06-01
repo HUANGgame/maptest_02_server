@@ -354,6 +354,7 @@
       floors: [],
       places: [],
       wifiPoints: [],
+      floorImages: new Map(),
       currentMapId: "tkut-demo",
       currentFloorId: "tkut-demo-ground",
       current: { x: 180, y: 620, floorId: "tkut-demo-ground" },
@@ -654,6 +655,7 @@
       ctx.clearRect(0, 0, rect.width, rect.height);
       ctx.fillStyle = "#fafbfc";
       ctx.fillRect(0, 0, rect.width, rect.height);
+      drawFloorImage();
       drawWalkways();
       drawWifiSampleMap();
       drawRoute();
@@ -674,6 +676,18 @@
         drawPolyline([{ x: 120, y: 680 }, { x: 250, y: 570 }, { x: 390, y: 500 }, { x: 610, y: 500 }, { x: 790, y: 360 }]);
         drawPolyline([{ x: 390, y: 500 }, { x: 430, y: 420 }, { x: 520, y: 330 }]);
       }
+    }
+
+    function drawFloorImage() {
+      const floor = currentFloor();
+      if (!floor?.imageUrl) return;
+      const image = floorImage(floor.imageUrl);
+      if (!image.complete || image.naturalWidth === 0) return;
+      const topLeft = screen(0, 0);
+      const bottomRight = screen(floor.width || image.naturalWidth, floor.height || image.naturalHeight);
+      ctx.globalAlpha = .92;
+      ctx.drawImage(image, topLeft.x, topLeft.y, bottomRight.x - topLeft.x, bottomRight.y - topLeft.y);
+      ctx.globalAlpha = 1;
     }
 
     function drawRoute() {
@@ -885,6 +899,15 @@
     }
 
     function updateWorldFromData() {
+      const floor = currentFloor();
+      if (floor?.imageUrl && Number(floor.width) > 0 && Number(floor.height) > 0) {
+        world.left = 0;
+        world.top = 0;
+        world.width = Number(floor.width);
+        world.height = Number(floor.height);
+        floorImage(floor.imageUrl);
+        return;
+      }
       const candidates = state.places
         .filter((place) => place.floorId === state.currentFloorId)
         .concat(state.wifiPoints.filter((point) => point.floorId === state.currentFloorId));
@@ -906,6 +929,20 @@
       world.top = minY - margin;
       world.width = Math.max(60, maxX - minX + margin * 2);
       world.height = Math.max(60, maxY - minY + margin * 2);
+    }
+
+    function currentFloor() {
+      return state.floors.find((floor) => floor.id === state.currentFloorId) || null;
+    }
+
+    function floorImage(url) {
+      if (!state.floorImages.has(url)) {
+        const image = new Image();
+        image.onload = () => drawMap();
+        image.src = url;
+        state.floorImages.set(url, image);
+      }
+      return state.floorImages.get(url);
     }
 
     function setZoom(value) {
