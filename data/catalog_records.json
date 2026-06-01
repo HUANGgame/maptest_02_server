@@ -1,0 +1,26 @@
+{
+  "maps": [
+    {
+      "id": "F1_M1",
+      "name": "F1_M1",
+      "description": "Android 匯入的室內定位 Demo 地圖",
+      "createdAt": "2026-06-01T19:51:39.004Z",
+      "updatedAt": "2026-06-01T19:51:39.004Z"
+    }
+  ],
+  "floors": [
+    {
+      "id": "floor_1",
+      "mapId": "F1_M1",
+      "floorName": "floor_1",
+      "floorLevel": 1,
+      "imageUrl": null,
+      "width": 152.63361999999998,
+      "height": 26.650840000000017,
+      "scaleValue": 0.102581844,
+      "createdAt": "2026-06-01T19:51:39.004Z",
+      "updatedAt": "2026-06-01T19:51:39.004Z"
+    }
+  ],
+  "places": []
+}

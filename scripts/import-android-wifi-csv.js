@@ -72,9 +72,10 @@ function syncMapMetadata(sourceDir, scans) {
   const metadataLines = fs.readFileSync(metadataPath, "utf8").replace(/^\uFEFF/, "").split(/\r?\n/).filter(Boolean);
   if (metadataLines.length < 2) return;
   const metadataHeaders = parseCsvLine(metadataLines[0]);
-  const metadataRows = metadataLines.slice(1).map((line) => Object.fromEntries(
-    metadataHeaders.map((header, index) => [header, parseCsvLine(line)[index] ?? ""])
-  ));
+  const metadataRows = metadataLines.slice(1).map((line) => {
+    const values = parseCsvLine(line);
+    return Object.fromEntries(metadataHeaders.map((header, index) => [header, values[index] ?? ""]));
+  });
   const publicMapsDir = path.join(__dirname, "..", "public", "maps");
   fs.mkdirSync(publicMapsDir, { recursive: true });
   const catalogPath = path.join(__dirname, "..", "data", "catalog_records.json");
@@ -84,43 +85,46 @@ function syncMapMetadata(sourceDir, scans) {
   const maps = Array.isArray(catalog.maps) ? catalog.maps : [];
   const floors = Array.isArray(catalog.floors) ? catalog.floors : [];
   const places = Array.isArray(catalog.places) ? catalog.places : [];
+  const now = new Date().toISOString();
+
   for (const row of metadataRows) {
     const mapId = row.mapId || "android-import";
     const scoped = scans.filter((record) => record.mapId === mapId);
     const floorIds = Array.from(new Set(scoped.map((record) => record.floorId)));
-    const sourceImageName = row.exportedMapFile || "";
-    let imageUrl = null;
-    if (sourceImageName) {
-      const sourceImagePath = path.join(sourceDir, sourceImageName);
-      if (fs.existsSync(sourceImagePath)) {
-        const extension = path.extname(sourceImageName) || ".jpg";
-        const targetName = `${mapId}${extension}`;
-        fs.copyFileSync(sourceImagePath, path.join(publicMapsDir, targetName));
-        imageUrl = `/maps/${targetName}`;
-      }
-    }
+    const defaultImageUrl = copyFloorImage(sourceDir, publicMapsDir, mapId, null, row.exportedMapFile || "");
+
     upsertById(maps, {
       id: mapId,
-      name: mapId,
-      description: "由 Android 管理者採樣工具匯入。",
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
+      name: row.mapName || mapId,
+      description: "Android 匯入的室內定位 Demo 地圖",
+      createdAt: now,
+      updatedAt: now,
     });
+
     for (const floorId of floorIds) {
+      const floorMetadata = metadataRows.find((item) =>
+        (item.mapId || "android-import") === mapId &&
+        normalizeFloorId(item.floorId || item.floor || "") === floorId
+      ) || row;
       const floorScans = scoped.filter((record) => record.floorId === floorId);
       const xs = floorScans.map((record) => Number(record.x)).filter(Number.isFinite);
       const ys = floorScans.map((record) => Number(record.y)).filter(Number.isFinite);
+      const imageUrl =
+        copyFloorImage(sourceDir, publicMapsDir, mapId, floorId, floorMetadata.exportedMapFile || "") ||
+        findExistingFloorImage(sourceDir, publicMapsDir, mapId, floorId) ||
+        defaultImageUrl;
+
       upsertById(floors, {
         id: floorId,
         mapId,
-        floorName: floorId,
+        floorName: floorMetadata.floorName || floorMetadata.name || floorId,
         floorLevel: parseFloorNumber(floorId),
         imageUrl,
-        width: Math.max(0, Math.max(...xs) - Math.min(...xs)),
-        height: Math.max(0, Math.max(...ys) - Math.min(...ys)),
-        scaleValue: Number(row.metersPerPixel || 1),
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
+        width: boundedExtent(xs),
+        height: boundedExtent(ys),
+        scaleValue: Number(floorMetadata.metersPerPixel || row.metersPerPixel || 1),
+        createdAt: now,
+        updatedAt: now,
       });
     }
   }
@@ -136,6 +140,45 @@ function upsertById(items, next) {
 function parseFloorNumber(value) {
   const match = String(value || "").match(/-?\d+/);
   return match ? Number(match[0]) : 1;
+}
+
+function normalizeFloorId(value) {
+  if (!value) return "";
+  const text = String(value).trim();
+  if (!text) return "";
+  return text.startsWith("floor_") ? text : `floor_${text}`;
+}
+
+function copyFloorImage(sourceDir, publicMapsDir, mapId, floorId, exportedMapFile) {
+  if (!exportedMapFile) return null;
+  const sourceImagePath = path.join(sourceDir, exportedMapFile);
+  if (!fs.existsSync(sourceImagePath)) return null;
+  const extension = path.extname(exportedMapFile) || ".jpg";
+  const floorPart = floorId ? `_${safeFileToken(floorId)}` : "";
+  const targetName = `${safeFileToken(mapId)}${floorPart}${extension}`;
+  fs.copyFileSync(sourceImagePath, path.join(publicMapsDir, targetName));
+  return `/maps/${targetName}`;
+}
+
+function findExistingFloorImage(sourceDir, publicMapsDir, mapId, floorId) {
+  const candidates = fs.readdirSync(sourceDir).filter((name) => {
+    const lower = name.toLowerCase();
+    if (!/\.(jpg|jpeg|png|webp)$/.test(lower)) return false;
+    const scopedToken = `${mapId}_${floorId}`.toLowerCase();
+    const floorToken = `imported_floor_map_${floorId}`.toLowerCase();
+    return lower.includes(scopedToken) || lower.includes(floorToken);
+  });
+  if (candidates.length === 0) return null;
+  return copyFloorImage(sourceDir, publicMapsDir, mapId, floorId, candidates[0]);
+}
+
+function boundedExtent(values) {
+  if (values.length === 0) return 0;
+  return Math.max(0, Math.max(...values) - Math.min(...values));
+}
+
+function safeFileToken(value) {
+  return String(value || "map").replace(/[^a-zA-Z0-9_-]/g, "_");
 }
 
 function parseCsvLine(line) {
