@@ -25,6 +25,7 @@ const server = http.createServer(async (request, response) => {
       project: "地下街室內導航系統",
       demoVenue: "淡江大學淡水校園",
       phase: "user-client-ready",
+      storage: mysqlMirror.isEnabled() ? "mysql" : "json",
     });
     return;
   }
@@ -80,18 +81,7 @@ const server = http.createServer(async (request, response) => {
 
   if (request.method === "GET" && url.pathname === "/api/floors") {
     const mapId = url.searchParams.get("mapId") || "";
-    const scanFloors = Array.from(new Map(readScans()
-      .filter((record) => !mapId || record.mapId === mapId)
-      .map((record) => [record.floorId, {
-        id: record.floorId,
-        mapId: record.mapId,
-        floorName: `上傳樓層 ${record.floorId}`,
-        floorLevel: parseFloorLevel(record.floorId),
-        imageUrl: null,
-        width: 0,
-        height: 0,
-        scaleValue: 1,
-      }])).values())
+    const scanFloors = buildScanFloors(readScans().filter((record) => !mapId || record.mapId === mapId))
       .filter((floor) => !readFloors().some((item) => item.id === floor.id));
     sendJson(response, 200, readFloors().filter((floor) => !mapId || floor.mapId === mapId).concat(scanFloors));
     return;
@@ -1079,6 +1069,25 @@ function standardDeviation(values) {
   const mean = numbers.reduce((sum, value) => sum + value, 0) / numbers.length;
   const variance = numbers.reduce((sum, value) => sum + (value - mean) ** 2, 0) / numbers.length;
   return Math.sqrt(variance);
+}
+
+function buildScanFloors(records) {
+  const grouped = groupBy(records, (record) => `${record.mapId}/${record.floorId}`);
+  return Array.from(grouped.values()).map((rows) => {
+    const first = rows[0];
+    const xs = rows.map((row) => Number(row.x)).filter(Number.isFinite);
+    const ys = rows.map((row) => Number(row.y)).filter(Number.isFinite);
+    return {
+      id: first.floorId,
+      mapId: first.mapId,
+      floorName: `???? ${first.floorId}`,
+      floorLevel: parseFloorLevel(first.floorId),
+      imageUrl: null,
+      width: Math.max(0, Math.max(...xs) - Math.min(...xs)),
+      height: Math.max(0, Math.max(...ys) - Math.min(...ys)),
+      scaleValue: 1,
+    };
+  });
 }
 
 function parseFloorLevel(floorId) {
