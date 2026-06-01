@@ -23,7 +23,10 @@
       "imageLeft": 159,
       "imageTop": 125,
       "imageWidth": 106,
-      "imageHeight": 58
+      "imageHeight": 54.7390625,
+      "imageNaturalWidth": 1280,
+      "imageNaturalHeight": 661,
+      "coordinateUnit": "meter"
     }
   ],
   "places": []

@@ -1044,8 +1044,19 @@
       if (!floor?.imageUrl) return null;
       const left = Number(floor.imageLeft);
       const top = Number(floor.imageTop);
-      const width = Number(floor.imageWidth || floor.width);
-      const height = Number(floor.imageHeight || floor.height);
+      let width = Number(floor.imageWidth || floor.width);
+      let height = Number(floor.imageHeight || floor.height);
+      const image = state.floorImages.get(floor.imageUrl);
+      const naturalWidth = Number(floor.imageNaturalWidth || image?.naturalWidth);
+      const naturalHeight = Number(floor.imageNaturalHeight || image?.naturalHeight);
+      if (Number.isFinite(naturalWidth) && Number.isFinite(naturalHeight) && naturalWidth > 0 && naturalHeight > 0) {
+        const naturalAspect = naturalWidth / naturalHeight;
+        if (Number.isFinite(width) && width > 0) {
+          height = width / naturalAspect;
+        } else if (Number.isFinite(height) && height > 0) {
+          width = height * naturalAspect;
+        }
+      }
       if ([left, top, width, height].every(Number.isFinite) && width > 0 && height > 0) {
         return { left, top, width, height };
       }

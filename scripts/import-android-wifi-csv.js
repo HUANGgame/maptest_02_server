@@ -113,6 +113,17 @@ function syncMapMetadata(sourceDir, scans) {
         copyFloorImage(sourceDir, publicMapsDir, mapId, floorId, floorMetadata.exportedMapFile || "") ||
         findExistingFloorImage(sourceDir, publicMapsDir, mapId, floorId) ||
         defaultImageUrl;
+      const scaleValue = Number(floorMetadata.metersPerPixel || row.metersPerPixel || 1);
+      const imageSize = imageSizeForUrl(publicMapsDir, imageUrl);
+      const imageMetricSize = imageSize && Number.isFinite(scaleValue) && scaleValue > 0
+        ? {
+            imageNaturalWidth: imageSize.width,
+            imageNaturalHeight: imageSize.height,
+            imageWidth: imageSize.width * scaleValue,
+            imageHeight: imageSize.height * scaleValue,
+            coordinateUnit: floorMetadata.coordinateUnit || row.coordinateUnit || "meter",
+          }
+        : {};
 
       upsertById(floors, {
         id: floorId,
@@ -122,7 +133,8 @@ function syncMapMetadata(sourceDir, scans) {
         imageUrl,
         width: boundedExtent(xs),
         height: boundedExtent(ys),
-        scaleValue: Number(floorMetadata.metersPerPixel || row.metersPerPixel || 1),
+        scaleValue,
+        ...imageMetricSize,
         createdAt: now,
         updatedAt: now,
       });
@@ -175,6 +187,42 @@ function findExistingFloorImage(sourceDir, publicMapsDir, mapId, floorId) {
 function boundedExtent(values) {
   if (values.length === 0) return 0;
   return Math.max(0, Math.max(...values) - Math.min(...values));
+}
+
+function imageSizeForUrl(publicMapsDir, imageUrl) {
+  if (!imageUrl || !imageUrl.startsWith("/maps/")) return null;
+  const imagePath = path.join(publicMapsDir, path.basename(imageUrl));
+  if (!fs.existsSync(imagePath)) return null;
+  return readImageSize(imagePath);
+}
+
+function readImageSize(imagePath) {
+  const buffer = fs.readFileSync(imagePath);
+  if (buffer.length >= 24 && buffer.slice(0, 8).toString("hex") === "89504e470d0a1a0a") {
+    return {
+      width: buffer.readUInt32BE(16),
+      height: buffer.readUInt32BE(20),
+    };
+  }
+  if (buffer.length >= 4 && buffer[0] === 0xff && buffer[1] === 0xd8) {
+    let offset = 2;
+    while (offset < buffer.length - 9) {
+      if (buffer[offset] !== 0xff) {
+        offset += 1;
+        continue;
+      }
+      const marker = buffer[offset + 1];
+      const length = buffer.readUInt16BE(offset + 2);
+      if (marker >= 0xc0 && marker <= 0xc3) {
+        return {
+          width: buffer.readUInt16BE(offset + 7),
+          height: buffer.readUInt16BE(offset + 5),
+        };
+      }
+      offset += 2 + length;
+    }
+  }
+  return null;
 }
 
 function safeFileToken(value) {
