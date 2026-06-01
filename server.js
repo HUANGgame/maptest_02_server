@@ -62,8 +62,8 @@ const server = http.createServer(async (request, response) => {
       .filter((mapId) => !readMaps().some((map) => map.id === mapId))
       .map((mapId) => ({
         id: mapId,
-        name: `上傳資料地圖 ${mapId}`,
-        description: "由 Android 管理者採樣工具上傳後自動顯示。",
+        name: `?????? ${mapId}`,
+        description: "? Android ???????????????",
       }));
     sendJson(response, 200, readMaps().concat(scanMaps));
     return;
