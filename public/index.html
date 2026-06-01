@@ -316,7 +316,7 @@
       <div id="navFlash" class="nav-flash">開始導航</div>
       <div id="floorButtons" class="floor-switch"></div>
       <div class="map-tools">
-        <button id="relocateButton">北</button>
+        <button id="relocateButton">跟隨</button>
         <button id="pointModeButton">顯示</button>
         <button id="zoomInButton">+</button>
         <button id="zoomOutButton">-</button>
@@ -405,9 +405,9 @@
       if (event.key === "Enter") performSearch();
     });
     const compassButton = document.querySelector("#relocateButton");
-    compassButton.textContent = "北";
-    compassButton.title = "切換視角跟隨";
-    compassButton.setAttribute("aria-label", "切換視角跟隨");
+    compassButton.textContent = "跟隨";
+    compassButton.title = "切換跟隨模式";
+    compassButton.setAttribute("aria-label", "切換跟隨模式");
     compassButton.addEventListener("click", toggleViewFollow);
     const pointModeButton = document.querySelector("#pointModeButton");
     pointModeButton.title = "切換點位顯示";
@@ -632,11 +632,10 @@
     function toggleViewFollow() {
       state.viewFollow = !state.viewFollow;
       compassButton.classList.toggle("active", state.viewFollow);
-      compassButton.textContent = "北";
+      compassButton.textContent = "跟隨";
       nextStep.textContent = state.viewFollow
-        ? "視角會跟著目前位置移動，地圖方向固定。"
-        : "地圖方向固定，可拖曳移動視角。";
-      if (state.viewFollow) centerOnCurrent();
+        ? "已開啟跟隨：地圖會隨手機方向旋轉，位置箭頭固定朝上。"
+        : "已關閉跟隨：地圖固定方向，位置箭頭會跟著手機方向轉。";
       renderAll();
     }
 
@@ -733,11 +732,14 @@
       if (!floor?.imageUrl) return;
       const image = floorImage(floor.imageUrl);
       if (!image.complete || image.naturalWidth === 0) return;
-      const topLeft = screen(world.left, world.top);
-      const bottomRight = screen(world.left + world.width, world.top + world.height);
+      const topLeft = baseScreen(world.left, world.top);
+      const bottomRight = baseScreen(world.left + world.width, world.top + world.height);
+      ctx.save();
+      applyFollowRotation();
       ctx.globalAlpha = .92;
       ctx.drawImage(image, topLeft.x, topLeft.y, bottomRight.x - topLeft.x, bottomRight.y - topLeft.y);
       ctx.globalAlpha = 1;
+      ctx.restore();
     }
 
     function drawRoute() {
@@ -880,7 +882,7 @@
         ctx.arc(point.x, point.y, 8, 0, Math.PI * 2);
         ctx.fill();
       } else {
-        const rad = state.heading * Math.PI / 180;
+        const rad = state.viewFollow ? 0 : state.heading * Math.PI / 180;
         const tip = { x: point.x + Math.sin(rad) * 20, y: point.y - Math.cos(rad) * 20 };
         const leftRad = rad + 140 * Math.PI / 180;
         const rightRad = rad - 140 * Math.PI / 180;
@@ -965,7 +967,32 @@
     }
 
     function screen(x, y) {
-      return baseScreen(x, y);
+      const point = baseScreen(x, y);
+      const rad = followRotationRadians();
+      if (!rad) return point;
+      const center = baseScreen(state.current.x, state.current.y);
+      const dx = point.x - center.x;
+      const dy = point.y - center.y;
+      return {
+        x: center.x + dx * Math.cos(rad) - dy * Math.sin(rad),
+        y: center.y + dx * Math.sin(rad) + dy * Math.cos(rad),
+      };
+    }
+
+    function followRotationRadians() {
+      if (!state.viewFollow || state.heading == null) return 0;
+      const heading = Number(state.heading);
+      if (!Number.isFinite(heading)) return 0;
+      return -heading * Math.PI / 180;
+    }
+
+    function applyFollowRotation() {
+      const rad = followRotationRadians();
+      if (!rad) return;
+      const center = baseScreen(state.current.x, state.current.y);
+      ctx.translate(center.x, center.y);
+      ctx.rotate(rad);
+      ctx.translate(-center.x, -center.y);
     }
 
     function centerOnCurrent() {
