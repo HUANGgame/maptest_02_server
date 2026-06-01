@@ -483,7 +483,7 @@
       if (state.places.length) {
         dataStatus.textContent = "已載入地點資料";
       } else if (state.wifiPoints.length) {
-        dataStatus.textContent = `已載入 ${state.wifiPoints.length} 個 Wi-Fi 採樣點`;
+        dataStatus.textContent = `已載入 ${state.wifiPoints.length} 個定位點`;
       } else {
         dataStatus.textContent = "尚無地圖資料";
       }
@@ -951,7 +951,7 @@
         return `請先前往樓層連接點，再切換到 ${floorName(state.destination.floorId)}。`;
       }
       if (state.destination.source === "wifiPoint") {
-        return `沿著採樣點路線前進，目的地是 ${state.destination.name}。`;
+        return `沿著路線前進，目的地是 ${state.destination.name}。`;
       }
       return `沿著路線前進，目的地是 ${state.destination.name}。`;
     }
@@ -962,7 +962,7 @@
         name: point.pointId,
         mapId: point.mapId,
         floorId: point.floorId,
-        category: "Wi-Fi 採樣點",
+        category: "定位點",
         x: Number(point.x),
         y: Number(point.y),
         description: `掃描 ${point.scanCount || 0} 筆，AP ${point.bssidCount || 0} 個`,
