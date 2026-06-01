@@ -12,6 +12,7 @@ const { appendReport, readReports } = require("./lib/reportStore");
 const { readRouteEdges, setRouteEdgeBlocked } = require("./lib/routeEdgeStore");
 const { createTrainingJob, readTrainingJobs } = require("./lib/trainingJobStore");
 const { appendScans, readScans } = require("./lib/jsonStore");
+const mysqlMirror = require("./lib/mysqlMirror");
 
 const port = Number(process.env.PORT || 3015);
 
@@ -154,6 +155,7 @@ const server = http.createServer(async (request, response) => {
         return;
       }
       const saved = appendScans(records);
+      mysqlMirror.mirrorWifiScans(saved).catch((error) => console.error("MySQL Wi-Fi mirror failed:", error.message));
       sendJson(response, 201, {
         success: true,
         accepted: true,
@@ -271,6 +273,7 @@ const server = http.createServer(async (request, response) => {
           : "",
         versionName: algorithm === "randomForest" ? `RF-comparison-${new Date().toISOString()}` : undefined,
       });
+      mysqlMirror.mirrorModels([model]).catch((error) => console.error("MySQL model mirror failed:", error.message));
       sendJson(response, 201, { success: true, model });
     } catch (error) {
       sendJson(response, 400, { success: false, message: error.message });
@@ -307,6 +310,7 @@ const server = http.createServer(async (request, response) => {
         return;
       }
       const model = activateModel(modelId);
+      if (model) mysqlMirror.mirrorModels(readModels()).catch((error) => console.error("MySQL model mirror failed:", error.message));
       sendJson(response, model ? 200 : 404, model ? { success: true, model } : { success: false, message: "找不到模型版本。" });
     } catch (error) {
       sendJson(response, 400, { success: false, message: error.message });
@@ -654,9 +658,18 @@ const server = http.createServer(async (request, response) => {
   });
 });
 
-server.listen(port, () => {
-  console.log(`Navigation backend skeleton listening on http://localhost:${port}`);
-});
+mysqlMirror.startMirror()
+  .then((enabled) => {
+    server.listen(port, () => {
+      console.log(`Navigation backend listening on http://localhost:${port} (${enabled ? "mysql" : "json"} storage)`);
+    });
+  })
+  .catch((error) => {
+    console.error("MySQL startup failed, falling back to JSON storage:", error.message);
+    server.listen(port, () => {
+      console.log(`Navigation backend listening on http://localhost:${port} (json storage)`);
+    });
+  });
 
 function sendJson(response, statusCode, body) {
   response.writeHead(statusCode, {

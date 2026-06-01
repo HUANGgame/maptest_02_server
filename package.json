@@ -1,17 +1,14 @@
 {
-  "name": "maptest-02-server",
-  "version": "3.0.0",
+  "name": "indoor-navigation-backend",
+  "version": "0.1.0",
   "private": true,
-  "description": "地下街室內導航系統 Render 後端與用戶端介面。",
-  "main": "server.js",
-  "engines": {
-    "node": ">=20"
-  },
+  "description": "地下街室內導航系統第一階段後端骨架，Demo 場域為淡江大學淡水校園。",
   "scripts": {
     "start": "node server.js",
-    "start:3015": "PORT=3015 node server.js",
     "import:android-wifi": "node scripts/import-android-wifi-csv.js",
     "smoke": "node scripts/smoke-test.js"
   },
-  "license": "MIT"
+  "dependencies": {
+    "mysql2": "^3.11.5"
+  }
 }
