@@ -633,9 +633,6 @@
       state.viewFollow = !state.viewFollow;
       compassButton.classList.toggle("active", state.viewFollow);
       compassButton.textContent = "跟隨";
-      nextStep.textContent = state.viewFollow
-        ? "已開啟跟隨：地圖會隨手機方向旋轉，位置箭頭固定朝上。"
-        : "已關閉跟隨：地圖固定方向，位置箭頭會跟著手機方向轉。";
       renderAll();
     }
 
