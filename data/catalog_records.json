@@ -2,24 +2,28 @@
   "maps": [
     {
       "id": "F1_M1",
-      "name": "F1_M1",
-      "description": "Android 匯入的室內定位 Demo 地圖",
+      "name": "東森廣場 K區地下街 Demo",
+      "description": "Demo 階段使用東森廣場 K區地下街地圖作為室內導航測試場域。",
       "createdAt": "2026-06-01T19:51:39.004Z",
-      "updatedAt": "2026-06-01T19:51:39.004Z"
+      "updatedAt": "2026-06-01T20:06:30.219Z"
     }
   ],
   "floors": [
     {
       "id": "floor_1",
       "mapId": "F1_M1",
-      "floorName": "floor_1",
+      "floorName": "K區地下街",
       "floorLevel": 1,
-      "imageUrl": null,
-      "width": 152.63361999999998,
-      "height": 26.650840000000017,
+      "imageUrl": "/maps/F1_M1_floor_1.jpg",
+      "width": 101,
+      "height": 52,
       "scaleValue": 0.102581844,
       "createdAt": "2026-06-01T19:51:39.004Z",
-      "updatedAt": "2026-06-01T19:51:39.004Z"
+      "updatedAt": "2026-06-01T20:06:30.219Z",
+      "imageLeft": 161,
+      "imageTop": 132,
+      "imageWidth": 101,
+      "imageHeight": 52
     }
   ],
   "places": []

@@ -683,8 +683,8 @@
       if (!floor?.imageUrl) return;
       const image = floorImage(floor.imageUrl);
       if (!image.complete || image.naturalWidth === 0) return;
-      const topLeft = screen(0, 0);
-      const bottomRight = screen(floor.width || image.naturalWidth, floor.height || image.naturalHeight);
+      const topLeft = screen(world.left, world.top);
+      const bottomRight = screen(world.left + world.width, world.top + world.height);
       ctx.globalAlpha = .92;
       ctx.drawImage(image, topLeft.x, topLeft.y, bottomRight.x - topLeft.x, bottomRight.y - topLeft.y);
       ctx.globalAlpha = 1;
@@ -900,11 +900,12 @@
 
     function updateWorldFromData() {
       const floor = currentFloor();
-      if (floor?.imageUrl && Number(floor.width) > 0 && Number(floor.height) > 0) {
-        world.left = 0;
-        world.top = 0;
-        world.width = Number(floor.width);
-        world.height = Number(floor.height);
+      const imageBounds = floorImageBounds(floor);
+      if (imageBounds) {
+        world.left = imageBounds.left;
+        world.top = imageBounds.top;
+        world.width = imageBounds.width;
+        world.height = imageBounds.height;
         floorImage(floor.imageUrl);
         return;
       }
@@ -929,6 +930,19 @@
       world.top = minY - margin;
       world.width = Math.max(60, maxX - minX + margin * 2);
       world.height = Math.max(60, maxY - minY + margin * 2);
+      if (floor?.imageUrl) floorImage(floor.imageUrl);
+    }
+
+    function floorImageBounds(floor) {
+      if (!floor?.imageUrl) return null;
+      const left = Number(floor.imageLeft);
+      const top = Number(floor.imageTop);
+      const width = Number(floor.imageWidth || floor.width);
+      const height = Number(floor.imageHeight || floor.height);
+      if ([left, top, width, height].every(Number.isFinite) && width > 0 && height > 0) {
+        return { left, top, width, height };
+      }
+      return null;
     }
 
     function currentFloor() {

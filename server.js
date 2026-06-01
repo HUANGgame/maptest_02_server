@@ -15,6 +15,7 @@ const { appendScans, readScans } = require("./lib/jsonStore");
 const mysqlMirror = require("./lib/mysqlMirror");
 
 const port = Number(process.env.PORT || 3015);
+const publicMapsDir = path.resolve(__dirname, "public", "maps");
 
 const server = http.createServer(async (request, response) => {
   const url = new URL(request.url, `http://${request.headers.host || "localhost"}`);
@@ -40,15 +41,8 @@ const server = http.createServer(async (request, response) => {
     return;
   }
 
-  if (request.method === "GET" && url.pathname.startsWith("/maps/")) {
-    const fileName = path.basename(decodeURIComponent(url.pathname.slice("/maps/".length)));
-    const extension = path.extname(fileName).toLowerCase();
-    const contentType = extension === ".png"
-      ? "image/png"
-      : extension === ".webp"
-        ? "image/webp"
-        : "image/jpeg";
-    sendFile(response, path.join(__dirname, "public", "maps", fileName), contentType);
+  if ((request.method === "GET" || request.method === "HEAD") && url.pathname.startsWith("/maps/")) {
+    sendMapFile(response, url.pathname, request.method === "HEAD");
     return;
   }
 
@@ -689,6 +683,30 @@ function sendFile(response, filePath, contentType) {
     response.writeHead(200, { "content-type": contentType });
     response.end(data);
   });
+}
+
+function sendMapFile(response, pathname, headersOnly = false) {
+  const fileName = path.basename(decodeURIComponent(pathname.slice("/maps/".length)));
+  const filePath = path.resolve(publicMapsDir, fileName);
+  if (!filePath.startsWith(publicMapsDir + path.sep) || !fs.existsSync(filePath)) {
+    sendJson(response, 404, { error: "mapImageNotFound", fileName });
+    return;
+  }
+  const extension = path.extname(fileName).toLowerCase();
+  const contentType = extension === ".png"
+    ? "image/png"
+    : extension === ".webp"
+      ? "image/webp"
+      : "image/jpeg";
+  if (headersOnly) {
+    response.writeHead(200, {
+      "content-type": contentType,
+      "content-length": fs.statSync(filePath).size,
+    });
+    response.end();
+    return;
+  }
+  sendFile(response, filePath, contentType);
 }
 
 function sendDownload(response, filePath, contentType, fileName) {
