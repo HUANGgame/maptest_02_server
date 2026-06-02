@@ -375,6 +375,7 @@
       viewFollow: false,
       pointDisplayMode: localStorage.getItem("pointDisplayMode") || "important",
       dragStart: null,
+      viewFocusedKey: "",
       navigationActive: false,
       navigationFrame: null,
       feedbackAllowed: localStorage.getItem("feedbackAllowed") === "true",
@@ -431,6 +432,7 @@
     });
     mapSelect.addEventListener("change", async () => {
       state.currentMapId = mapSelect.value;
+      state.viewFocusedKey = "";
       await loadFloors();
       await loadPlaces();
       await loadWifiPoints();
@@ -458,6 +460,7 @@
       await loadPlaces();
       await loadWifiPoints();
       resizeCanvas();
+      focusOnWifiPoints();
       performSearch();
       renderAll();
     }
@@ -499,6 +502,7 @@
           state.current = { x: Number(first.x), y: Number(first.y), floorId: first.floorId || state.currentFloorId };
         }
         updateWorldFromData();
+        focusOnWifiPoints();
       } catch {
         state.wifiPoints = [];
       }
@@ -524,6 +528,7 @@
         button.addEventListener("click", async () => {
           state.currentFloorId = floor.id;
           state.current.floorId = floor.id;
+          state.viewFocusedKey = "";
           await loadWifiPoints();
           renderAll();
         });
@@ -693,6 +698,7 @@
       canvas.width = Math.max(1, Math.round(rect.width * ratio));
       canvas.height = Math.max(1, Math.round(rect.height * ratio));
       ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+      focusOnWifiPoints();
       drawMap();
     }
 
@@ -1083,10 +1089,47 @@
     }
 
     function resetView() {
-      state.zoom = 1;
+      if (!focusOnWifiPoints(true)) {
+        state.zoom = 1;
+        state.viewOffsetX = 0;
+        state.viewOffsetY = 0;
+      }
+      drawMap();
+    }
+
+    function focusOnWifiPoints(force = false) {
+      const key = `${state.currentMapId}:${state.currentFloorId}:${state.wifiPoints.length}`;
+      if (!force && state.viewFocusedKey === key) return false;
+      const points = state.wifiPoints
+        .filter((point) => point.floorId === state.currentFloorId)
+        .map((point) => ({ x: Number(point.x), y: Number(point.y) }))
+        .filter((point) => Number.isFinite(point.x) && Number.isFinite(point.y));
+      if (points.length < 2) return false;
+      const rect = canvas.getBoundingClientRect();
+      if (rect.width <= 0 || rect.height <= 0 || world.width <= 0 || world.height <= 0) return false;
+
+      const xs = points.map((point) => point.x);
+      const ys = points.map((point) => point.y);
+      const minX = Math.min(...xs);
+      const maxX = Math.max(...xs);
+      const minY = Math.min(...ys);
+      const maxY = Math.max(...ys);
+      const targetWidth = Math.max(1, maxX - minX);
+      const targetHeight = Math.max(1, maxY - minY);
+      const baseWidth = (targetWidth / world.width) * Math.max(1, rect.width - 56);
+      const baseHeight = (targetHeight / world.height) * Math.max(1, rect.height - 56);
+      const usableWidth = Math.max(1, rect.width - 120);
+      const usableHeight = Math.max(1, rect.height - 150);
+      const nextZoom = Math.max(1, Math.min(5, Math.min(usableWidth / baseWidth, usableHeight / baseHeight)));
+
+      state.zoom = nextZoom;
       state.viewOffsetX = 0;
       state.viewOffsetY = 0;
-      drawMap();
+      const center = baseScreen((minX + maxX) / 2, (minY + maxY) / 2);
+      state.viewOffsetX = rect.width / 2 - center.x;
+      state.viewOffsetY = rect.height / 2 - center.y;
+      state.viewFocusedKey = key;
+      return true;
     }
 
     function startPan(event) {
@@ -1122,9 +1165,15 @@
     function handleOrientation(event) {
       const alpha = Number(event.alpha);
       if (Number.isFinite(alpha)) {
-        state.heading = alpha;
+        const offset = Number(currentFloor()?.mapHeadingOffsetDegrees || 0);
+        state.heading = normalizeDegrees(alpha + (Number.isFinite(offset) ? offset : 0));
         drawMap();
       }
+    }
+
+    function normalizeDegrees(value) {
+      const normalized = value % 360;
+      return normalized < 0 ? normalized + 360 : normalized;
     }
 
     async function submitFeedback(arrivedDestination) {

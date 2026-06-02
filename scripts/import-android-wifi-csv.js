@@ -122,6 +122,7 @@ function syncMapMetadata(sourceDir, scans) {
             imageWidth: imageSize.width * scaleValue,
             imageHeight: imageSize.height * scaleValue,
             coordinateUnit: floorMetadata.coordinateUnit || row.coordinateUnit || "meter",
+            mapHeadingOffsetDegrees: Number(floorMetadata.mapHeadingOffsetDegrees || row.mapHeadingOffsetDegrees || 0),
           }
         : {};
 

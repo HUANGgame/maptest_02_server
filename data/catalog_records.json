@@ -26,7 +26,8 @@
       "imageHeight": 54.7390625,
       "imageNaturalWidth": 1280,
       "imageNaturalHeight": 661,
-      "coordinateUnit": "meter"
+      "coordinateUnit": "meter",
+      "mapHeadingOffsetDegrees": 144.93674
     }
   ],
   "places": []
