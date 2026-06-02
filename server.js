@@ -670,6 +670,7 @@ mysqlMirror.startMirror()
 function sendJson(response, statusCode, body) {
   response.writeHead(statusCode, {
     "content-type": "application/json; charset=utf-8",
+    "cache-control": "no-store, max-age=0",
   });
   response.end(JSON.stringify(body));
 }
@@ -680,7 +681,10 @@ function sendFile(response, filePath, contentType) {
       sendJson(response, 404, { error: "notFound" });
       return;
     }
-    response.writeHead(200, { "content-type": contentType });
+    response.writeHead(200, {
+      "content-type": contentType,
+      "cache-control": "no-store, max-age=0",
+    });
     response.end(data);
   });
 }
@@ -702,6 +706,7 @@ function sendMapFile(response, pathname, headersOnly = false) {
     response.writeHead(200, {
       "content-type": contentType,
       "content-length": fs.statSync(filePath).size,
+      "cache-control": "no-store, max-age=0",
     });
     response.end();
     return;
