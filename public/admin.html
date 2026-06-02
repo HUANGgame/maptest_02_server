@@ -122,9 +122,8 @@
 <body>
   <header>
     <h1>地下街室內導航系統後台</h1>
-    <div class="muted">Demo 場域：淡江大學淡水校園</div>
-    <div id="healthInfo" class="muted">後端狀態：檢查中</div>
-    <div id="adminNotice" class="muted">操作狀態：待命</div>
+    <div id="healthInfo" class="muted">後端：檢查中</div>
+    <div id="adminNotice" class="muted">待命</div>
   </header>
   <main>
     <aside>
@@ -134,11 +133,11 @@
       <label for="floorSelect">樓層</label>
       <select id="floorSelect"></select>
       <button id="reloadButton">重新整理</button>
-      <button id="exportScopeButton">匯出目前範圍 JSON</button>
+      <button id="exportScopeButton">匯出資料</button>
 
       <h2 style="margin-top:18px">新增資料</h2>
       <label for="newMapName">新增地圖名稱</label>
-      <input id="newMapName" placeholder="例如 淡江 Demo">
+      <input id="newMapName" placeholder="地圖名稱">
       <button id="createMapButton">新增地圖</button>
 
       <label for="newFloorName">新增樓層名稱</label>
@@ -177,7 +176,6 @@
       </section>
       <section>
         <h2>資料品質</h2>
-        <div class="muted">只有 highConfidence 匿名回饋會進入再訓練；pending、lowConfidence、rejected 不會直接訓練模型。</div>
         <table>
           <thead><tr><th>項目</th><th>結果</th><th>建議動作</th></tr></thead>
           <tbody id="qualityBody"></tbody>
@@ -202,12 +200,12 @@
           <div><span class="muted">拒用</span><strong id="rejectedFeedback">0</strong></div>
         </div>
         <button id="evaluateFeedbackButton">評估回饋品質</button>
-        <button id="retrainFeedbackButton">用高可信回饋再訓練</button>
+        <button id="retrainFeedbackButton">回饋再訓練</button>
       </section>
       <section>
         <h2>模型版本</h2>
-        <button id="trainKnnButton">用人工指紋訓練 KNN</button>
-        <button id="trainRfButton">建立 Random Forest 比較</button>
+        <button id="trainKnnButton">訓練 KNN</button>
+        <button id="trainRfButton">建立比較模型</button>
         <table>
           <thead><tr><th>版本</th><th>演算法</th><th>資料量</th><th>用途</th><th>狀態</th><th>操作</th></tr></thead>
           <tbody id="modelsBody"></tbody>
@@ -221,8 +219,8 @@
         </table>
       </section>
       <section>
-        <h2>導航策略版本</h2>
-        <button id="trainPolicyButton">執行策略模擬訓練</button>
+        <h2>導航策略</h2>
+        <button id="trainPolicyButton">策略訓練</button>
         <table>
           <thead><tr><th>回合</th><th>平均獎勵</th><th>成功率</th><th>摘要</th><th>狀態</th></tr></thead>
           <tbody id="policyRunsBody"></tbody>
@@ -259,7 +257,7 @@
 
     reloadButton.addEventListener("click", loadDashboard);
     document.querySelector("#exportScopeButton").addEventListener("click", async () => {
-      await runAdminAction("已匯出目前範圍資料", async () => {
+      await runAdminAction("已匯出", async () => {
         const mapId = mapSelect.value;
         const floorId = floorSelect.value;
         const data = await getJson(`/api/data/export?mapId=${encodeURIComponent(mapId)}&floorId=${encodeURIComponent(floorId)}`);
@@ -272,13 +270,13 @@
       });
     });
     document.querySelector("#evaluateFeedbackButton").addEventListener("click", async () => {
-      await runAdminAction("已完成回饋品質評估", async () => {
+      await runAdminAction("評估完成", async () => {
         await postJson("/api/navigation-feedback/evaluate", {});
         await loadDashboard();
       });
     });
     document.querySelector("#retrainFeedbackButton").addEventListener("click", async () => {
-      await runAdminAction("已完成高可信回饋再訓練", async () => {
+      await runAdminAction("訓練完成", async () => {
         await postJson("/api/models/retrain-from-feedback", {
           mapId: mapSelect.value,
           floorId: floorSelect.value,
@@ -287,7 +285,7 @@
       });
     });
     document.querySelector("#trainKnnButton").addEventListener("click", async () => {
-      await runAdminAction("已完成 KNN 初始訓練", async () => {
+      await runAdminAction("訓練完成", async () => {
         await postJson("/api/models/train", {
           mapId: mapSelect.value,
           floorId: floorSelect.value,
@@ -298,7 +296,7 @@
       });
     });
     document.querySelector("#trainRfButton").addEventListener("click", async () => {
-      await runAdminAction("已建立 Random Forest 比較模型", async () => {
+      await runAdminAction("已建立", async () => {
         await postJson("/api/models/train", {
           mapId: mapSelect.value,
           floorId: floorSelect.value,
@@ -309,7 +307,7 @@
       });
     });
     document.querySelector("#trainPolicyButton").addEventListener("click", async () => {
-      await runAdminAction("已建立導航策略訓練紀錄", async () => {
+      await runAdminAction("訓練完成", async () => {
         await postJson("/api/navigation-policy/train", {
           mapId: mapSelect.value,
           floorId: floorSelect.value,
@@ -321,7 +319,7 @@
     document.querySelector("#createMapButton").addEventListener("click", async () => {
       const name = document.querySelector("#newMapName").value.trim();
       await runAdminAction("已新增地圖", async () => {
-        await postJson("/api/maps", { name, description: "由後台建立的 Demo 地圖" });
+        await postJson("/api/maps", { name, description: "" });
         await init();
       });
     });
@@ -353,7 +351,7 @@
           category,
           x,
           y,
-          description: "由後台建立的 Demo 地點",
+          description: "",
           searchable: true,
         });
         await loadDashboard();
@@ -393,7 +391,7 @@
 
     async function loadHealth() {
       const health = await getJson("/api/health");
-      document.querySelector("#healthInfo").textContent = `後端狀態：正常，階段：${health.phase}`;
+      document.querySelector("#healthInfo").textContent = `後端：正常`;
     }
 
     async function loadFloors() {
@@ -484,7 +482,7 @@
         });
       });
 
-      document.querySelector("#scopeInfo").textContent = `mapId=${mapId}，floorId=${floorId}`;
+      document.querySelector("#scopeInfo").textContent = `地圖：${mapId}，樓層：${floorId}`;
       document.querySelector("#pendingFeedback").textContent = feedback.pendingCount;
       document.querySelector("#highFeedback").textContent = feedback.highConfidenceCount;
       document.querySelector("#rejectedFeedback").textContent = feedback.rejectedCount;
@@ -559,14 +557,14 @@
 
     async function runAdminAction(successMessage, action) {
       const notice = document.querySelector("#adminNotice");
-      notice.textContent = "操作狀態：處理中";
+      notice.textContent = "處理中";
       notice.className = "muted";
       try {
         await action();
-        notice.textContent = `操作狀態：${successMessage}`;
+        notice.textContent = successMessage;
         notice.className = "muted";
       } catch (error) {
-        notice.textContent = `操作狀態：失敗，${error.message}`;
+        notice.textContent = `失敗：${error.message}`;
         notice.className = "bad";
       }
     }
