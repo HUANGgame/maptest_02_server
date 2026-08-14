@@ -565,12 +565,6 @@
       if (state.destination) {
         destinationText.textContent = `目的地：${state.destination.name}`;
         nextStep.textContent = `${state.destination.name} 已設為目的地。`;
-        if (state.destination.floorId !== state.currentFloorId) {
-          state.currentFloorId = state.destination.floorId;
-          state.current.floorId = state.currentFloorId;
-          renderFloorButtons();
-          loadWifiPoints();
-        }
       }
       showRoute();
       renderAll();
