@@ -433,9 +433,12 @@
     mapSelect.addEventListener("change", async () => {
       state.currentMapId = mapSelect.value;
       state.viewFocusedKey = "";
+      clearNavigationSelection();
+      searchInput.value = "";
       await loadFloors();
       await loadPlaces();
       await loadWifiPoints();
+      performSearch();
       renderAll();
     });
 
@@ -489,14 +492,17 @@
     }
 
     async function loadPlaces() {
-      state.places = await fetchJson(`/api/places?mapId=${encodeURIComponent(state.currentMapId)}`);
+      const mapId = state.currentMapId;
+      const places = await fetchJson(`/api/places?mapId=${encodeURIComponent(mapId)}`);
+      if (mapId !== state.currentMapId) return;
+      state.places = places.filter((place) => place.mapId === state.currentMapId);
       updateDataStatus();
     }
 
     async function loadWifiPoints() {
       try {
         const data = await fetchJson(`/api/wifi-scans/points?mapId=${encodeURIComponent(state.currentMapId)}&floorId=${encodeURIComponent(state.currentFloorId)}`);
-        state.wifiPoints = Array.isArray(data.points) ? data.points : [];
+        state.wifiPoints = Array.isArray(data.points) ? data.points.filter((point) => point.mapId === state.currentMapId && point.floorId === state.currentFloorId) : [];
         if (state.wifiPoints.length > 0 && !state.destination) {
           const first = state.wifiPoints[0];
           state.current = { x: Number(first.x), y: Number(first.y), floorId: first.floorId || state.currentFloorId };
@@ -530,6 +536,7 @@
           state.current.floorId = floor.id;
           state.viewFocusedKey = "";
           await loadWifiPoints();
+          performSearch();
           renderAll();
         });
         floorButtons.appendChild(button);
@@ -540,6 +547,7 @@
       const keyword = searchInput.value.trim().toLowerCase();
       const matched = navigationTargets()
         .filter((place) => {
+          if (place.mapId !== state.currentMapId) return false;
           if (!keyword) return place.floorId === state.currentFloorId;
           return [place.id, place.name, place.category, place.description].some((value) => String(value || "").toLowerCase().includes(keyword));
         })
@@ -560,7 +568,7 @@
     }
 
     function selectDestination(id) {
-      state.destination = navigationTargets().find((place) => place.id === id) || null;
+      state.destination = navigationTargets().find((place) => place.id === id && place.mapId === state.currentMapId) || null;
       state.route = [];
       if (state.destination) {
         destinationText.textContent = `目的地：${state.destination.name}`;
@@ -568,6 +576,19 @@
       }
       showRoute();
       renderAll();
+    }
+
+    function clearNavigationSelection() {
+      state.destination = null;
+      state.route = [];
+      state.routeDistance = 0;
+      state.routeTime = 0;
+      state.navigationActive = false;
+      destinationText.textContent = "目的地：尚未選擇";
+      distanceText.textContent = "距離：-- 公尺";
+      timeText.textContent = "時間：-- 分鐘";
+      results.hidden = true;
+      results.innerHTML = "";
     }
 
     async function showRoute() {
@@ -1305,7 +1326,9 @@
         businessStatus: "unset",
         source: "wifiPoint",
       }));
-      return state.places.concat(wifiTargets);
+      return state.places
+        .concat(wifiTargets)
+        .filter((target) => target.mapId === state.currentMapId);
     }
 
     function orderedWifiPoints() {
