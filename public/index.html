@@ -710,6 +710,10 @@
     }
 
     function drawWalkways() {
+      if (state.currentMapId === "coordinate-demo") {
+        drawCoordinateDemoWalkways();
+        return;
+      }
       if (state.currentMapId !== "tkut-demo") return;
       ctx.lineWidth = 28;
       ctx.lineCap = "round";
@@ -722,6 +726,89 @@
         drawPolyline([{ x: 120, y: 680 }, { x: 250, y: 570 }, { x: 390, y: 500 }, { x: 610, y: 500 }, { x: 790, y: 360 }]);
         drawPolyline([{ x: 390, y: 500 }, { x: 430, y: 420 }, { x: 520, y: 330 }]);
       }
+    }
+
+    function drawCoordinateDemoWalkways() {
+      ctx.save();
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
+      if (state.currentFloorId === "coordinate-demo-f2") {
+        drawCoordinateSecondFloor();
+        ctx.strokeStyle = "#d8e0e7";
+        ctx.lineWidth = 28;
+        drawPolyline([
+          { x: 300, y: 390 },
+          { x: 300, y: 250 },
+          { x: 560, y: 250 },
+          { x: 820, y: 250 },
+          { x: 1080, y: 250 },
+          { x: 1340, y: 250 },
+          { x: 1600, y: 250 },
+        ]);
+        ctx.strokeStyle = "#7b8794";
+        ctx.lineWidth = 4;
+        drawPolyline([
+          { x: 300, y: 390 },
+          { x: 300, y: 250 },
+          { x: 1600, y: 250 },
+        ]);
+        ctx.fillStyle = "#1f2933";
+        ctx.font = "700 16px Microsoft JhengHei, sans-serif";
+        const stair = screen(300, 390);
+        ctx.fillText("樓梯", stair.x + 14, stair.y - 10);
+      } else {
+        ctx.strokeStyle = "rgba(216, 224, 231, .78)";
+        ctx.lineWidth = 18;
+        drawPolyline([
+          { x: 20, y: 282 },
+          { x: 225, y: 282 },
+          { x: 520, y: 282 },
+          { x: 880, y: 282 },
+          { x: 1138, y: 282 },
+          { x: 1500, y: 282 },
+          { x: 1970, y: 282 },
+        ]);
+        drawPolyline([{ x: 225, y: 282 }, { x: 225, y: 445 }, { x: 225, y: 600 }]);
+        drawPolyline([{ x: 988, y: 282 }, { x: 988, y: 445 }, { x: 988, y: 600 }]);
+        drawPolyline([{ x: 1500, y: 282 }, { x: 1735, y: 445 }, { x: 1735, y: 600 }]);
+        drawPolyline([{ x: 1138, y: 282 }, { x: 1138, y: 135 }]);
+      }
+      ctx.restore();
+    }
+
+    function drawCoordinateSecondFloor() {
+      const bounds = [
+        { x: 220, y: 185 },
+        { x: 1680, y: 185 },
+        { x: 1680, y: 325 },
+        { x: 380, y: 325 },
+        { x: 380, y: 440 },
+        { x: 220, y: 440 },
+      ].map((point) => screen(point.x, point.y));
+      ctx.fillStyle = "#f5efe2";
+      ctx.beginPath();
+      bounds.forEach((point, index) => {
+        if (index === 0) ctx.moveTo(point.x, point.y);
+        else ctx.lineTo(point.x, point.y);
+      });
+      ctx.closePath();
+      ctx.fill();
+      ctx.strokeStyle = "#c9b79c";
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      ctx.fillStyle = "#eef2f6";
+      [
+        [430, 205, 140, 80],
+        [690, 205, 140, 80],
+        [950, 205, 140, 80],
+        [1210, 205, 140, 80],
+        [1470, 205, 140, 80],
+      ].forEach(([x, y, width, height]) => {
+        const topLeft = screen(x, y);
+        const bottomRight = screen(x + width, y + height);
+        ctx.fillRect(topLeft.x, topLeft.y, bottomRight.x - topLeft.x, bottomRight.y - topLeft.y);
+        ctx.strokeRect(topLeft.x, topLeft.y, bottomRight.x - topLeft.x, bottomRight.y - topLeft.y);
+      });
     }
 
     function drawFloorImage() {
