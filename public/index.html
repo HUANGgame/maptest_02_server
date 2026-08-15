@@ -378,6 +378,8 @@
       viewFocusedKey: "",
       navigationActive: false,
       navigationFrame: null,
+      navigationTimer: null,
+      navigationRouteIndex: 0,
       feedbackAllowed: localStorage.getItem("feedbackAllowed") === "true",
     };
 
@@ -579,11 +581,13 @@
     }
 
     function clearNavigationSelection() {
+      stopAutoNavigationDemo();
       state.destination = null;
       state.route = [];
       state.routeDistance = 0;
       state.routeTime = 0;
       state.navigationActive = false;
+      state.navigationRouteIndex = 0;
       destinationText.textContent = "目的地：尚未選擇";
       distanceText.textContent = "距離：-- 公尺";
       timeText.textContent = "時間：-- 分鐘";
@@ -625,20 +629,30 @@
       renderAll();
     }
 
-    function startNavigation() {
+    async function startNavigation() {
       if (!state.destination) {
         nextStep.textContent = "請先選擇目的地。";
         return;
       }
+      if (state.route.length < 2) {
+        await showRoute();
+      }
+      if (state.route.length < 2) {
+        nextStep.textContent = "目前沒有可用路線。";
+        return;
+      }
       state.navigationActive = true;
+      state.navigationRouteIndex = nearestRouteIndexOnCurrentFloor();
       nextStep.textContent = nextStepText();
       playNavigationAnimation("start");
+      startAutoNavigationDemo();
       submitFeedback(false);
       renderAll();
     }
 
     function endNavigation() {
       state.navigationActive = false;
+      stopAutoNavigationDemo();
       nextStep.textContent = "導航已結束。";
       playNavigationAnimation("end");
       submitFeedback(true);
@@ -647,6 +661,92 @@
         renderAll();
       }, 650);
       renderAll();
+    }
+
+    function startAutoNavigationDemo() {
+      stopAutoNavigationDemo();
+      state.navigationTimer = window.setInterval(() => {
+        advanceNavigationPosition().catch(() => {});
+      }, 850);
+    }
+
+    function stopAutoNavigationDemo() {
+      if (state.navigationTimer) {
+        window.clearInterval(state.navigationTimer);
+        state.navigationTimer = null;
+      }
+    }
+
+    async function advanceNavigationPosition() {
+      if (!state.navigationActive || state.route.length < 2) return;
+      let nextIndex = Math.min(state.navigationRouteIndex + 1, state.route.length - 1);
+      let next = state.route[nextIndex];
+      if (!next) return;
+
+      if (next.floorId && next.floorId !== state.current.floorId) {
+        await switchToRouteFloor(next.floorId, next.x, next.y);
+        state.navigationRouteIndex = nextIndex;
+        updateRouteProgressText();
+        renderAll();
+        return;
+      }
+
+      const dx = next.x - state.current.x;
+      const dy = next.y - state.current.y;
+      const remaining = Math.hypot(dx, dy);
+      const step = Math.max(45, Math.min(130, state.routeDistance / 28 || 70));
+      if (remaining <= step) {
+        state.current = { x: next.x, y: next.y, floorId: next.floorId || state.current.floorId };
+        state.navigationRouteIndex = nextIndex;
+        const after = state.route[nextIndex + 1];
+        if (after && after.floorId && after.floorId !== state.current.floorId) {
+          await switchToRouteFloor(after.floorId, after.x, after.y);
+          state.navigationRouteIndex = nextIndex + 1;
+        }
+      } else {
+        state.current = {
+          x: state.current.x + (dx / remaining) * step,
+          y: state.current.y + (dy / remaining) * step,
+          floorId: state.current.floorId,
+        };
+      }
+
+      if (state.navigationRouteIndex >= state.route.length - 1) {
+        state.navigationActive = false;
+        stopAutoNavigationDemo();
+        nextStep.textContent = "已抵達目的地。";
+        submitFeedback(true);
+      } else {
+        updateRouteProgressText();
+      }
+      renderAll();
+    }
+
+    async function switchToRouteFloor(floorId, x, y) {
+      state.currentFloorId = floorId;
+      state.current = { x, y, floorId };
+      state.viewFocusedKey = "";
+      await loadWifiPoints();
+      renderFloorButtons();
+      centerOnCurrent();
+      nextStep.textContent = `已切換到 ${floorName(floorId)}，請繼續沿路線前進。`;
+    }
+
+    function nearestRouteIndexOnCurrentFloor() {
+      const sameFloor = state.route
+        .map((point, index) => ({ point, index, distance: point.floorId === state.current.floorId ? distance(point.x, point.y, state.current.x, state.current.y) : Infinity }))
+        .sort((left, right) => left.distance - right.distance)[0];
+      return Number.isFinite(sameFloor?.distance) ? sameFloor.index : 0;
+    }
+
+    function updateRouteProgressText() {
+      const next = state.route[Math.min(state.navigationRouteIndex + 1, state.route.length - 1)];
+      if (!next) return;
+      if (next.floorId && next.floorId !== state.current.floorId) {
+        nextStep.textContent = `請前往樓梯，準備切換到 ${floorName(next.floorId)}。`;
+      } else {
+        nextStep.textContent = state.destination ? `沿著路線前進，目的地是 ${state.destination.name}。` : "沿著路線前進。";
+      }
     }
 
     function toggleViewFollow() {
