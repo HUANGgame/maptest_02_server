@@ -665,6 +665,7 @@
 
     function startAutoNavigationDemo() {
       stopAutoNavigationDemo();
+      if (state.currentMapId !== "coordinate-demo") return;
       state.navigationTimer = window.setInterval(() => {
         advanceNavigationPosition().catch(() => {});
       }, 850);
@@ -678,6 +679,7 @@
     }
 
     async function advanceNavigationPosition() {
+      if (state.currentMapId !== "coordinate-demo") return;
       if (!state.navigationActive || state.route.length < 2) return;
       let nextIndex = Math.min(state.navigationRouteIndex + 1, state.route.length - 1);
       let next = state.route[nextIndex];
