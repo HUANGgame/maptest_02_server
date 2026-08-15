@@ -1165,8 +1165,15 @@
     function baseScreen(x, y) {
       const rect = canvas.getBoundingClientRect();
       const padding = 28;
-      const sx = padding + ((x - world.left) / world.width) * (rect.width - padding * 2);
-      const sy = padding + ((y - world.top) / world.height) * (rect.height - padding * 2);
+      const viewportWidth = Math.max(1, rect.width - padding * 2);
+      const viewportHeight = Math.max(1, rect.height - padding * 2);
+      const scale = Math.min(viewportWidth / Math.max(1, world.width), viewportHeight / Math.max(1, world.height));
+      const drawnWidth = world.width * scale;
+      const drawnHeight = world.height * scale;
+      const originX = padding + (viewportWidth - drawnWidth) / 2;
+      const originY = padding + (viewportHeight - drawnHeight) / 2;
+      const sx = originX + (x - world.left) * scale;
+      const sy = originY + (y - world.top) * scale;
       return {
         x: rect.width / 2 + (sx - rect.width / 2) * state.zoom + state.viewOffsetX,
         y: rect.height / 2 + (sy - rect.height / 2) * state.zoom + state.viewOffsetY,
