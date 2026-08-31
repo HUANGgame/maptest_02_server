@@ -6,7 +6,8 @@
   "scripts": {
     "start": "node server.js",
     "import:android-wifi": "node scripts/import-android-wifi-csv.js",
-    "smoke": "node scripts/smoke-test.js"
+    "smoke": "node scripts/smoke-test.js",
+    "predict:dev": "node scripts/test-devtunnel-predict.js"
   },
   "dependencies": {
     "mysql2": "^3.11.5"

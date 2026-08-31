@@ -41,6 +41,32 @@ const server = http.createServer(async (request, response) => {
     return;
   }
 
+  if (request.method === "GET" && url.pathname === "/wifi-test") {
+    sendFile(response, path.join(__dirname, "public", "wifi-test.html"), "text/html; charset=utf-8");
+    return;
+  }
+
+  if (request.method === "POST" && url.pathname === "/api/dev-predict") {
+    try {
+      const body = await readJsonBody(request);
+      const modelUrl = String(body.modelUrl || "https://mxz0qz8w-8000.jpe1.devtunnels.ms/predict").trim();
+      const signals = Array.isArray(body.signals) ? body.signals : [];
+      if (!modelUrl.startsWith("https://") && !modelUrl.startsWith("http://")) {
+        sendJson(response, 400, { success: false, message: "模型網址格式不正確" });
+        return;
+      }
+      if (signals.length === 0) {
+        sendJson(response, 400, { success: false, message: "請提供 Wi-Fi 訊號資料" });
+        return;
+      }
+      const result = await callDevPredict(modelUrl, signals);
+      sendJson(response, 200, result);
+    } catch (error) {
+      sendJson(response, 502, { success: false, message: error.message });
+    }
+    return;
+  }
+
   if ((request.method === "GET" || request.method === "HEAD") && url.pathname.startsWith("/maps/")) {
     sendMapFile(response, url.pathname, request.method === "HEAD");
     return;
@@ -749,6 +775,41 @@ function readJsonBody(request) {
     });
     request.on("error", reject);
   });
+}
+
+async function callDevPredict(modelUrl, signals) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 12_000);
+  try {
+    const upstream = await fetch(modelUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ signals }),
+      signal: controller.signal,
+    });
+    const raw = await upstream.text();
+    if (!upstream.ok) {
+      throw new Error(`模型服務 HTTP ${upstream.status}: ${raw.slice(0, 200)}`);
+    }
+    let parsed;
+    try {
+      parsed = raw ? JSON.parse(raw) : {};
+    } catch (_error) {
+      throw new Error("模型回傳不是 JSON");
+    }
+    const location = parsed.location || parsed.prediction || parsed.result || null;
+    return {
+      success: true,
+      modelUrl,
+      location,
+      raw: parsed,
+    };
+  } catch (error) {
+    if (error.name === "AbortError") throw new Error("模型服務連線逾時");
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 function buildScopedExport(mapId, floorId) {
