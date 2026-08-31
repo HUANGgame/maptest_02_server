@@ -50,12 +50,12 @@ const server = http.createServer(async (request, response) => {
     try {
       const body = await readJsonBody(request);
       const modelUrl = String(body.modelUrl || "https://mxz0qz8w-8000.jpe1.devtunnels.ms/predict").trim();
-      const signals = Array.isArray(body.signals) ? body.signals : [];
+      const signals = normalizePredictSignals(body.signals);
       if (!modelUrl.startsWith("https://") && !modelUrl.startsWith("http://")) {
         sendJson(response, 400, { success: false, message: "模型網址格式不正確" });
         return;
       }
-      if (signals.length === 0) {
+      if (Object.keys(signals).length === 0) {
         sendJson(response, 400, { success: false, message: "請提供 Wi-Fi 訊號資料" });
         return;
       }
@@ -810,6 +810,26 @@ async function callDevPredict(modelUrl, signals) {
   } finally {
     clearTimeout(timeout);
   }
+}
+
+function normalizePredictSignals(input) {
+  if (Array.isArray(input)) {
+    return input.reduce((signals, item) => {
+      const bssid = String(item?.bssid || "").trim().toLowerCase();
+      const rssi = Number(item?.rssi);
+      if (bssid && Number.isFinite(rssi)) signals[bssid] = rssi;
+      return signals;
+    }, {});
+  }
+  if (input && typeof input === "object") {
+    return Object.entries(input).reduce((signals, [bssid, rssi]) => {
+      const key = String(bssid || "").trim().toLowerCase();
+      const value = Number(rssi);
+      if (key && Number.isFinite(value)) signals[key] = value;
+      return signals;
+    }, {});
+  }
+  return {};
 }
 
 function buildScopedExport(mapId, floorId) {

@@ -110,7 +110,7 @@
 <body>
   <main>
     <h1>Wi-Fi 定位測試</h1>
-    <p>貼上目前掃到的 Wi-Fi 訊號，送到測試模型，檢查是否能回傳 [Y, X] 座標。</p>
+    <p>貼上 BSSID 對 RSSI 的 JSON 字典，送到測試模型，檢查是否能回傳 [Y, X] 座標。</p>
 
     <section class="panel">
       <label for="modelUrl">模型網址</label>
@@ -119,13 +119,14 @@
 
     <section class="panel">
       <label for="signals">Wi-Fi 訊號 JSON</label>
-      <textarea id="signals">[
-  { "bssid": "00:11:22:33:44:55", "ssid": "demo-ap", "rssi": -55 },
-  { "bssid": "66:77:88:99:aa:bb", "ssid": "demo-ap-2", "rssi": -72 }
-]</textarea>
+      <textarea id="signals">{
+  "00:11:22:33:44:55": -55,
+  "66:77:88:99:aa:bb": -72
+}</textarea>
       <div class="actions">
         <button class="primary" id="send">送出測試</button>
-        <button id="sample">填入範例</button>
+        <button id="sampleObject">字典範例</button>
+        <button id="sampleArray">掃描陣列範例</button>
         <a class="button" href="/">回用戶端</a>
         <a class="button" href="/admin">回後台</a>
       </div>
@@ -143,7 +144,14 @@
     const statusEl = document.querySelector("#status");
     const resultEl = document.querySelector("#result");
 
-    document.querySelector("#sample").addEventListener("click", () => {
+    document.querySelector("#sampleObject").addEventListener("click", () => {
+      signalsInput.value = JSON.stringify({
+        "00:11:22:33:44:55": -55,
+        "66:77:88:99:aa:bb": -72
+      }, null, 2);
+    });
+
+    document.querySelector("#sampleArray").addEventListener("click", () => {
       signalsInput.value = JSON.stringify([
         { bssid: "00:11:22:33:44:55", ssid: "demo-ap", rssi: -55 },
         { bssid: "66:77:88:99:aa:bb", ssid: "demo-ap-2", rssi: -72 }
@@ -157,8 +165,8 @@
 
       let signals;
       try {
-        signals = JSON.parse(signalsInput.value);
-        if (!Array.isArray(signals)) throw new Error("最外層必須是陣列");
+        signals = normalizeSignals(JSON.parse(signalsInput.value));
+        if (Object.keys(signals).length === 0) throw new Error("沒有可用的 BSSID/RSSI 資料");
       } catch (error) {
         statusEl.className = "status bad";
         statusEl.textContent = "JSON 格式錯誤";
@@ -188,6 +196,26 @@
         resultEl.textContent = error.message;
       }
     });
+
+    function normalizeSignals(input) {
+      if (Array.isArray(input)) {
+        return input.reduce((signals, item) => {
+          const bssid = String(item && item.bssid || "").trim().toLowerCase();
+          const rssi = Number(item && item.rssi);
+          if (bssid && Number.isFinite(rssi)) signals[bssid] = rssi;
+          return signals;
+        }, {});
+      }
+      if (input && typeof input === "object") {
+        return Object.entries(input).reduce((signals, [bssid, rssi]) => {
+          const key = String(bssid || "").trim().toLowerCase();
+          const value = Number(rssi);
+          if (key && Number.isFinite(value)) signals[key] = value;
+          return signals;
+        }, {});
+      }
+      return {};
+    }
   </script>
 </body>
 </html>
