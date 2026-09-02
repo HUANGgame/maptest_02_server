@@ -361,9 +361,9 @@
       places: [],
       wifiPoints: [],
       floorImages: new Map(),
-      currentMapId: "F1_M1",
-      currentFloorId: "floor_1",
-      current: { x: 207.5, y: 146.9, floorId: "floor_1" },
+      currentMapId: "k-area-airport",
+      currentFloorId: "k-area-airport-1f",
+      current: { x: 867, y: 296, floorId: "k-area-airport-1f" },
       heading: null,
       destination: null,
       route: [],
@@ -1356,7 +1356,7 @@
       const maxX = Math.max(...xs);
       const minY = Math.min(...ys);
       const maxY = Math.max(...ys);
-      const focusPadding = state.currentMapId === "F1_M1" ? 10 : 30;
+      const focusPadding = 30;
       const targetWidth = Math.max(1, maxX - minX + focusPadding * 2);
       const targetHeight = Math.max(1, maxY - minY + focusPadding * 2);
       const baseWidth = (targetWidth / world.width) * Math.max(1, rect.width - 56);
@@ -1364,7 +1364,7 @@
       const usableWidth = Math.max(1, rect.width - 120);
       const usableHeight = Math.max(1, rect.height - 150);
       const fitZoom = Math.min(usableWidth / baseWidth, usableHeight / baseHeight);
-      const preferredZoom = state.currentMapId === "F1_M1" ? fitZoom * 1.35 : fitZoom;
+      const preferredZoom = fitZoom;
       const nextZoom = Math.max(1, Math.min(6, preferredZoom));
 
       state.zoom = nextZoom;

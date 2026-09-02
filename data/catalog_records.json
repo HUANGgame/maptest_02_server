@@ -2,24 +2,49 @@
   "maps": [
     {
       "id": "F1_M1",
-      "name": "K區地下街往機捷",
-      "description": "Demo 階段使用K區地下街與往機捷連通區作為室內導航測試場域。",
+      "name": "東森廣場 K區地下街 Demo",
+      "description": "Demo 階段使用東森廣場 K區地下街地圖作為室內導航測試場域。",
       "createdAt": "2026-06-01T19:51:39.004Z",
-      "updatedAt": "2026-09-02T09:33:50.171Z"
+      "updatedAt": "2026-09-02T09:38:02.255Z"
+    },
+    {
+      "id": "k-area-airport",
+      "name": "K區地下街往機捷",
+      "description": "Demo 階段使用 K區地下街與往機捷連通區作為室內導航測試場域。",
+      "createdAt": "2026-09-02T09:38:02.255Z",
+      "updatedAt": "2026-09-02T09:38:02.255Z"
     }
   ],
   "floors": [
     {
       "id": "floor_1",
       "mapId": "F1_M1",
+      "floorName": "B1",
+      "floorLevel": -1,
+      "imageUrl": "/maps/F1_M1_floor_1.jpg",
+      "width": 106,
+      "height": 58,
+      "scaleValue": 0.102581844,
+      "createdAt": "2026-06-01T19:51:39.004Z",
+      "updatedAt": "2026-09-02T09:38:02.255Z",
+      "imageLeft": 139.781581,
+      "imageTop": 120.446854,
+      "imageWidth": 131.30476,
+      "imageHeight": 67.806599,
+      "imageNaturalWidth": 1280,
+      "imageNaturalHeight": 661,
+      "coordinateUnit": "meter",
+      "mapHeadingOffsetDegrees": 144.93674
+    },
+    {
+      "id": "k-area-airport-1f",
+      "mapId": "k-area-airport",
       "floorName": "1F",
       "floorLevel": 1,
       "imageUrl": "/maps/k_area_to_airport_1f.jpg",
       "width": 1734,
       "height": 591,
       "scaleValue": 1,
-      "createdAt": "2026-06-01T19:51:39.004Z",
-      "updatedAt": "2026-09-02T09:33:50.171Z",
       "imageLeft": 0,
       "imageTop": 0,
       "imageWidth": 1734,
@@ -27,11 +52,13 @@
       "imageNaturalWidth": 1734,
       "imageNaturalHeight": 591,
       "coordinateUnit": "pixel",
-      "mapHeadingOffsetDegrees": 0
+      "mapHeadingOffsetDegrees": 0,
+      "createdAt": "2026-09-02T09:38:02.255Z",
+      "updatedAt": "2026-09-02T09:38:02.255Z"
     },
     {
-      "id": "floor_2",
-      "mapId": "F1_M1",
+      "id": "k-area-airport-2f",
+      "mapId": "k-area-airport",
       "floorName": "2F",
       "floorLevel": 2,
       "imageUrl": "/maps/k_area_to_airport_2f.jpg",
@@ -46,8 +73,8 @@
       "imageNaturalHeight": 437,
       "coordinateUnit": "pixel",
       "mapHeadingOffsetDegrees": 0,
-      "createdAt": "2026-09-02T09:33:50.171Z",
-      "updatedAt": "2026-09-02T09:33:50.171Z"
+      "createdAt": "2026-09-02T09:38:02.255Z",
+      "updatedAt": "2026-09-02T09:38:02.255Z"
     }
   ],
   "places": []
