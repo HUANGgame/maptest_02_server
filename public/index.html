@@ -816,7 +816,7 @@
       canvas.width = Math.max(1, Math.round(rect.width * ratio));
       canvas.height = Math.max(1, Math.round(rect.height * ratio));
       ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
-      focusOnWifiPoints();
+      if (!fitFloorImage()) focusOnWifiPoints();
       drawMap();
     }
 
@@ -1291,7 +1291,7 @@
         const image = new Image();
         image.onload = () => {
           updateWorldFromData();
-          focusOnWifiPoints(true);
+          if (!fitFloorImage(true)) focusOnWifiPoints(true);
           drawMap();
         };
         image.src = url;
@@ -1306,7 +1306,7 @@
     }
 
     function resetView() {
-      if (!focusOnWifiPoints(true)) {
+      if (!fitFloorImage(true) && !focusOnWifiPoints(true)) {
         state.zoom = 1;
         state.viewOffsetX = 0;
         state.viewOffsetY = 0;
@@ -1314,7 +1314,32 @@
       drawMap();
     }
 
+    function fitFloorImage(force = false) {
+      const floor = currentFloor();
+      const bounds = floorImageBounds(floor);
+      if (!bounds) return false;
+      const key = `image:${state.currentMapId}:${state.currentFloorId}:${bounds.width}:${bounds.height}`;
+      if (!force && state.viewFocusedKey === key) return true;
+      const rect = canvas.getBoundingClientRect();
+      if (rect.width <= 0 || rect.height <= 0 || world.width <= 0 || world.height <= 0) return false;
+
+      const baseWidth = (bounds.width / world.width) * Math.max(1, rect.width - 56);
+      const baseHeight = (bounds.height / world.height) * Math.max(1, rect.height - 56);
+      const usableWidth = Math.max(1, rect.width - 160);
+      const usableHeight = Math.max(1, rect.height - 130);
+      const fitZoom = Math.min(usableWidth / baseWidth, usableHeight / baseHeight);
+      state.zoom = Math.max(0.55, Math.min(2.2, fitZoom));
+      state.viewOffsetX = 0;
+      state.viewOffsetY = 0;
+      const center = baseScreen(bounds.left + bounds.width / 2, bounds.top + bounds.height / 2);
+      state.viewOffsetX = rect.width / 2 - center.x;
+      state.viewOffsetY = rect.height / 2 - center.y;
+      state.viewFocusedKey = key;
+      return true;
+    }
+
     function focusOnWifiPoints(force = false) {
+      if (currentFloor()?.imageUrl) return fitFloorImage(force);
       const key = `${state.currentMapId}:${state.currentFloorId}:${state.wifiPoints.length}`;
       if (!force && state.viewFocusedKey === key) return false;
       const points = state.wifiPoints
