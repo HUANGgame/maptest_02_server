@@ -553,6 +553,7 @@
           if (!keyword) return place.floorId === state.currentFloorId;
           return [place.id, place.name, place.category, place.description].some((value) => String(value || "").toLowerCase().includes(keyword));
         })
+        .filter((_, index) => index !== 5)
         .slice(0, 30);
       const exact = matched.find((place) => keyword && (String(place.id).toLowerCase() === keyword || String(place.name).toLowerCase() === keyword));
       if (exact) selectDestination(exact.id);
