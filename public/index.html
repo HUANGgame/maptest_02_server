@@ -364,6 +364,7 @@
       currentMapId: "k-area-airport",
       currentFloorId: "k-area-airport-1f",
       current: { x: 867, y: 296, floorId: "k-area-airport-1f" },
+      hasCurrentPosition: false,
       heading: null,
       destination: null,
       route: [],
@@ -503,16 +504,17 @@
 
     async function loadWifiPoints() {
       try {
+        updateWorldFromData();
         const data = await fetchJson(`/api/wifi-scans/points?mapId=${encodeURIComponent(state.currentMapId)}&floorId=${encodeURIComponent(state.currentFloorId)}`);
         state.wifiPoints = Array.isArray(data.points) ? data.points.filter((point) => point.mapId === state.currentMapId && point.floorId === state.currentFloorId) : [];
-        if (state.wifiPoints.length > 0 && !state.destination) {
-          const first = state.wifiPoints[0];
-          state.current = { x: Number(first.x), y: Number(first.y), floorId: first.floorId || state.currentFloorId };
+        if (!state.navigationActive) {
+          state.current = { x: world.left + world.width / 2, y: world.top + world.height / 2, floorId: state.currentFloorId };
+          state.hasCurrentPosition = false;
         }
-        updateWorldFromData();
         focusOnWifiPoints();
       } catch {
         state.wifiPoints = [];
+        state.hasCurrentPosition = false;
       }
       updateDataStatus();
     }
@@ -561,7 +563,7 @@
       results.innerHTML = matched.map((place) => `
         <button class="result" data-id="${escapeHtml(place.id)}">
           <strong>${escapeHtml(place.name)}</strong>
-          <span>${escapeHtml(floorName(place.floorId))}｜${escapeHtml(place.category || "地點")}｜${distance(place.x, place.y, state.current.x, state.current.y).toFixed(0)} 公尺｜可導航</span>
+          <span>${escapeHtml(floorName(place.floorId))}｜${escapeHtml(place.category || "地點")}｜${state.hasCurrentPosition ? `${distance(place.x, place.y, state.current.x, state.current.y).toFixed(0)} 公尺` : "-- 公尺"}｜可導航</span>
         </button>
       `).join("");
       results.querySelectorAll(".result").forEach((button) => {
@@ -601,6 +603,14 @@
         nextStep.textContent = "請先選擇目的地。";
         return;
       }
+      if (!state.hasCurrentPosition) {
+        nextStep.textContent = "尚未取得目前位置，請先完成定位或切換到有定位資料的地圖。";
+        state.route = [];
+        state.routeDistance = 0;
+        state.routeTime = 0;
+        renderAll();
+        return;
+      }
       const body = {
         mapId: state.currentMapId,
         startFloorId: state.current.floorId,
@@ -635,6 +645,10 @@
         nextStep.textContent = "請先選擇目的地。";
         return;
       }
+      if (!state.hasCurrentPosition) {
+        nextStep.textContent = "尚未取得目前位置，請先完成定位或切換到有定位資料的地圖。";
+        return;
+      }
       if (state.route.length < 2) {
         await showRoute();
       }
@@ -667,6 +681,7 @@
     function startAutoNavigationDemo() {
       stopAutoNavigationDemo();
       if (state.currentMapId !== "coordinate-demo") return;
+      if (!state.hasCurrentPosition) return;
       state.navigationTimer = window.setInterval(() => {
         advanceNavigationPosition().catch(() => {});
       }, 850);
@@ -681,6 +696,7 @@
 
     async function advanceNavigationPosition() {
       if (state.currentMapId !== "coordinate-demo") return;
+      if (!state.hasCurrentPosition) return;
       if (!state.navigationActive || state.route.length < 2) return;
       let nextIndex = Math.min(state.navigationRouteIndex + 1, state.route.length - 1);
       let next = state.route[nextIndex];
@@ -728,6 +744,7 @@
     async function switchToRouteFloor(floorId, x, y) {
       state.currentFloorId = floorId;
       state.current = { x, y, floorId };
+      state.hasCurrentPosition = true;
       state.viewFocusedKey = "";
       await loadWifiPoints();
       renderFloorButtons();
@@ -1071,6 +1088,7 @@
     }
 
     function drawCurrent() {
+      if (!state.hasCurrentPosition) return;
       const point = screen(state.current.x, state.current.y);
       ctx.fillStyle = "#ffffff";
       ctx.beginPath();
@@ -1186,6 +1204,7 @@
       const point = baseScreen(x, y);
       const rad = followRotationRadians();
       if (!rad) return point;
+      if (!state.hasCurrentPosition) return point;
       const center = baseScreen(state.current.x, state.current.y);
       const dx = point.x - center.x;
       const dy = point.y - center.y;
@@ -1205,6 +1224,7 @@
     function applyFollowRotation() {
       const rad = followRotationRadians();
       if (!rad) return;
+      if (!state.hasCurrentPosition) return;
       const center = baseScreen(state.current.x, state.current.y);
       ctx.translate(center.x, center.y);
       ctx.rotate(rad);
@@ -1212,6 +1232,10 @@
     }
 
     function centerOnCurrent() {
+      if (!state.hasCurrentPosition) {
+        nextStep.textContent = "尚未取得目前位置，請先完成定位或切換到有定位資料的地圖。";
+        return;
+      }
       const rect = canvas.getBoundingClientRect();
       const savedX = state.viewOffsetX;
       const savedY = state.viewOffsetY;
@@ -1422,7 +1446,7 @@
     }
 
     async function submitFeedback(arrivedDestination) {
-      if (!state.feedbackAllowed || !state.destination) return;
+      if (!state.feedbackAllowed || !state.destination || !state.hasCurrentPosition) return;
       await postJson("/api/navigation-feedback", {
         anonymousUserId: anonymousId(),
         mapId: state.currentMapId,
@@ -1483,6 +1507,7 @@
 
     function sampledRouteToDestination() {
       if (!state.destination || state.destination.source !== "wifiPoint") return [];
+      if (!state.hasCurrentPosition) return [];
       const points = orderedWifiPoints();
       if (points.length === 0) return [];
       const startIndex = nearestPointIndex(points, state.current);
