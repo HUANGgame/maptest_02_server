@@ -65,10 +65,26 @@
     "averageError": null,
     "modelPath": "",
     "trainedAt": "2026-06-01T18:33:21.812Z",
-    "isActive": true,
+    "isActive": false,
     "isComparisonOnly": false,
     "notes": "Android CSV import active KNN model.",
     "createdAt": "2026-06-01T18:33:21.812Z",
-    "updatedAt": "2026-06-01T18:33:21.812Z"
+    "updatedAt": "2026-09-06T05:07:15.257Z"
+  },
+  {
+    "id": "model-1788671235257",
+    "versionName": "KNN-2026-09-06T05:07:15.257Z",
+    "mapId": "F1_M1",
+    "floorId": "floor_1",
+    "algorithm": "knn",
+    "trainingDataCount": 50777,
+    "averageError": 4.53,
+    "isComparisonOnly": false,
+    "notes": "",
+    "modelPath": "",
+    "trainedAt": "2026-09-06T05:07:15.257Z",
+    "isActive": true,
+    "createdAt": "2026-09-06T05:07:15.257Z",
+    "updatedAt": "2026-09-06T05:07:15.257Z"
   }
 ]

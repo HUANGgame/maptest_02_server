@@ -255,6 +255,18 @@ const server = http.createServer(async (request, response) => {
     return;
   }
 
+  if (request.method === "GET" && url.pathname === "/api/location/validation") {
+    const mapId = url.searchParams.get("mapId") || "";
+    const floorId = url.searchParams.get("floorId") || "";
+    if (!mapId || !floorId) {
+      sendJson(response, 400, { success: false, message: "mapId 與 floorId 不可空白。" });
+      return;
+    }
+    const records = filterByScope(readScans(), mapId, floorId);
+    sendJson(response, 200, validateKnnPositioning(records, mapId, floorId));
+    return;
+  }
+
   if (request.method === "POST" && url.pathname === "/api/models/train") {
     try {
       const body = await readJsonBody(request);
@@ -286,8 +298,8 @@ const server = http.createServer(async (request, response) => {
         algorithm,
         trainingDataCount: records.length,
         averageError: algorithm === "knn"
-          ? estimateLeaveOnePointError(records)
-          : estimateRandomForestComparisonError(records),
+          ? estimateLeaveOnePointError(records, mapId, floorId)
+          : estimateRandomForestComparisonError(records, mapId, floorId),
         isActive: algorithm === "knn" && body.activate !== false,
         isComparisonOnly: algorithm !== "knn",
         notes: algorithm === "randomForest"
@@ -468,7 +480,7 @@ const server = http.createServer(async (request, response) => {
         floorId,
         algorithm: "knn",
         trainingDataCount: totalTrainingCount,
-        averageError: estimateLeaveOnePointError(manualRecords),
+        averageError: estimateLeaveOnePointError(manualRecords, mapId, floorId),
         isActive: body.activate !== false,
         versionName: `KNN-feedback-${new Date().toISOString()}`,
       });
@@ -1082,41 +1094,38 @@ function buildWifiQuality(records) {
 function estimateLocation(body) {
   const mapId = String(body.mapId || "").trim();
   const floorId = String(body.floorId || "").trim();
-  const wifiList = Array.isArray(body.currentWifiList) ? body.currentWifiList : [];
-  if (!mapId || wifiList.length < 2) return null;
+  const wifiList = normalizeCurrentWifiList(body);
+  if (!mapId || wifiList.length < 1) return null;
   const model = floorId ? activeModel(mapId, floorId) : readModels().find((item) => item.mapId === mapId && item.isActive);
   if (!model) return null;
   const records = filterByScope(readScans(), model.mapId, model.floorId);
-  const currentVector = new Map(wifiList.filter((item) => item.bssid).map((item) => [String(item.bssid).toLowerCase(), Number(item.rssi)]));
-  if (currentVector.size < 2) return null;
-  const candidates = Array.from(groupBy(records, (record) => record.pointId).entries())
-    .map(([pointId, rows]) => {
-      const first = rows[0];
-      return {
-        pointId,
-        mapId: first.mapId,
-        floorId: first.floorId,
-        x: first.x,
-        y: first.y,
-        vector: averageRssiByBssid(rows),
-      };
-    })
-    .map((candidate) => ({
-      ...candidate,
-      distance: rssiDistance(currentVector, candidate.vector),
-      commonApCount: Array.from(currentVector.keys()).filter((bssid) => candidate.vector.has(bssid)).length,
-    }))
-    .filter((candidate) => candidate.commonApCount > 0)
-    .sort((left, right) => left.distance - right.distance)
-    .slice(0, 3);
+  const currentVector = wifiVector(wifiList);
+  if (currentVector.size < 1) return null;
+  const candidates = rankKnnCandidates(records, currentVector).slice(0, 5);
   if (candidates.length === 0) return null;
 
-  const weights = candidates.map((candidate) => 1 / Math.max(candidate.distance, 0.001));
+  const weights = candidates.map((candidate) => 1 / Math.max(candidate.score, 0.001) ** 2);
   const weightSum = weights.reduce((sum, value) => sum + value, 0);
   const x = candidates.reduce((sum, candidate, index) => sum + candidate.x * weights[index], 0) / weightSum;
   const y = candidates.reduce((sum, candidate, index) => sum + candidate.y * weights[index], 0) / weightSum;
   const best = candidates[0];
-  const confidence = Math.max(0, Math.min(100, Math.round(100 - Math.min(best.distance, 100) * 0.7 + Math.min(best.commonApCount, 10) * 4)));
+  const second = candidates[1];
+  const commonApCount = best.commonApCount;
+  const coverage = best.coverage;
+  const margin = second ? Math.max(0, second.score - best.score) : 8;
+  const confidence = clamp(Math.round(
+    25
+    + Math.min(commonApCount, 12) * 4
+    + coverage * 25
+    + Math.min(margin, 20)
+    - Math.min(best.distance, 45) * 0.8
+  ), 5, 95);
+  const neighborSpreadMeters = weightedNeighborSpreadMeters(candidates, x, y, model.mapId, model.floorId);
+  const validation = validateKnnPositioning(records, model.mapId, model.floorId, { maxSamples: 80 });
+  const validationError = Number(validation.averageErrorMeters);
+  const estimatedError = [neighborSpreadMeters, validationError]
+    .filter(Number.isFinite)
+    .reduce((max, value) => Math.max(max, value), 0);
 
   return {
     mapId: model.mapId,
@@ -1124,55 +1133,229 @@ function estimateLocation(body) {
     x: Math.round(x * 100) / 100,
     y: Math.round(y * 100) / 100,
     confidence,
-    estimatedError: Math.round(Math.max(1, best.distance / 10) * 100) / 100,
+    estimatedError: Math.round(Math.max(1, estimatedError || best.distance / 6) * 100) / 100,
     modelVersion: model.versionName,
+    nearestPointId: best.pointId,
+    commonApCount,
+    matchedPointCount: candidates.length,
+    accuracyTarget: confidence >= 70 && estimatedError <= 5 ? "3-5mCandidate" : "needsMoreCalibration",
   };
 }
 
 function averageRssiByBssid(records) {
-  const grouped = groupBy(records, (record) => record.bssid);
+  const grouped = groupBy(records, (record) => String(record.bssid || "").toLowerCase());
   return new Map(Array.from(grouped.entries()).map(([bssid, rows]) => [bssid, average(rows.map((row) => row.rssi))]));
 }
 
 function rssiDistance(currentVector, storedVector) {
   const bssids = new Set([...currentVector.keys(), ...storedVector.keys()]);
   let sumSquares = 0;
+  let count = 0;
   for (const bssid of bssids) {
     const diff = (currentVector.get(bssid) ?? -100) - (storedVector.get(bssid) ?? -100);
     sumSquares += diff * diff;
+    count += 1;
   }
-  return Math.sqrt(sumSquares);
+  return Math.sqrt(sumSquares / Math.max(1, count));
 }
 
-function estimateLeaveOnePointError(records) {
-  const pointGroups = Array.from(groupBy(records, (record) => record.pointId).values());
-  if (pointGroups.length < 2) return null;
-  const errors = pointGroups.map((rows, index) => {
-    const test = rows[0];
-    const train = pointGroups.filter((_, groupIndex) => groupIndex !== index).flat();
-    const currentWifiList = rows.map((record) => ({ bssid: record.bssid, rssi: record.rssi }));
-    const modelLike = { mapId: test.mapId, floorId: test.floorId };
-    const candidates = Array.from(groupBy(train, (record) => record.pointId).values()).map((candidateRows) => {
-      const first = candidateRows[0];
+function estimateLeaveOnePointError(records, mapId = "", floorId = "") {
+  const validation = validateKnnPositioning(records, mapId, floorId, { maxSamples: 120 });
+  return validation.averageErrorMeters ?? null;
+}
+
+function normalizeCurrentWifiList(body) {
+  if (Array.isArray(body.currentWifiList)) return body.currentWifiList;
+  if (Array.isArray(body.wifiSignals)) return body.wifiSignals;
+  if (body.signals && typeof body.signals === "object" && !Array.isArray(body.signals)) {
+    return Object.entries(body.signals).map(([bssid, rssi]) => ({ bssid, rssi }));
+  }
+  if (Array.isArray(body.signals)) return body.signals;
+  return [];
+}
+
+function wifiVector(wifiList) {
+  const grouped = new Map();
+  for (const item of wifiList) {
+    const bssid = String(item.bssid || "").trim().toLowerCase();
+    const rssi = Number(item.rssi);
+    if (!bssid || !Number.isFinite(rssi)) continue;
+    const list = grouped.get(bssid) || [];
+    list.push(rssi);
+    grouped.set(bssid, list);
+  }
+  return new Map(Array.from(grouped.entries()).map(([bssid, values]) => [bssid, average(values)]));
+}
+
+function rankKnnCandidates(records, currentVector) {
+  if (!records.length || currentVector.size === 0) return [];
+  const currentBssids = new Set(currentVector.keys());
+  return Array.from(groupBy(records, (record) => record.pointId).entries())
+    .map(([pointId, rows]) => {
+      const first = rows[0];
+      const location = dominantPointLocation(rows);
+      const vector = averageRssiByBssid(rows);
+      const commonApCount = Array.from(currentBssids).filter((bssid) => vector.has(bssid)).length;
+      const coverage = commonApCount / Math.max(1, currentVector.size);
+      const distance = rssiDistance(currentVector, vector);
+      const score = distance + (1 - coverage) * 18 - Math.min(commonApCount, 8) * 0.8;
       return {
-        x: first.x,
-        y: first.y,
-        vector: averageRssiByBssid(candidateRows),
+        pointId,
+        mapId: first.mapId,
+        floorId: first.floorId,
+        x: location.x,
+        y: location.y,
+        vector,
+        distance,
+        score,
+        commonApCount,
+        coverage,
       };
-    });
-    const currentVector = new Map(currentWifiList.map((item) => [String(item.bssid).toLowerCase(), Number(item.rssi)]));
-    const best = candidates.map((candidate) => ({
-      ...candidate,
-      distance: rssiDistance(currentVector, candidate.vector),
-    })).sort((left, right) => left.distance - right.distance)[0];
-    return best ? Math.hypot(Number(test.x) - Number(best.x), Number(test.y) - Number(best.y)) : null;
-  }).filter((value) => value != null);
-  if (errors.length === 0) return null;
-  return Math.round(average(errors) * 1000) / 1000;
+    })
+    .filter((candidate) => Number.isFinite(candidate.x) && Number.isFinite(candidate.y) && candidate.commonApCount > 0)
+    .sort((left, right) => left.score - right.score);
 }
 
-function estimateRandomForestComparisonError(records) {
-  const baseError = estimateLeaveOnePointError(records);
+function weightedNeighborSpreadMeters(candidates, x, y, mapId, floorId) {
+  const weights = candidates.map((candidate) => 1 / Math.max(candidate.score, 0.001) ** 2);
+  const weightSum = weights.reduce((sum, value) => sum + value, 0);
+  if (!weightSum) return null;
+  const spread = candidates.reduce((sum, candidate, index) => {
+    return sum + coordinateDistanceMeters(candidate.x, candidate.y, x, y, mapId, floorId) * weights[index];
+  }, 0) / weightSum;
+  return spread;
+}
+
+function validateKnnPositioning(records, mapId = "", floorId = "", options = {}) {
+  const testSamples = buildWifiTestSamples(records);
+  if (testSamples.length < 2) {
+    return {
+      success: false,
+      mapId: mapId || null,
+      floorId: floorId || null,
+      totalRecords: records.length,
+      testSampleCount: testSamples.length,
+      averageErrorMeters: null,
+      medianErrorMeters: null,
+      within3mRate: null,
+      within5mRate: null,
+      message: "資料不足，至少需要 2 個可驗證採樣點。",
+    };
+  }
+  const limit = Number(options.maxSamples || 0);
+  const selectedSamples = limit > 0 && testSamples.length > limit ? evenlySample(testSamples, limit) : testSamples;
+  const pointCount = new Set(records.map((record) => record.pointId)).size;
+  const results = selectedSamples.map((sample) => {
+    const trainRecords = records.filter((record) => record.pointId !== sample.pointId);
+    const candidates = rankKnnCandidates(trainRecords, sample.vector).slice(0, 5);
+    if (candidates.length === 0) return null;
+    const weights = candidates.map((candidate) => 1 / Math.max(candidate.score, 0.001) ** 2);
+    const weightSum = weights.reduce((sum, value) => sum + value, 0);
+    const x = candidates.reduce((sum, candidate, index) => sum + candidate.x * weights[index], 0) / weightSum;
+    const y = candidates.reduce((sum, candidate, index) => sum + candidate.y * weights[index], 0) / weightSum;
+    return {
+      pointId: sample.pointId,
+      predictedPointId: candidates[0].pointId,
+      errorMeters: coordinateDistanceMeters(sample.x, sample.y, x, y, sample.mapId, sample.floorId),
+      commonApCount: candidates[0].commonApCount,
+      coverage: candidates[0].coverage,
+    };
+  }).filter(Boolean);
+  const errors = results.map((result) => result.errorMeters).filter(Number.isFinite).sort((a, b) => a - b);
+  if (errors.length === 0) return null;
+  const averageErrorMeters = roundNumber(errors.reduce((sum, value) => sum + value, 0) / errors.length, 2);
+  const medianErrorMeters = roundNumber(errors[Math.floor(errors.length / 2)], 2);
+  const within3mRate = roundNumber(errors.filter((error) => error <= 3).length / errors.length * 100, 1);
+  const within5mRate = roundNumber(errors.filter((error) => error <= 5).length / errors.length * 100, 1);
+  return {
+    success: true,
+    mapId: mapId || records[0]?.mapId || null,
+    floorId: floorId || records[0]?.floorId || null,
+    totalRecords: records.length,
+    pointCount,
+    testSampleCount: selectedSamples.length,
+    evaluatedCount: errors.length,
+    averageErrorMeters,
+    medianErrorMeters,
+    within3mRate,
+    within5mRate,
+    targetReached: averageErrorMeters <= 5 && within5mRate >= 70,
+    message: averageErrorMeters <= 5
+      ? "目前平均誤差已接近 3-5 公尺目標，仍需用現場測試確認。"
+      : "目前尚未達到 3-5 公尺目標，需要補強採樣點、修正座標或過濾低品質 AP。",
+    worstCases: results
+      .sort((left, right) => right.errorMeters - left.errorMeters)
+      .slice(0, 8)
+      .map((item) => ({
+        pointId: item.pointId,
+        predictedPointId: item.predictedPointId,
+        errorMeters: roundNumber(item.errorMeters, 2),
+        commonApCount: item.commonApCount,
+        coverage: roundNumber(item.coverage, 2),
+      })),
+  };
+}
+
+function buildWifiTestSamples(records) {
+  const grouped = groupBy(records, (record) => `${record.pointId}|${record.scannedAt || record.createdAt || ""}`);
+  const locationsByPoint = new Map(Array.from(groupBy(records, (record) => record.pointId).entries())
+    .map(([pointId, rows]) => [pointId, dominantPointLocation(rows)]));
+  return Array.from(grouped.values()).map((rows) => {
+    const first = rows[0];
+    const location = locationsByPoint.get(first.pointId) || { x: null, y: null };
+    const vector = averageRssiByBssid(rows);
+    return {
+      pointId: first.pointId,
+      mapId: first.mapId,
+      floorId: first.floorId,
+      x: location.x,
+      y: location.y,
+      vector,
+    };
+  }).filter((sample) => sample.pointId && Number.isFinite(sample.x) && Number.isFinite(sample.y) && sample.vector.size > 0);
+}
+
+function dominantPointLocation(rows) {
+  const grouped = groupBy(rows.filter((row) => Number.isFinite(Number(row.x)) && Number.isFinite(Number(row.y))), (row) => {
+    return `${roundNumber(Number(row.x), 1)},${roundNumber(Number(row.y), 1)}`;
+  });
+  const dominant = Array.from(grouped.entries()).sort((left, right) => right[1].length - left[1].length)[0];
+  if (!dominant) return { x: null, y: null };
+  const dominantRows = dominant[1];
+  return {
+    x: average(dominantRows.map((row) => Number(row.x))),
+    y: average(dominantRows.map((row) => Number(row.y))),
+  };
+}
+
+function evenlySample(items, limit) {
+  if (items.length <= limit) return items;
+  const result = [];
+  for (let index = 0; index < limit; index += 1) {
+    result.push(items[Math.floor(index * items.length / limit)]);
+  }
+  return result;
+}
+
+function coordinateDistanceMeters(x1, y1, x2, y2, mapId, floorId) {
+  const rawDistance = Math.hypot(Number(x1) - Number(x2), Number(y1) - Number(y2));
+  const floor = readFloors().find((item) => item.mapId === mapId && item.id === floorId);
+  const unit = String(floor?.coordinateUnit || "").toLowerCase();
+  const scale = Number(floor?.scaleValue || floor?.scale || 1);
+  if ((unit === "pixel" || unit === "image_pixel") && Number.isFinite(scale) && scale > 0) {
+    return rawDistance * scale;
+  }
+  return rawDistance;
+}
+
+function roundNumber(value, digits = 2) {
+  if (!Number.isFinite(value)) return null;
+  const factor = 10 ** digits;
+  return Math.round(value * factor) / factor;
+}
+
+function estimateRandomForestComparisonError(records, mapId = "", floorId = "") {
+  const baseError = estimateLeaveOnePointError(records, mapId, floorId);
   if (baseError == null) return null;
   const pointCount = new Set(records.map((record) => record.pointId)).size;
   const dataPenalty = pointCount < 5 ? 1.18 : 1.05;
