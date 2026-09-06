@@ -1188,17 +1188,15 @@ function wifiVector(wifiList) {
 }
 
 function rankKnnCandidates(records, currentVector) {
-  if (!records.length || currentVector.size === 0) return [];
-  const currentBssids = new Set(currentVector.keys());
+  return rankKnnProfiles(buildPointProfiles(records), currentVector);
+}
+
+function buildPointProfiles(records) {
   return Array.from(groupBy(records, (record) => record.pointId).entries())
     .map(([pointId, rows]) => {
       const first = rows[0];
       const location = dominantPointLocation(rows);
       const vector = averageRssiByBssid(rows);
-      const commonApCount = Array.from(currentBssids).filter((bssid) => vector.has(bssid)).length;
-      const coverage = commonApCount / Math.max(1, currentVector.size);
-      const distance = rssiDistance(currentVector, vector);
-      const score = distance + (1 - coverage) * 18 - Math.min(commonApCount, 8) * 0.8;
       return {
         pointId,
         mapId: first.mapId,
@@ -1206,13 +1204,30 @@ function rankKnnCandidates(records, currentVector) {
         x: location.x,
         y: location.y,
         vector,
+      };
+    })
+    .filter((profile) => Number.isFinite(profile.x) && Number.isFinite(profile.y) && profile.vector.size > 0);
+}
+
+function rankKnnProfiles(profiles, currentVector, excludedPointId = "") {
+  if (!profiles.length || currentVector.size === 0) return [];
+  const currentBssids = new Set(currentVector.keys());
+  return profiles
+    .filter((profile) => profile.pointId !== excludedPointId)
+    .map((profile) => {
+      const commonApCount = Array.from(currentBssids).filter((bssid) => profile.vector.has(bssid)).length;
+      const coverage = commonApCount / Math.max(1, currentVector.size);
+      const distance = rssiDistance(currentVector, profile.vector);
+      const score = distance + (1 - coverage) * 18 - Math.min(commonApCount, 8) * 0.8;
+      return {
+        ...profile,
         distance,
         score,
         commonApCount,
         coverage,
       };
     })
-    .filter((candidate) => Number.isFinite(candidate.x) && Number.isFinite(candidate.y) && candidate.commonApCount > 0)
+    .filter((candidate) => candidate.commonApCount > 0)
     .sort((left, right) => left.score - right.score);
 }
 
@@ -1245,9 +1260,9 @@ function validateKnnPositioning(records, mapId = "", floorId = "", options = {})
   const limit = Number(options.maxSamples || 0);
   const selectedSamples = limit > 0 && testSamples.length > limit ? evenlySample(testSamples, limit) : testSamples;
   const pointCount = new Set(records.map((record) => record.pointId)).size;
+  const pointProfiles = buildPointProfiles(records);
   const results = selectedSamples.map((sample) => {
-    const trainRecords = records.filter((record) => record.pointId !== sample.pointId);
-    const candidates = rankKnnCandidates(trainRecords, sample.vector).slice(0, 5);
+    const candidates = rankKnnProfiles(pointProfiles, sample.vector, sample.pointId).slice(0, 5);
     if (candidates.length === 0) return null;
     const weights = candidates.map((candidate) => 1 / Math.max(candidate.score, 0.001) ** 2);
     const weightSum = weights.reduce((sum, value) => sum + value, 0);
