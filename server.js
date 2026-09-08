@@ -1196,6 +1196,8 @@ function estimateLocation(body) {
     + Math.min(commonApCount, 12) * 4
     + coverage * 25
     + Math.min(margin, 20)
+    + Math.min(best.repeatBoost || 0, 3.2) * 6
+    + Math.min(best.stabilityScore || 0, 1) * 16
     - Math.min(best.distance, 45) * 0.8
   ), 5, 95);
   const neighborSpreadMeters = weightedNeighborSpreadMeters(candidates, x, y, model.mapId, model.floorId);
@@ -1216,6 +1218,8 @@ function estimateLocation(body) {
     nearestPointId: best.pointId,
     commonApCount,
     matchedPointCount: candidates.length,
+    stableApCount: best.stableApCount || 0,
+    trainingSamplesAtPoint: best.sampleCount || 0,
     accuracyTarget: confidence >= 70 && estimatedError <= 5 ? "3-5mCandidate" : "needsMoreCalibration",
   };
 }
@@ -1274,7 +1278,25 @@ function buildPointProfiles(records) {
     .map(([pointId, rows]) => {
       const first = rows[0];
       const location = dominantPointLocation(rows);
-      const vector = averageRssiByBssid(rows);
+      const sampleCount = new Set(rows.map((row) => row.sampleId).filter(Boolean)).size;
+      const groupedByBssid = groupBy(rows, (record) => String(record.bssid || "").toLowerCase());
+      const stableEntries = Array.from(groupedByBssid.entries())
+        .map(([bssid, apRows]) => {
+          const values = apRows.map((row) => Number(row.rssi)).filter(Number.isFinite);
+          const stddev = standardDeviation(values);
+          if (values.length < 2 && sampleCount >= 6) return null;
+          if (stddev > 16 && apRows.length < 8) return null;
+          const meanRssi = average(values);
+          return meanRssi == null ? null : [bssid, meanRssi];
+        })
+        .filter(Boolean);
+      const vector = new Map(stableEntries);
+      const stableApCount = Array.from(groupedByBssid.values()).filter((apRows) => {
+        const values = apRows.map((row) => Number(row.rssi)).filter(Number.isFinite);
+        return values.length >= 3 && standardDeviation(values) <= 10;
+      }).length;
+      const stabilityScore = groupedByBssid.size ? clamp(stableApCount / groupedByBssid.size, 0, 1) : 0;
+      const repeatBoost = clamp(Math.log(Math.max(1, sampleCount)), 0, 3.2);
       return {
         pointId,
         mapId: first.mapId,
@@ -1282,9 +1304,13 @@ function buildPointProfiles(records) {
         x: location.x,
         y: location.y,
         vector,
+        sampleCount,
+        stableApCount,
+        stabilityScore,
+        repeatBoost,
       };
     })
-    .filter((profile) => Number.isFinite(profile.x) && Number.isFinite(profile.y) && profile.vector.size > 0);
+    .filter((profile) => Number.isFinite(profile.x) && Number.isFinite(profile.y) && profile.vector.size >= 2);
 }
 
 function rankKnnProfiles(profiles, currentVector, excludedPointId = "") {
@@ -1296,7 +1322,14 @@ function rankKnnProfiles(profiles, currentVector, excludedPointId = "") {
       const commonApCount = Array.from(currentBssids).filter((bssid) => profile.vector.has(bssid)).length;
       const coverage = commonApCount / Math.max(1, currentVector.size);
       const distance = rssiDistance(currentVector, profile.vector);
-      const score = distance + (1 - coverage) * 18 - Math.min(commonApCount, 8) * 0.8;
+      const score = Math.max(
+        0.1,
+        distance
+          + (1 - coverage) * 22
+          - Math.min(commonApCount, 10) * 0.9
+          - (profile.stabilityScore || 0) * 8
+          - (profile.repeatBoost || 0) * 0.7
+      );
       return {
         ...profile,
         distance,
@@ -1305,7 +1338,7 @@ function rankKnnProfiles(profiles, currentVector, excludedPointId = "") {
         coverage,
       };
     })
-    .filter((candidate) => candidate.commonApCount > 0)
+    .filter((candidate) => candidate.commonApCount >= 2 || candidate.coverage >= 0.18)
     .sort((left, right) => left.score - right.score);
 }
 
