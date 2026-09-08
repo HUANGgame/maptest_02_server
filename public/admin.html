@@ -153,6 +153,12 @@
     button.active {
       outline: 3px solid rgba(20, 108, 99, 0.22);
     }
+    .hidden { display: none; }
+    .editor-form {
+      margin-top: 12px;
+      padding-top: 12px;
+      border-top: 1px solid var(--line);
+    }
     @media (max-width: 900px) {
       main, .grid, .map-editor { grid-template-columns: 1fr; }
     }
@@ -183,19 +189,6 @@
       <input id="newFloorName" placeholder="例如 B1">
       <button id="createFloorButton">新增樓層</button>
 
-      <label for="newPlaceName">新增地點名稱</label>
-      <input id="newPlaceName" placeholder="例如 服務台">
-      <label for="newPlaceCategory">分類</label>
-      <input id="newPlaceCategory" placeholder="例如 設施">
-      <label for="newPlaceKeywords">關鍵詞</label>
-      <input id="newPlaceKeywords" placeholder="例如 東森 K12 出口">
-      <label for="newPlaceDescription">備註</label>
-      <textarea id="newPlaceDescription" placeholder="例如 靠近樓梯，往機捷方向"></textarea>
-      <label for="newPlaceX">座標 X</label>
-      <input id="newPlaceX" type="number" placeholder="0">
-      <label for="newPlaceY">座標 Y</label>
-      <input id="newPlaceY" type="number" placeholder="0">
-      <button id="createPlaceButton">新增地點</button>
     </aside>
     <div class="grid">
       <section class="full">
@@ -206,11 +199,28 @@
           </div>
           <div>
             <div class="inline-buttons">
-              <button id="placeModeButton" class="active">新增地點</button>
+              <button id="placeModeButton" class="active">標點</button>
               <button id="routeModeButton" class="secondary">畫路線</button>
+              <button id="deleteNodeModeButton" class="secondary">刪節點</button>
+              <button id="deleteEdgeModeButton" class="secondary">刪路線</button>
             </div>
             <button id="clearRouteDraftButton" class="secondary">清除路線暫選</button>
             <div id="mapEditorInfo" class="muted" style="margin-top:12px">點地圖後會帶入座標。</div>
+            <div id="placeEditorForm" class="editor-form hidden">
+              <label for="newPlaceName">名稱</label>
+              <input id="newPlaceName" placeholder="例如 K12、電梯、店名">
+              <label for="newPlaceCategory">分類設施</label>
+              <input id="newPlaceCategory" placeholder="例如 店家、樓梯、電梯、出口">
+              <label for="newPlaceKeywords">關鍵詞</label>
+              <input id="newPlaceKeywords" placeholder="例如 東森 K12 出口">
+              <label for="newPlaceDescription">備註</label>
+              <textarea id="newPlaceDescription" placeholder="例如 靠近樓梯，往機捷方向"></textarea>
+              <label for="newPlaceX">座標 X</label>
+              <input id="newPlaceX" type="number" placeholder="0">
+              <label for="newPlaceY">座標 Y</label>
+              <input id="newPlaceY" type="number" placeholder="0">
+              <button id="createPlaceButton">儲存標點</button>
+            </div>
           </div>
         </div>
       </section>
@@ -326,6 +336,8 @@
     reloadButton.addEventListener("click", loadDashboard);
     document.querySelector("#placeModeButton").addEventListener("click", () => setEditorMode("place"));
     document.querySelector("#routeModeButton").addEventListener("click", () => setEditorMode("route"));
+    document.querySelector("#deleteNodeModeButton").addEventListener("click", () => setEditorMode("deleteNode"));
+    document.querySelector("#deleteEdgeModeButton").addEventListener("click", () => setEditorMode("deleteEdge"));
     document.querySelector("#clearRouteDraftButton").addEventListener("click", () => {
       routeDraft = [];
       renderMapEditor();
@@ -433,6 +445,11 @@
           keywords,
           searchable: true,
         });
+        document.querySelector("#placeEditorForm").classList.add("hidden");
+        document.querySelector("#newPlaceName").value = "";
+        document.querySelector("#newPlaceCategory").value = "";
+        document.querySelector("#newPlaceKeywords").value = "";
+        document.querySelector("#newPlaceDescription").value = "";
         await loadDashboard();
       });
     });
@@ -660,6 +677,7 @@
       mapEditorBounds = bounds;
       mapEditorCtx.drawImage(mapEditorImage, bounds.x, bounds.y, bounds.width, bounds.height);
       drawRouteSegments(bounds);
+      drawRouteNodes(bounds);
       drawWifiPoints(bounds);
       drawPlaces(bounds);
       drawRouteDraft(bounds);
@@ -667,7 +685,7 @@
 
     function drawRouteSegments(bounds) {
       const nodes = new Map(currentRouteNodes.map(node => [node.id, node]));
-      mapEditorCtx.lineWidth = 4;
+      mapEditorCtx.lineWidth = 1;
       mapEditorCtx.strokeStyle = "#2563eb";
       mapEditorCtx.lineCap = "round";
       currentRouteEdges.filter(edge => edge.isBlocked !== true).forEach(edge => {
@@ -678,6 +696,17 @@
         mapEditorCtx.moveTo(mapToCanvasX(from.x, bounds), mapToCanvasY(from.y, bounds));
         mapEditorCtx.lineTo(mapToCanvasX(to.x, bounds), mapToCanvasY(to.y, bounds));
         mapEditorCtx.stroke();
+      });
+    }
+
+    function drawRouteNodes(bounds) {
+      currentRouteNodes.forEach(node => {
+        const x = mapToCanvasX(node.x, bounds);
+        const y = mapToCanvasY(node.y, bounds);
+        mapEditorCtx.fillStyle = node.source === "admin" ? "#f59e0b" : "#64748b";
+        mapEditorCtx.beginPath();
+        mapEditorCtx.arc(x, y, node.source === "admin" ? 4 : 3, 0, Math.PI * 2);
+        mapEditorCtx.fill();
       });
     }
 
@@ -724,7 +753,32 @@
       document.querySelector("#newPlaceX").value = point.x.toFixed(1);
       document.querySelector("#newPlaceY").value = point.y.toFixed(1);
       if (editorMode === "place") {
-        setEditorInfo(`已選座標：${point.x.toFixed(1)}, ${point.y.toFixed(1)}，填名稱後按新增地點。`);
+        document.querySelector("#placeEditorForm").classList.remove("hidden");
+        setEditorInfo(`已選座標：${point.x.toFixed(1)}, ${point.y.toFixed(1)}，填資料後按儲存標點。`);
+        return;
+      }
+      if (editorMode === "deleteNode") {
+        const node = nearestRouteNode(point);
+        if (!node) {
+          setEditorInfo("附近沒有可刪除的後台節點。");
+          return;
+        }
+        await runAdminAction("已刪除節點", async () => {
+          await deleteJson(`/api/route-nodes?nodeId=${encodeURIComponent(node.id)}`);
+          await loadDashboard();
+        });
+        return;
+      }
+      if (editorMode === "deleteEdge") {
+        const edge = nearestRouteEdge(point);
+        if (!edge) {
+          setEditorInfo("附近沒有路線可刪除。");
+          return;
+        }
+        await runAdminAction(edge.source === "admin" ? "已刪除路線" : "已封鎖內建路線", async () => {
+          await deleteJson(`/api/route-edges?edgeId=${encodeURIComponent(edge.id)}`);
+          await loadDashboard();
+        });
         return;
       }
       routeDraft.push(point);
@@ -750,16 +804,64 @@
     function setEditorMode(mode) {
       editorMode = mode;
       routeDraft = [];
-      document.querySelector("#placeModeButton").classList.toggle("active", mode === "place");
-      document.querySelector("#placeModeButton").classList.toggle("secondary", mode !== "place");
-      document.querySelector("#routeModeButton").classList.toggle("active", mode === "route");
-      document.querySelector("#routeModeButton").classList.toggle("secondary", mode !== "route");
+      document.querySelector("#placeEditorForm").classList.add("hidden");
+      [
+        ["placeModeButton", "place"],
+        ["routeModeButton", "route"],
+        ["deleteNodeModeButton", "deleteNode"],
+        ["deleteEdgeModeButton", "deleteEdge"],
+      ].forEach(([id, value]) => {
+        document.querySelector(`#${id}`).classList.toggle("active", mode === value);
+        document.querySelector(`#${id}`).classList.toggle("secondary", mode !== value);
+      });
       renderMapEditor();
-      setEditorInfo(mode === "place" ? "點地圖新增可搜尋地點。" : "點兩個可走位置建立路段。");
+      const messages = {
+        place: "按標點後點一下地圖，才會出現名稱、關鍵詞、分類設施、備註。",
+        route: "點兩個可走位置建立路段。",
+        deleteNode: "點後台新增的節點即可刪除。",
+        deleteEdge: "點路線即可刪除；內建路線會改成封鎖。",
+      };
+      setEditorInfo(messages[mode] || "");
     }
 
     function setEditorInfo(message) {
       document.querySelector("#mapEditorInfo").textContent = message;
+    }
+
+    function nearestRouteNode(point) {
+      return currentRouteNodes
+        .filter(node => node.source === "admin")
+        .map(node => ({ ...node, hitDistance: distance(point.x, point.y, node.x, node.y) }))
+        .filter(node => node.hitDistance <= 20)
+        .sort((left, right) => left.hitDistance - right.hitDistance)[0] || null;
+    }
+
+    function nearestRouteEdge(point) {
+      const nodes = new Map(currentRouteNodes.map(node => [node.id, node]));
+      return currentRouteEdges
+        .map(edge => {
+          const from = nodes.get(edge.fromNodeId);
+          const to = nodes.get(edge.toNodeId);
+          if (!from || !to) return null;
+          return {
+            ...edge,
+            hitDistance: distanceToSegment(point, from, to),
+          };
+        })
+        .filter(edge => edge && edge.hitDistance <= 16)
+        .sort((left, right) => left.hitDistance - right.hitDistance)[0] || null;
+    }
+
+    function distanceToSegment(point, from, to) {
+      const dx = to.x - from.x;
+      const dy = to.y - from.y;
+      if (dx === 0 && dy === 0) return distance(point.x, point.y, from.x, from.y);
+      const t = Math.max(0, Math.min(1, ((point.x - from.x) * dx + (point.y - from.y) * dy) / (dx * dx + dy * dy)));
+      return distance(point.x, point.y, from.x + t * dx, from.y + t * dy);
+    }
+
+    function distance(ax, ay, bx, by) {
+      return Math.hypot(Number(ax) - Number(bx), Number(ay) - Number(by));
     }
 
     function containRect(containerWidth, containerHeight, imageWidth, imageHeight) {
@@ -809,6 +911,15 @@
         headers: { "content-type": "application/json" },
         body: JSON.stringify(payload),
       });
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}));
+        throw new Error(body.message || `HTTP ${response.status}`);
+      }
+      return response.json();
+    }
+
+    async function deleteJson(path) {
+      const response = await fetch(path, { method: "DELETE" });
       if (!response.ok) {
         const body = await response.json().catch(() => ({}));
         throw new Error(body.message || `HTTP ${response.status}`);

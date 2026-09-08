@@ -9,7 +9,7 @@ const { activateModel, activeModel, createModelVersion, readModels } = require("
 const { readPlaces, updatePlaceStatus } = require("./lib/placeStore");
 const { appendPolicyLog, createDqnRun, readDqnRuns, readPolicyLogs } = require("./lib/policyStore");
 const { appendReport, readReports } = require("./lib/reportStore");
-const { createRouteSegment, readRouteEdges, readRouteNodes, setRouteEdgeBlocked } = require("./lib/routeEdgeStore");
+const { createRouteSegment, deleteRouteEdge, deleteRouteNode, readRouteEdges, readRouteNodes, setRouteEdgeBlocked } = require("./lib/routeEdgeStore");
 const { createTrainingJob, readTrainingJobs } = require("./lib/trainingJobStore");
 const { appendScans, readScans } = require("./lib/jsonStore");
 const mysqlMirror = require("./lib/mysqlMirror");
@@ -403,6 +403,20 @@ const server = http.createServer(async (request, response) => {
     } catch (error) {
       sendJson(response, 400, { success: false, message: error.message });
     }
+    return;
+  }
+
+  if (request.method === "DELETE" && url.pathname === "/api/route-edges") {
+    const edgeId = url.searchParams.get("edgeId") || "";
+    const result = deleteRouteEdge(edgeId);
+    sendJson(response, result ? 200 : 404, result || { success: false, message: "route edge not found" });
+    return;
+  }
+
+  if (request.method === "DELETE" && url.pathname === "/api/route-nodes") {
+    const nodeId = url.searchParams.get("nodeId") || "";
+    const result = deleteRouteNode(nodeId);
+    sendJson(response, result ? 200 : 404, result || { success: false, message: "only admin-created route nodes can be deleted" });
     return;
   }
 
