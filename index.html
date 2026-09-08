@@ -1,0 +1,1808 @@
+<!doctype html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover"
+    />
+    <title>地下街室內導航系統</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --bg: #f3f6f9; /* 更柔和的背景色 */
+        --panel: #ffffff;
+        --line: #e2e8f0;
+        --text: #1e293b;
+        --muted: #64748b;
+        --accent: #0f766e;
+        --blue: #3b82f6;
+        --blue-hover: #2563eb;
+        --danger: #ef4444;
+        --route: #146c63;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html, body {
+        height: 100%;
+      }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--text);
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans TC", "Microsoft JhengHei", sans-serif;
+        letter-spacing: 0.3px;
+        -webkit-font-smoothing: antialiased;
+      }
+      button, input, select, textarea {
+        font: inherit;
+        color: inherit;
+      }
+      
+      /* 🌟 整體版面佈局 */
+      .app {
+        min-height: 100%;
+        display: grid;
+        grid-template-rows: auto 1fr auto;
+      }
+      
+      /* 🌟 頂部導覽列 (加入柔和陰影) */
+      .topbar {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 12px;
+        padding: calc(16px + env(safe-area-inset-top)) 16px 16px;
+        background: var(--panel);
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.04);
+        border-radius: 0 0 20px 20px;
+        position: relative;
+        z-index: 10;
+      }
+      .brand {
+        grid-column: 1 / -1;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+      .brand h1 {
+        margin: 0;
+        font-size: 20px;
+        font-weight: 700;
+        color: var(--text);
+        letter-spacing: 0.5px;
+      }
+      .brand span {
+        background: #e0f2fe;
+        color: #0369a1;
+        padding: 4px 10px;
+        border-radius: 20px;
+        font-size: 12px;
+        font-weight: 600;
+      }
+      .search {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 8px;
+      }
+      
+      /* 🌟 輸入框與按鈕的現代化 */
+      input, select, textarea {
+        width: 100%;
+        min-height: 44px;
+        border: 2px solid transparent;
+        background: #f1f5f9;
+        border-radius: 12px;
+        padding: 0 16px;
+        outline: none;
+        transition: all 0.25s ease;
+      }
+      input:focus, select:focus, textarea:focus {
+        background: #fff;
+        border-color: var(--blue);
+        box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.15);
+      }
+      button {
+        min-height: 44px;
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        background: #fff;
+        padding: 0 16px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s ease;
+      }
+      button:hover {
+        background: #f8fafc;
+        transform: translateY(-1px);
+      }
+      button:active {
+        transform: translateY(1px);
+      }
+      
+      /* 🌟 主視覺按鈕 (漸層與光暈) */
+      .primary {
+        border: none;
+        background: linear-gradient(135deg, var(--blue), var(--blue-hover));
+        color: #fff;
+        box-shadow: 0 4px 12px rgba(37, 99, 235, 0.25);
+      }
+      .primary:hover {
+        background: linear-gradient(135deg, #4f8cf6, #1d4ed8);
+        box-shadow: 0 6px 16px rgba(37, 99, 235, 0.35);
+        color: #fff;
+      }
+      
+      /* 🌟 地圖區域 */
+      .map-shell {
+        position: relative;
+        min-height: 460px;
+        overflow: hidden;
+        background: #e2e8f0; /* 底圖載入前的顏色 */
+      }
+      .map-shell.navigation-start canvas { animation: mapStartPulse 0.9s ease-out; }
+      .map-shell.navigation-end canvas { animation: mapEndFade 0.65s ease-out; }
+      canvas {
+        width: 100%;
+        height: 100%;
+        display: block;
+        touch-action: none;
+      }
+      
+      /* 🌟 浮動控制面板 (毛玻璃 Glassmorphism 特效) */
+      .floor-switch, .map-tools, .status-chip {
+        position: absolute;
+        background: rgba(255, 255, 255, 0.85);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        border: 1px solid rgba(255, 255, 255, 0.6);
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+        border-radius: 14px;
+      }
+      .status-chip {
+        left: 16px;
+        right: 16px;
+        top: 16px;
+        min-height: 44px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 8px 16px;
+        color: var(--text);
+        font-weight: 500;
+        font-size: 14px;
+      }
+      #dataStatus { color: var(--muted); font-size: 13px; }
+      
+      .floor-switch { left: 16px; top: 80px; display: grid; gap: 4px; padding: 6px; }
+      .map-tools { right: 16px; top: 80px; display: grid; gap: 4px; padding: 6px; }
+      
+      /* 浮動工具按鈕修飾 */
+      .floor-switch button, .map-tools button {
+        width: 44px;
+        height: 44px;
+        padding: 0;
+        border: none;
+        background: transparent;
+        border-radius: 10px;
+        color: var(--text);
+      }
+      .floor-switch button:hover, .map-tools button:hover { background: rgba(0, 0, 0, 0.05); }
+      .floor-switch button.active, .map-tools button.active {
+        background: var(--blue);
+        color: #fff;
+        box-shadow: 0 2px 8px rgba(37, 99, 235, 0.3);
+      }
+      
+      /* 導航提示橫幅 */
+      .nav-flash {
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        transform: translate(-50%, -50%) scale(0.9);
+        opacity: 0;
+        pointer-events: none;
+        padding: 16px 24px;
+        border-radius: 50px;
+        background: rgba(15, 23, 42, 0.85);
+        backdrop-filter: blur(8px);
+        color: #fff;
+        font-size: 18px;
+        font-weight: 600;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+      }
+      .nav-flash.show { animation: flashInOut 1.25s ease both; }
+      
+      /* 🌟 底部資訊板 (抽屜式設計) */
+      .sheet {
+        background: var(--panel);
+        box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.06);
+        border-radius: 24px 24px 0 0;
+        padding: 24px 16px calc(16px + env(safe-area-inset-bottom));
+        position: relative;
+        z-index: 10;
+      }
+      /* 抽屜頂部的拉柄裝飾 */
+      .sheet::before {
+        content: '';
+        display: block;
+        width: 40px;
+        height: 5px;
+        background: #cbd5e1;
+        border-radius: 10px;
+        margin: -10px auto 16px;
+      }
+      
+      .next-step { margin: 0 0 12px; font-size: 18px; font-weight: 700; color: var(--text); }
+      .meta {
+        display: flex;
+        gap: 12px;
+        flex-wrap: wrap;
+        font-size: 14px;
+        margin-bottom: 16px;
+        font-weight: 500;
+      }
+      .meta span {
+        background: #f1f5f9;
+        padding: 6px 12px;
+        border-radius: 8px;
+        color: var(--muted);
+      }
+      #destinationText { color: var(--blue); background: #eff6ff; }
+      
+      .actions { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+      
+      /* 🌟 搜尋結果清單 */
+      .results {
+        max-height: 220px;
+        overflow-y: auto;
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        background: #fff;
+        margin-top: 16px;
+        box-shadow: inset 0 2px 4px rgba(0,0,0,0.02);
+      }
+      .result {
+        padding: 14px 16px;
+        border-bottom: 1px solid #f1f5f9;
+        transition: background 0.2s ease;
+      }
+      .result:last-child { border-bottom: none; }
+      .result:hover { background: #f8fafc; }
+      .result strong { font-size: 16px; color: var(--text); }
+      .result span { display: inline-block; margin-top: 4px; }
+      
+      /* 評價按鈕修飾 */
+      .result button.primary {
+        background: #fff;
+        color: var(--blue);
+        border: 1px solid var(--blue);
+        box-shadow: none;
+      }
+      .result button.primary:hover {
+        background: var(--blue);
+        color: #fff;
+      }
+      
+      .privacy {
+        display: flex;
+        align-items: flex-start;
+        gap: 12px;
+        margin-top: 16px;
+        padding: 12px;
+        background: #f8fafc;
+        border-radius: 12px;
+        color: var(--muted);
+        font-size: 12px;
+        line-height: 1.5;
+      }
+      .privacy input { width: 18px; height: 18px; cursor: pointer; accent-color: var(--blue); }
+      
+      /* 🌟 彈窗設計 (Dialog) */
+      dialog {
+        border: none;
+        border-radius: 20px;
+        padding: 24px;
+        width: min(420px, calc(100vw - 32px));
+        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+        color: var(--text);
+      }
+      dialog::backdrop {
+        background: rgba(15, 23, 42, 0.5);
+        backdrop-filter: blur(4px);
+        -webkit-backdrop-filter: blur(4px);
+      }
+      dialog h2 { margin: 0 0 16px 0; font-size: 20px; color: var(--text); }
+      .dialog-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 20px; }
+      
+      /* 大螢幕優化 (Desktop) */
+      @media (min-width: 900px) {
+        .app { width: min(1180px, 100%); margin: 0 auto; box-shadow: 0 0 40px rgba(0,0,0,0.05); }
+        .topbar {
+          grid-template-columns: minmax(360px, 1fr) minmax(260px, auto);
+          border-radius: 0;
+        }
+        .map-shell { min-height: 680px; }
+        .sheet {
+          border-left: 1px solid var(--line);
+          border-right: 1px solid var(--line);
+          border-radius: 24px 24px 0 0;
+        }
+        .sheet::before { display: none; }
+      }
+      
+      @keyframes flashInOut {
+        0% { opacity: 0; transform: translate(-50%, -50%) scale(0.9); }
+        15% { opacity: 1; transform: translate(-50%, -50%) scale(1.05); }
+        25% { transform: translate(-50%, -50%) scale(1); }
+        85% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+        100% { opacity: 0; transform: translate(-50%, -50%) scale(0.95); }
+      }
+      @keyframes mapStartPulse {
+        0% { filter: saturate(1); }
+        40% { filter: saturate(1.2) contrast(1.05); }
+        100% { filter: saturate(1); }
+      }
+      @keyframes mapEndFade {
+        0% { opacity: 1; }
+        35% { opacity: 0.6; }
+        100% { opacity: 1; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="app">
+      <header class="topbar">
+        <div class="brand">
+          <h1>地下街室內導航系統</h1>
+          <span>用戶端</span>
+        </div>
+        <div class="search">
+          <input
+            id="searchInput"
+            type="search"
+            placeholder="輸入地點、設施或分類"
+          /><button id="searchButton" class="primary">搜尋</button>
+        </div>
+        <select id="mapSelect" aria-label="選擇地圖"></select>
+      </header>
+
+      <main class="map-shell">
+        <canvas id="mapCanvas"></canvas>
+        <div class="status-chip">
+          <span id="floorLabel">樓層</span
+          ><span id="dataStatus">讀取資料中</span>
+        </div>
+        <div id="navFlash" class="nav-flash">開始導航</div>
+        <div id="floorButtons" class="floor-switch"></div>
+        <div class="map-tools">
+          <button id="relocateButton">跟隨</button>
+          <button id="pointModeButton">顯示</button>
+          <button id="zoomInButton">+</button>
+          <button id="zoomOutButton">-</button>
+          <button id="resetButton">2D</button>
+          <button id="gridOverlayButton">網格</button>
+        </div>
+      </main>
+
+      <section class="sheet">
+        <p id="nextStep" class="next-step">
+          請搜尋目的地，或從結果中選擇地點。
+        </p>
+        <div class="meta">
+          <span id="destinationText">目的地：尚未選擇</span
+          ><span id="distanceText">距離：-- 公尺</span
+          ><span id="timeText">時間：-- 分鐘</span
+          ><span id="headingText" hidden></span>
+        </div>
+        <div class="actions">
+          <button id="showRouteButton">顯示路線</button
+          ><button id="startButton" class="primary">開始導航</button
+          ><button id="endButton">結束導航</button>
+        </div>
+        <div id="results" class="results" hidden></div>
+        <label class="privacy"
+          ><span
+            >協助改善定位：匿名上傳必要定位狀態，不包含姓名或個人身分資料。</span
+          ><input id="feedbackSwitch" type="checkbox"
+        /></label>
+      </section>
+    </div>
+
+    <dialog id="privacyDialog">
+      <h2>定位資料說明</h2>
+      <p>
+        系統可在取得同意後，匿名上傳導航過程中的 Wi-Fi
+        訊號與定位狀態，用於改善定位準確度，不包含姓名、電話或個人身分資料。
+      </p>
+      <div class="dialog-actions">
+        <button id="declinePrivacy">不同意</button
+        ><button id="acceptPrivacy" class="primary">同意</button>
+      </div>
+    </dialog>
+
+    <!-- 🌟 新增：商店評價彈窗介面 -->
+    <dialog id="reviewDialog" style="max-width: 500px; width: 90%;">
+      <h2 id="reviewPlaceName" style="margin-top: 0;">商店名稱</h2>
+      
+      <!-- 顯示所有評價的地方 -->
+      <div id="reviewsContainer" style="max-height: 250px; overflow-y: auto; background: #f9fafb; padding: 10px; border-radius: 8px; margin-bottom: 15px;">
+        <div style="text-align: center; color: var(--muted);">載入評論中...</div>
+      </div>
+
+      <!-- 讓使用者新增評價 -->
+      <div style="border-top: 1px solid var(--line); padding-top: 15px;">
+        <label style="display: block; font-weight: bold; margin-bottom: 5px;">給予星級：</label>
+        <select id="reviewStar" style="margin-bottom: 10px; padding: 8px;">
+          <option value="5">⭐⭐⭐⭐⭐ (5星 - 超讚)</option>
+          <option value="4">⭐⭐⭐⭐ (4星 - 很好)</option>
+          <option value="3">⭐⭐⭐ (3星 - 普通)</option>
+          <option value="2">⭐⭐ (2星 - 待加強)</option>
+          <option value="1">⭐ (1星 - 極差)</option>
+        </select>
+        
+        <label style="display: block; font-weight: bold; margin-bottom: 5px;">你的評論：</label>
+        <textarea id="reviewText" placeholder="寫下你的體驗與評價..." style="width: 100%; height: 80px; padding: 10px; border: 1px solid var(--line); border-radius: 8px; resize: vertical; outline: none;"></textarea>
+      </div>
+
+      <div class="dialog-actions" style="margin-top: 15px; display: flex; gap: 10px; justify-content: flex-end;">
+        <button onclick="document.getElementById('reviewDialog').close()">關閉</button>
+        <button onclick="submitReview()" class="primary">送出評價</button>
+      </div>
+    </dialog>
+
+    
+
+    <script>
+      const state = {
+  maps: [],
+  floors: [],
+  places: [],
+  wifiPoints: [],
+  floorImages: new Map(),
+  currentMapId: "map_visual_3",
+  currentFloorId: "k-floor-grid",
+  // 🌟 將起點強制設在 K 區的「西廣場」走道上，確保它在畫布可見範圍內
+  current: { x: 53, y: 62, gridX: 5, gridY: 4, floorId: "k-floor-grid" },
+  heading: null,
+  destination: null,
+        route: [],
+        routeDistance: 0,
+        routeTime: 0,
+        zoom: 1,
+        viewOffsetX: 0,
+        viewOffsetY: 0,
+        viewFollow: false,
+        pointDisplayMode:
+          localStorage.getItem("pointDisplayMode") || "important",
+        dragStart: null,
+        viewFocusedKey: "",
+        showGridOverlay: false,
+        navigationActive: false,
+        navigationFrame: null,
+        feedbackAllowed: localStorage.getItem("feedbackAllowed") === "true",
+      };
+      // 🎯 你的直覺解法：打破錯誤的比例，建立精準的「網格對應真實畫布」對照表
+      // 🎯 真實比例校正引擎 (X 軸)
+      function getGridPixelX(gridX) {
+          const xMap = {
+              2: 15, 3: 35, 5: 53, 7: 88, 8: 95, 10: 115, 12: 144, 13: 148,
+              14: 157, 15: 165, 18: 180, 19: 195, 20: 215, 21: 216, 22: 228,
+              23: 245, 24: 250, 25: 261, 26: 270, 27: 280, 28: 295, 29: 305,
+              30: 317, 31: 340, 32: 343, 33: 355, 34: 370
+          };
+          if (xMap[gridX] !== undefined) return xMap[gridX];
+          // 縫隙自動內插
+          const keys = Object.keys(xMap).map(Number).sort((a,b)=>a-b);
+          for(let i=0; i<keys.length-1; i++){
+              if(gridX > keys[i] && gridX < keys[i+1]){
+                  const p = (gridX - keys[i]) / (keys[i+1] - keys[i]);
+                  return xMap[keys[i]] + p * (xMap[keys[i+1]] - xMap[keys[i]]);
+              }
+          }
+          return gridX * 10;
+      }
+
+      // 🎯 真實比例校正引擎 (Y 軸：絕對純白避障區)
+      function getGridPixelY(gridY) {
+          if (gridY === 2) return 42; // 🟢 上排走道 (完美避開寶雅 35 與 Hobby OFF 48)
+          if (gridY === 3) return 52; // 🟢 垂直通道
+          if (gridY === 4) return 62; // 🟢 下排走道 (完美避開 Hobby OFF 48 與大創 76)
+          return gridY * 10;
+      }
+      const canvas = document.querySelector("#mapCanvas");
+      const ctx = canvas.getContext("2d");
+      const mapShell = document.querySelector(".map-shell");
+      const navFlash = document.querySelector("#navFlash");
+      const mapSelect = document.querySelector("#mapSelect");
+      const searchInput = document.querySelector("#searchInput");
+      const results = document.querySelector("#results");
+      const floorButtons = document.querySelector("#floorButtons");
+      const floorLabel = document.querySelector("#floorLabel");
+      const dataStatus = document.querySelector("#dataStatus");
+      const nextStep = document.querySelector("#nextStep");
+      const destinationText = document.querySelector("#destinationText");
+      const distanceText = document.querySelector("#distanceText");
+      const timeText = document.querySelector("#timeText");
+      const feedbackSwitch = document.querySelector("#feedbackSwitch");
+      const privacyDialog = document.querySelector("#privacyDialog");
+      const compassButton = document.querySelector("#relocateButton");
+      const pointModeButton = document.querySelector("#pointModeButton");
+      const world = { left: 0, top: 250, width: 900, height: 480 };
+
+      document
+        .querySelector("#searchButton")
+        .addEventListener("click", performSearch);
+      searchInput.addEventListener("keydown", (event) => {
+        if (event.key === "Enter") performSearch();
+      });
+      compassButton.textContent = "跟隨";
+      compassButton.title = "切換跟隨模式";
+      compassButton.addEventListener("click", toggleViewFollow);
+      pointModeButton.title = "切換點位顯示";
+      pointModeButton.addEventListener("click", cyclePointDisplayMode);
+      updatePointModeButton();
+      document
+        .querySelector("#zoomInButton")
+        .addEventListener("click", () => setZoom(state.zoom * 1.2));
+      document
+        .querySelector("#zoomOutButton")
+        .addEventListener("click", () => setZoom(state.zoom / 1.2));
+      document
+        .querySelector("#resetButton")
+        .addEventListener("click", resetView);
+      document
+        .querySelector("#gridOverlayButton")
+        .addEventListener("click", () => {
+          state.showGridOverlay = !state.showGridOverlay;
+          drawMap();
+        });
+      document
+        .querySelector("#showRouteButton")
+        .addEventListener("click", showRoute);
+      document
+        .querySelector("#startButton")
+        .addEventListener("click", startNavigation);
+      document
+        .querySelector("#endButton")
+        .addEventListener("click", endNavigation);
+      document
+        .querySelector("#acceptPrivacy")
+        .addEventListener("click", () => setFeedbackAllowed(true));
+      document
+        .querySelector("#declinePrivacy")
+        .addEventListener("click", () => setFeedbackAllowed(false));
+      feedbackSwitch.addEventListener("change", () => {
+        feedbackSwitch.checked
+          ? privacyDialog.showModal()
+          : setFeedbackAllowed(false);
+      });
+
+      mapSelect.addEventListener("change", async () => {
+        state.currentMapId = mapSelect.value;
+        state.viewFocusedKey = "";
+        await loadFloors();
+        await loadPlaces();
+        await loadWifiPoints();
+        performSearch();
+        renderAll();
+      });
+      window.addEventListener("resize", resizeCanvas);
+      window.addEventListener(
+        "deviceorientationabsolute",
+        handleOrientation,
+        true,
+      );
+      window.addEventListener("deviceorientation", handleOrientation, true);
+      canvas.addEventListener("pointerdown", startPan);
+      canvas.addEventListener("pointermove", movePan);
+      canvas.addEventListener("pointerup", endPan);
+      canvas.addEventListener("pointercancel", endPan);
+      canvas.addEventListener("wheel", handleWheel, { passive: false });
+
+      init();
+
+      async function init() {
+        feedbackSwitch.checked = state.feedbackAllowed;
+        if (!localStorage.getItem("feedbackConsentAsked"))
+          privacyDialog.showModal();
+        await loadMaps();
+        await loadFloors();
+        await loadPlaces();
+        await loadWifiPoints();
+        resizeCanvas();
+        focusOnWifiPoints();
+        performSearch();
+        renderAll();
+        startRealTimeTracking();
+      }
+
+      async function loadMaps() {
+  const maps = await fetchJson("/api/maps").catch(() => []);
+  state.maps = maps.length
+    ? maps
+    : [{ id: "tkut-demo", name: "淡江大學淡水校園 Demo" }];
+  
+  state.maps.push({
+    id: "map_visual_3",
+    name: "K區地下街 (AI 網格精準版 - Map Visual 3)",
+  });
+
+  if (!state.maps.some((map) => map.id === state.currentMapId)) {
+    state.currentMapId = state.maps[0].id;
+  }
+  
+  // 🌟 修復藍色箭頭：根據不同地圖給予正確的預設中心位置
+  if (state.currentMapId === "map_visual_3") {
+    state.current = { x: 180, y: 40, floorId: "k-floor-grid" };
+  } else {
+    state.current = { x: 180, y: 620, floorId: "tkut-demo-ground" };
+  }
+
+  mapSelect.innerHTML = state.maps
+    .map(
+      (map) =>
+        `<option value="${escapeHtml(map.id)}">${escapeHtml(map.name || map.id)}</option>`,
+    )
+    .join("");
+  mapSelect.value = state.currentMapId;
+}
+      async function loadFloors() {
+        if (state.currentMapId === "map_visual_3") {
+          state.floors = [
+            {
+              id: "k-floor-grid",
+              floorName: "AI 網格層",
+              imageUrl: "/maps/k_zone_map.png",  // 👈 換成這行！
+              
+             imageWidth: 379.06, 
+              imageHeight: 122.73,
+              imageLeft: -4.63,
+              imageTop: -16.36,
+            },
+          ];
+        } else {
+          // ... 下面的程式碼保持不動
+          const floors = await fetchJson(
+            `/api/floors?mapId=${encodeURIComponent(state.currentMapId)}`,
+          ).catch(() => []);
+          state.floors = floors.length
+            ? floors
+            : [
+                { id: "tkut-demo-ground", floorName: "地面層" },
+                { id: "tkut-demo-second", floorName: "二樓" },
+              ];
+        }
+        if (!state.floors.some((floor) => floor.id === state.currentFloorId)) {
+          state.currentFloorId = state.floors[0].id;
+          state.current.floorId = state.currentFloorId;
+        }
+        renderFloorButtons();
+      }
+
+      async function loadPlaces() {
+        // 🌟 同步更新 map_visual_3
+        if (state.currentMapId === "map_visual_3") {
+        state.places = [
+            // 📍 下排走道 (邏輯 Y 固定為 4)
+            { id: "桃園機場捷運", name: "桃園機場捷運", category: "出口", x: 2, y: 4, visualX: 15, visualY: 40 },
+            { id: "K12 樓梯", name: "K12 樓梯", category: "設施", x: 2, y: 4, visualX: 15, visualY: 35 },
+            { id: "東森購物", name: "東森購物", category: "生活", x: 3, y: 4, visualX: 35, visualY: 76 },
+            { id: "西廣場", name: "西廣場", category: "廣場", x: 5, y: 4, visualX: 53, visualY: 53 },
+            { id: "大創", name: "大創", category: "生活", x: 7, y: 4, visualX: 88, visualY: 76 },
+            { id: "Hobby OFF", name: "Hobby OFF", category: "休閒", x: 8, y: 4, visualX: 95, visualY: 48 },
+            { id: "和氣屋", name: "和氣屋", category: "生活", x: 10, y: 4, visualX: 115, visualY: 76 },
+            { id: "寶可夢旗艦店", name: "寶可夢旗艦店", category: "休閒", x: 12, y: 4, visualX: 144, visualY: 76 },
+            { id: "三國幻戰", name: "三國幻戰", category: "休閒", x: 13, y: 4, visualX: 148, visualY: 48 },
+            { id: "于田生活", name: "于田生活", category: "生活", x: 15, y: 4, visualX: 165, visualY: 76 },
+            { id: "眼鏡市場", name: "眼鏡市場", category: "生活", x: 15, y: 4, visualX: 165, visualY: 48 },
+            { id: "服務站", name: "服務站", category: "設施", x: 18, y: 4, visualX: 180, visualY: 55 },
+            { id: "全家", name: "全家", category: "生活", x: 20, y: 4, visualX: 215, visualY: 98 },
+            { id: "711", name: "711", category: "生活", x: 21, y: 4, visualX: 216, visualY: 76 },
+            { id: "先喝道", name: "先喝道", category: "餐飲", x: 24, y: 4, visualX: 250, visualY: 76 },
+            { id: "pp石墨烯", name: "pp石墨烯", category: "生活", x: 25, y: 4, visualX: 260, visualY: 76 },
+            { id: "中央廣場", name: "中央廣場", category: "廣場", x: 26, y: 4, visualX: 270, visualY: 60 },
+            { id: "老董牛肉麵", name: "老董牛肉麵", category: "餐飲", x: 26, y: 4, visualX: 270, visualY: 76 },
+            { id: "sukiya", name: "sukiya", category: "餐飲", x: 28, y: 4, visualX: 295, visualY: 76 },
+            { id: "爭鮮", name: "爭鮮", category: "餐飲", x: 29, y: 4, visualX: 310, visualY: 76 },
+            { id: "翰林茶棧", name: "翰林茶棧", category: "餐飲", x: 29, y: 4, visualX: 303, visualY: 60 },
+            { id: "三商炸雞", name: "三商炸雞", category: "餐飲", x: 31, y: 4, visualX: 343, visualY: 76 },
+            { id: "東廣場", name: "東廣場", category: "廣場", x: 32, y: 4, visualX: 343, visualY: 53 },
+            { id: "這一小鍋", name: "這一小鍋", category: "餐飲", x: 33, y: 4, visualX: 355, visualY: 76 },
+            { id: "K1 樓梯", name: "K1 樓梯", category: "設施", x: 34, y: 4, visualX: 370, visualY: 53 },
+
+            // 📍 上排走道 (邏輯 Y 固定為 2)
+            { id: "寶雅", name: "寶雅", category: "生活", x: 7, y: 2, visualX: 95, visualY: 35 },
+            { id: "松本清", name: "松本清", category: "生活", x: 12, y: 2, visualX: 144, visualY: 35 },
+            { id: "扭蛋總動員", name: "扭蛋總動員", category: "休閒", x: 14, y: 2, visualX: 157, visualY: 35 },
+            { id: "拼圖總動員", name: "拼圖總動員", category: "休閒", x: 15, y: 2, visualX: 167, visualY: 35 },
+            { id: "中央大樓梯", name: "中央大樓梯", category: "設施", x: 19, y: 2, visualX: 195, visualY: 35 },
+            { id: "山崎麵包", name: "山崎麵包", category: "餐飲", x: 20, y: 2, visualX: 218, visualY: 38 },
+            { id: "迷客夏", name: "迷客夏", category: "餐飲", x: 21, y: 2, visualX: 218, visualY: 24 },
+            { id: "K7 無障礙電梯", name: "K7 無障礙電梯", category: "設施", x: 22, y: 2, visualX: 229, visualY: 20 },
+            { id: "銷魂麵舖", name: "銷魂麵舖", category: "餐飲", x: 22, y: 2, visualX: 228, visualY: 38 },
+            { id: "荖子鍋", name: "荖子鍋", category: "餐飲", x: 23, y: 2, visualX: 245, visualY: 38 },
+            { id: "薩莉亞", name: "薩莉亞", category: "餐飲", x: 24, y: 2, visualX: 245, visualY: 24 },
+            { id: "喜魚", name: "喜魚", category: "餐飲", x: 25, y: 2, visualX: 262, visualY: 24 },
+            { id: "魔法森林按摩椅", name: "魔法森林按摩椅", category: "休閒", x: 25, y: 2, visualX: 269, visualY: 38 },
+            { id: "Joyfull", name: "Joyfull", category: "餐飲", x: 27, y: 2, visualX: 280, visualY: 24 },
+            { id: "丸龜製麵", name: "丸龜製麵", category: "餐飲", x: 28, y: 2, visualX: 295, visualY: 38 },
+            { id: "QB HOUSE", name: "QB HOUSE", category: "生活", x: 29, y: 2, visualX: 305, visualY: 24 },
+            { id: "真茶CA哩", name: "真茶CA哩", category: "餐飲", x: 30, y: 2, visualX: 317, visualY: 24 },
+            { id: "洋城義大利麵", name: "洋城義大利麵", category: "餐飲", x: 31, y: 2, visualX: 332, visualY: 24 },
+            { id: "K1 無障礙電梯", name: "K1 無障礙電梯", category: "設施", x: 33, y: 2, visualX: 345, visualY: 20 }
+          ].map(p => ({...p, floorId: "k-floor-grid"}));
+        } else {
+          state.places = await fetchJson(
+            `/api/places?mapId=${encodeURIComponent(state.currentMapId)}`,
+          ).catch(() => []);
+        }
+        updateDataStatus();
+      }
+
+      async function loadWifiPoints() {
+        try {
+          const data = await fetchJson(
+            `/api/wifi-scans/points?mapId=${encodeURIComponent(state.currentMapId)}&floorId=${encodeURIComponent(state.currentFloorId)}`,
+          );
+          state.wifiPoints = Array.isArray(data.points) ? data.points : [];
+          if (state.wifiPoints.length > 0 && !state.destination) {
+            const first = state.wifiPoints[0];
+            state.current = {
+              x: Number(first.x),
+              y: Number(first.y),
+              floorId: first.floorId || state.currentFloorId,
+            };
+          }
+          updateWorldFromData();
+          focusOnWifiPoints();
+        } catch {
+          state.wifiPoints = [];
+        }
+        updateDataStatus();
+      }
+
+      function updateDataStatus() {
+        if (state.places.length) dataStatus.textContent = "已載入地點資料";
+        else if (state.wifiPoints.length)
+          dataStatus.textContent = `已載入 ${state.wifiPoints.length} 個定位點`;
+        else dataStatus.textContent = "尚無地圖資料";
+      }
+
+      function renderFloorButtons() {
+        floorButtons.innerHTML = "";
+        state.floors.forEach((floor, index) => {
+          const button = document.createElement("button");
+          button.textContent = shortFloorName(floor, index);
+          button.className = floor.id === state.currentFloorId ? "active" : "";
+          button.addEventListener("click", async () => {
+            state.currentFloorId = floor.id;
+            state.current.floorId = floor.id;
+            state.viewFocusedKey = "";
+            await loadWifiPoints();
+            performSearch();
+            renderAll();
+          });
+          floorButtons.appendChild(button);
+        });
+      }
+
+      function performSearch() {
+        const keyword = searchInput.value.trim().toLowerCase();
+        
+        // 1. 取得當前樓層的所有可導航目標
+        let matched = navigationTargets().filter(
+          (place) => place.floorId === state.currentFloorId
+        );
+
+        if (keyword) {
+          // 2. 如果有輸入關鍵字，進行搜尋過濾
+          matched = matched.filter((place) =>
+            [place.id, place.name, place.category, place.description].some(
+              (value) => String(value || "").toLowerCase().includes(keyword)
+            )
+          );
+          
+          // 若有完全吻合的結果，自動設為目的地
+          const exact = matched.find(
+            (place) => String(place.id).toLowerCase() === keyword || String(place.name).toLowerCase() === keyword
+          );
+          if (exact) selectDestination(exact.id);
+          
+        } else {
+          // 3. 🌟 核心修改：如果沒有輸入關鍵字，預設顯示「所有實體店家」
+          // 排除 Wi-Fi 定位點、電梯、樓梯、出口與廣場
+          matched = matched.filter(
+            (place) =>
+              place.source !== "wifiPoint" &&
+              place.category !== "設施" &&
+              place.category !== "廣場" &&
+              place.category !== "出口"
+          );
+        }
+
+        // 4. 強制顯示結果區塊（紅框區域）
+        results.hidden = matched.length === 0;
+
+        // 5. 渲染店家列表 HTML
+        // 5. 渲染店家列表 HTML (新增評論按鈕)
+        results.innerHTML = matched
+          .map(
+            (place) => `
+        <div class="result" style="display: flex; justify-content: space-between; align-items: center; cursor: pointer;" onclick="selectDestination('${escapeHtml(place.id)}')">
+          <div style="flex: 1;">
+            <strong>${escapeHtml(place.name)}</strong><br>
+            <span style="color: var(--muted); font-size: 13px;">${escapeHtml(floorName(place.floorId))} ｜ ${escapeHtml(place.category || "地點")} ｜ 直線距離約 ${distance(place.x, place.y, state.current.x, state.current.y).toFixed(0)} 步</span>
+          </div>
+          <button class="primary" style="margin-left: 10px; min-height: 32px; padding: 6px 12px; font-size: 13px;" onclick="event.stopPropagation(); openReviewModal('${escapeHtml(place.id)}', '${escapeHtml(place.name)}')">
+            ⭐ 評論
+          </button>
+        </div>`
+          )
+          .join("");
+        
+        
+        
+
+        renderAll();
+      }
+
+      function selectDestination(id) {
+        state.destination =
+          navigationTargets().find((place) => place.id === id) || null;
+        state.route = [];
+        if (state.destination) {
+          destinationText.textContent = `目的地：${state.destination.name}`;
+          nextStep.textContent = `${state.destination.name} 已設為目的地。`;
+          if (state.destination.floorId !== state.currentFloorId) {
+            state.currentFloorId = state.destination.floorId;
+            state.current.floorId = state.currentFloorId;
+            renderFloorButtons();
+            loadWifiPoints();
+          }
+        }
+        showRoute();
+        renderAll();
+      }
+
+      async function showRoute() {
+  if (!state.destination) {
+    nextStep.textContent = "請先選擇目的地。";
+    return;
+  }
+  
+  try {
+    const floor = currentFloor();
+    // 取得圖片真實渲染尺寸與偏移量 (這是對齊的核心)
+    const ox = floor.imageLeft || -4.63;
+    const oy = floor.imageTop || -16.36;
+    const imgW = floor.imageWidth || 379.06;
+    const imgH = floor.imageHeight || 122.73;
+    const cols = 75; // CSV 的 X 軸大小
+    const rows = 25; // CSV 的 Y 軸大小
+
+    // 核心公式 1：把螢幕上的像素，精確轉換成 75x25 網格的 index
+    function pixelToGrid(px, py) {
+      let gx = Math.floor((px - ox) / (imgW / cols));
+      let gy = Math.floor((py - oy) / (imgH / rows));
+      return {
+        x: Math.max(0, Math.min(cols - 1, gx)),
+        y: Math.max(0, Math.min(rows - 1, gy))
+      };
+    }
+
+    // 核心公式 2：把後端算出來的 75x25 網格，精確轉回螢幕像素
+    function gridToPixel(gx, gy) {
+      return {
+        x: ox + (gx + 0.5) * (imgW / cols),
+        y: oy + (gy + 0.5) * (imgH / rows)
+      };
+    }
+
+    // 1. 抓取藍色箭頭(目前位置)的像素座標
+    const startPixelX = state.current.x;
+    const startPixelY = state.current.y;
+
+    // 2. 抓取目的地的像素座標
+    const destPixelX = state.destination.visualX !== undefined ? state.destination.visualX : state.destination.x * 10 + 5;
+    const destPixelY = state.destination.visualY !== undefined ? state.destination.visualY : state.destination.y * 10 + 5;
+
+    // 3. 將起點與終點轉換為 75x25 網格座標，發給後端
+    const startGrid = pixelToGrid(startPixelX, startPixelY);
+    const targetGrid = pixelToGrid(destPixelX, destPixelY);
+
+    const response = await fetch("http://127.0.0.1:8000/api/get_path", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        start_y: startGrid.y,
+        start_x: startGrid.x,
+        target_y: targetGrid.y,
+        target_x: targetGrid.x
+      }),
+    });
+
+    if (!response.ok) throw new Error("API 請求失敗");
+    const routeData = await response.json();
+    if (routeData.status !== "success") throw new Error(routeData.message);
+
+    // 4. 將後端傳回的 75x25 網格路徑，用公式完美轉回螢幕像素
+    state.route = (routeData.path || []).map((coord) => {
+      let p = gridToPixel(coord.x, coord.y);
+      return { x: p.x, y: p.y, floorId: state.currentFloorId };
+    });
+
+    // 5. 確保線的兩端完美連接藍色箭頭與店家正中心
+    if (state.route.length > 0) {
+      state.route.unshift({ x: startPixelX, y: startPixelY, floorId: state.currentFloorId });
+      state.route.push({ x: destPixelX, y: destPixelY, floorId: state.destination.floorId });
+    }
+    
+    state.routeDistance = (routeData.total_steps || 0) * 0.6;
+    state.routeTime = Math.max(1, Math.ceil(state.routeDistance / 80));
+    distanceText.textContent = `距離：${Math.round(state.routeDistance)} 公尺`;
+    timeText.textContent = `時間：${state.routeTime} 分鐘`;
+    nextStep.textContent = routeData.message;
+
+  } catch (error) {
+    console.error("路線取得失敗", error);
+    state.route = [];
+    nextStep.textContent = "❌ " + error.message; 
+  }
+  renderAll();
+}
+
+      function startNavigation() {
+        if (!state.destination) {
+          nextStep.textContent = "請先選擇目的地。";
+          return;
+        }
+        state.navigationActive = true;
+        nextStep.textContent = nextStepText();
+        playNavigationAnimation("start");
+        submitFeedback(false);
+        renderAll();
+      }
+
+      function endNavigation() {
+        state.navigationActive = false;
+        nextStep.textContent = "導航已結束。";
+        playNavigationAnimation("end");
+        submitFeedback(true);
+        setTimeout(() => {
+          state.route = [];
+          renderAll();
+        }, 650);
+        renderAll();
+      }
+
+      let trackingTimer = null;
+      function startRealTimeTracking() {
+        if (trackingTimer) clearInterval(trackingTimer);
+        
+        trackingTimer = setInterval(async () => {
+          try {
+            const response = await fetch("http://127.0.0.1:8000/api/current-location");
+            if (!response.ok) return;
+            
+            const positionData = await response.json();
+            
+            if (positionData && positionData.x !== undefined) {
+              state.current.gridX = positionData.x;
+              state.current.gridY = positionData.y;
+              
+              const floor = state.floors.find(f => f.id === state.currentFloorId) || state.floors[0];
+              const ox = floor.imageLeft || 0;
+              const oy = floor.imageTop || 0;
+              const scaleX = 379.06 / 75;
+              const scaleY = 122.73 / 25;
+              
+              // 🎯 修正舊版錯誤的乘法邏輯，套用新比例並加上 ox/oy 偏移，藍點就會準確出現！
+              state.current.x = ox + (positionData.x * scaleX) + (scaleX / 2);
+              state.current.y = oy + (positionData.y * scaleY) + (scaleY / 2);
+              
+              if (positionData.floorId) {
+                state.current.floorId = positionData.floorId;
+              }
+              
+              if (state.navigationActive && state.destination) {
+                await showRoute();
+              }
+              if (state.viewFollow) {
+                centerOnCurrent();
+              }
+              drawMap();
+            }
+          } catch (error) {
+            console.error("無法取得最新位置", error);
+          }
+        }, 1500);
+      }
+
+      function toggleViewFollow() {
+        state.viewFollow = !state.viewFollow;
+        compassButton.classList.toggle("active", state.viewFollow);
+        compassButton.textContent = "跟隨";
+        renderAll();
+      }
+      function cyclePointDisplayMode() {
+        const order = ["current", "important", "all"];
+        state.pointDisplayMode =
+          order[(order.indexOf(state.pointDisplayMode) + 1) % order.length] ||
+          "important";
+        localStorage.setItem("pointDisplayMode", state.pointDisplayMode);
+        updatePointModeButton();
+        drawMap();
+      }
+      function updatePointModeButton() {
+        if (!pointModeButton) return;
+        const titles = {
+          current: "只顯示我的所在地",
+          important: "只顯示重要點",
+          all: "顯示全部點",
+        };
+        pointModeButton.textContent = "顯示";
+        pointModeButton.title =
+          titles[state.pointDisplayMode] || titles.important;
+        pointModeButton.classList.toggle(
+          "active",
+          state.pointDisplayMode !== "current",
+        );
+      }
+
+      function renderAll() {
+        renderFloorButtons();
+        floorLabel.textContent = floorName(state.currentFloorId);
+        destinationText.textContent = state.destination
+          ? `目的地：${state.destination.name}`
+          : "目的地：尚未選擇";
+        drawMap();
+      }
+      function resizeCanvas() {
+        const rect = canvas.getBoundingClientRect();
+        const ratio = window.devicePixelRatio || 1;
+        canvas.width = Math.max(1, Math.round(rect.width * ratio));
+        canvas.height = Math.max(1, Math.round(rect.height * ratio));
+        ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+        focusOnWifiPoints();
+        drawMap();
+      }
+      function drawMap() {
+        const rect = canvas.getBoundingClientRect();
+        ctx.clearRect(0, 0, rect.width, rect.height);
+        ctx.fillStyle = "#fafbfc";
+        ctx.fillRect(0, 0, rect.width, rect.height);
+        drawFloorImage();
+        //drawWalkways();
+        drawWifiSampleMap();
+        drawRoute();
+        drawPlaces();
+        drawCurrent();
+      }
+      
+            // 🌟 內嵌 K_Area_Grid.csv 網格資料（0=走道 1=商店黑格 2=其他 3=樓梯/電梯 4=其他）
+      const GRID_DATA = [
+        [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,3,3,0,3,3,1,1,3,1,1,1,1,1,1,1,1,1,3,1,1,1],
+        [1,1,0,0,0,0,0,1,1,1,1,1,1,1,1,1,3,3,0,3,3,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+        [1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,0,1,0,1,1,1,0,0,0,0,1],
+        [3,3,0,0,0,0,0,1,1,1,0,0,0,1,1,1,1,0,0,0,0,0,0,1,1,1,0,0,0,1,1,0,0,0,0,0,3],
+        [3,3,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,3],
+        [1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,3],
+        [1,1,0,1,0,0,1,1,1,1,1,0,0,1,1,1,0,0,0,0,0,0,1,1,1,1,1,1,0,1,1,0,1,1,1,1,1],
+        [1,1,1,1,0,0,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,1,1,1,1,1,1,0,1,1,0,1,1,1,1,1],
+        [1,1,1,1,0,0,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,1,1,1,1,1,1,1,1,1,3,1,1,1,1,1]
+      ];
+
+      function drawWalkways() {
+        if (!state.showGridOverlay) return;
+        const floor = currentFloor();
+        if (!floor?.imageUrl) return;
+        // 依圖片實際尺寸換算格距（可在下方微調原點，讓疊圖對齊圖片）
+        const cols = 37, rows = 9;
+        const cellW = floor.imageWidth / cols;
+        const cellH = floor.imageHeight / rows;
+        const ox = floor.imageLeft;
+        const oy = floor.imageTop;
+        ctx.save();
+        applyFollowRotation();
+        ctx.globalAlpha = 0.6;
+        GRID_DATA.forEach((rowVals, r) => {
+          rowVals.forEach((v, c) => {
+            const x0 = ox + c * cellW;
+            const y0 = oy + r * cellH;
+            if (v === 1) {
+              ctx.fillStyle = "#1f2933";   // 商店/黑格
+            } else if (v === 0 || v === 3) {
+              ctx.fillStyle = "#ffffff";   // 走道/樓梯
+            } else {
+              return;
+            }
+            ctx.fillRect(x0, y0, cellW, cellH);
+          });
+        });
+        ctx.restore();
+      }
+      function drawFloorImage() {
+        const floor = currentFloor();
+        if (!floor?.imageUrl) return;
+        const image = floorImage(floor.imageUrl);
+        if (!image.complete || image.naturalWidth === 0) return;
+        const topLeft = baseScreen(world.left, world.top);
+        const bottomRight = baseScreen(
+          world.left + world.width,
+          world.top + world.height,
+        );
+        ctx.save();
+        applyFollowRotation();
+        ctx.globalAlpha = 0.92;
+        ctx.drawImage(
+          image,
+          topLeft.x,
+          topLeft.y,
+          bottomRight.x - topLeft.x,
+          bottomRight.y - topLeft.y,
+        );
+        ctx.globalAlpha = 1;
+        ctx.restore();
+      }
+      function drawRoute() {
+        const visible = state.route.filter(
+          (point) => !point.floorId || point.floorId === state.currentFloorId,
+        );
+        if (visible.length < 2) return;
+        ctx.lineCap = "round";
+        ctx.lineJoin = "round";
+        ctx.lineWidth = state.destination?.source === "wifiPoint" ? 6 : 8;
+        ctx.strokeStyle = "#ffffff";
+        drawSmoothPolyline(visible);
+        ctx.lineWidth = state.destination?.source === "wifiPoint" ? 3 : 5;
+        ctx.strokeStyle = getComputedStyle(document.documentElement)
+          .getPropertyValue("--route")
+          .trim();
+        if (state.navigationActive) {
+          ctx.setLineDash([18, 14]);
+          ctx.lineDashOffset = -((Date.now() / 45) % 32);
+        }
+        drawSmoothPolyline(visible);
+        ctx.setLineDash([]);
+        if (state.navigationActive) drawDestinationMarker();
+      }
+      function drawSmoothPolyline(points) {
+        const projected = points.map((point) => screen(point.x, point.y));
+        ctx.beginPath();
+        projected.forEach((point, index) => {
+          if (index === 0) ctx.moveTo(point.x, point.y);
+          else ctx.lineTo(point.x, point.y);
+        });
+        ctx.stroke();
+      }
+      function drawPlaces() {
+        ctx.textBaseline = "middle";
+        ctx.textAlign = "center";
+        state.places
+          .filter((place) => place.floorId === state.currentFloorId)
+          .forEach((place) => {
+            // 🎯 核心修復：如果店家有專屬的視覺座標，就絕對不要再經過 getVisualY 轉換！
+            const finalX = place.visualX !== undefined ? place.visualX : place.x;
+            const finalY = place.visualY !== undefined ? place.visualY : getVisualY(place.y);
+            const point = screen(finalX, finalY);
+            
+            const selected = state.destination && state.destination.id === place.id;
+            ctx.font = selected ? "26px Arial" : "20px Arial";
+            ctx.fillText(place.category === "餐飲" ? "🍔" : "🏪", point.x, point.y - 12);
+            ctx.font = selected ? "bold 15px Microsoft JhengHei, sans-serif" : "13px Microsoft JhengHei, sans-serif";
+            ctx.lineWidth = 3;
+            ctx.strokeStyle = "rgba(255, 255, 255, 0.8)";
+            ctx.strokeText(place.name, point.x, point.y + 12);
+            ctx.fillStyle = selected ? "#b42318" : "#1f2933";
+            ctx.fillText(place.name, point.x, point.y + 12);
+          });
+      }
+      function drawWifiSampleMap() {}
+      function isImportantPoint(point, index, total) {
+        return false;
+      }
+      function drawDestinationMarker() {
+        if (!state.destination || state.destination.floorId !== state.currentFloorId) return;
+        
+        // 🎯 終點紅心也套用正確的雙軌制
+        const finalX = state.destination.visualX !== undefined ? state.destination.visualX : state.destination.x;
+        const finalY = state.destination.visualY !== undefined ? state.destination.visualY : getVisualY(state.destination.y);
+        const point = screen(finalX, finalY);
+
+        ctx.save();
+        ctx.fillStyle = "rgba(180, 35, 24, .14)";
+        ctx.beginPath();
+        ctx.arc(point.x, point.y, 30, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = "#b42318";
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.arc(point.x, point.y, 18, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.fillStyle = "#b42318";
+        ctx.beginPath();
+        ctx.arc(point.x, point.y, 8, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = "#ffffff";
+        ctx.beginPath();
+        ctx.arc(point.x, point.y, 3, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = "#1f2933";
+        ctx.font = "700 15px Microsoft JhengHei, sans-serif";
+        ctx.textBaseline = "middle";
+        ctx.fillText(`目的地：${state.destination.name}`, point.x + 24, point.y - 2);
+        ctx.restore();
+      }
+      function drawCurrent() {
+        const point = screen(state.current.x, state.current.y);
+        ctx.fillStyle = "#ffffff";
+        ctx.beginPath();
+        ctx.arc(point.x, point.y, 14, 0, Math.PI * 2);
+        ctx.fill();
+        if (state.navigationActive) {
+          const pulse = 18 + Math.sin(Date.now() / 180) * 4;
+          ctx.strokeStyle = "rgba(37, 99, 235, .24)";
+          ctx.lineWidth = 5;
+          ctx.beginPath();
+          ctx.arc(point.x, point.y, pulse, 0, Math.PI * 2);
+          ctx.stroke();
+          scheduleNavigationFrame();
+        }
+        if (state.heading == null) {
+          ctx.fillStyle = "#2563eb";
+          ctx.beginPath();
+          ctx.arc(point.x, point.y, 8, 0, Math.PI * 2);
+          ctx.fill();
+        } else {
+          const rad = state.viewFollow ? 0 : (state.heading * Math.PI) / 180;
+          const tip = {
+            x: point.x + Math.sin(rad) * 20,
+            y: point.y - Math.cos(rad) * 20,
+          };
+          const leftRad = rad + (140 * Math.PI) / 180;
+          const rightRad = rad - (140 * Math.PI) / 180;
+          ctx.fillStyle = "#2563eb";
+          ctx.strokeStyle = "#ffffff";
+          ctx.lineWidth = 3;
+          ctx.beginPath();
+          ctx.moveTo(tip.x, tip.y);
+          ctx.lineTo(
+            point.x + Math.sin(leftRad) * 13,
+            point.y - Math.cos(leftRad) * 13,
+          );
+          ctx.lineTo(point.x, point.y);
+          ctx.lineTo(
+            point.x + Math.sin(rightRad) * 13,
+            point.y - Math.cos(rightRad) * 13,
+          );
+          ctx.closePath();
+          ctx.fill();
+          ctx.stroke();
+        }
+        ctx.fillStyle = "#1f2933";
+        ctx.font = "14px Microsoft JhengHei, sans-serif";
+        ctx.fillText("目前位置", point.x + 18, point.y + 4);
+      }
+      function drawPolyline(points) {
+        ctx.beginPath();
+        points.forEach((point, index) => {
+          const next = screen(point.x, point.y);
+          if (index === 0) ctx.moveTo(next.x, next.y);
+          else ctx.lineTo(next.x, next.y);
+        });
+        ctx.stroke();
+      }
+      function playNavigationAnimation(type) {
+        const className =
+          type === "start" ? "navigation-start" : "navigation-end";
+        navFlash.textContent = type === "start" ? "開始導航" : "結束導航";
+        mapShell.classList.remove("navigation-start", "navigation-end");
+        navFlash.classList.remove("show");
+        void mapShell.offsetWidth;
+        mapShell.classList.add(className);
+        navFlash.classList.add("show");
+        setTimeout(() => mapShell.classList.remove(className), 900);
+        setTimeout(() => navFlash.classList.remove("show"), 1300);
+      }
+      function scheduleNavigationFrame() {
+        if (state.navigationFrame) return;
+        state.navigationFrame = requestAnimationFrame(() => {
+          state.navigationFrame = null;
+          if (state.navigationActive) drawMap();
+        });
+      }
+      function baseScreen(x, y) {
+        const rect = canvas.getBoundingClientRect();
+        const padding = 28;
+        const sx =
+          padding +
+          ((x - world.left) / world.width) * (rect.width - padding * 2);
+        const sy =
+          padding +
+          ((y - world.top) / world.height) * (rect.height - padding * 2);
+        return {
+          x:
+            rect.width / 2 +
+            (sx - rect.width / 2) * state.zoom +
+            state.viewOffsetX,
+          y:
+            rect.height / 2 +
+            (sy - rect.height / 2) * state.zoom +
+            state.viewOffsetY,
+        };
+      }
+      function screen(x, y) {
+        const point = baseScreen(x, y);
+        const rad = followRotationRadians();
+        if (!rad) return point;
+        const center = baseScreen(state.current.x, state.current.y);
+        const dx = point.x - center.x;
+        const dy = point.y - center.y;
+        return {
+          x: center.x + dx * Math.cos(rad) - dy * Math.sin(rad),
+          y: center.y + dx * Math.sin(rad) + dy * Math.cos(rad),
+        };
+      }
+      function followRotationRadians() {
+        if (!state.viewFollow || state.heading == null) return 0;
+        const heading = Number(state.heading);
+        if (!Number.isFinite(heading)) return 0;
+        return (-heading * Math.PI) / 180;
+      }
+      function applyFollowRotation() {
+        const rad = followRotationRadians();
+        if (!rad) return;
+        const center = baseScreen(state.current.x, state.current.y);
+        ctx.translate(center.x, center.y);
+        ctx.rotate(rad);
+        ctx.translate(-center.x, -center.y);
+      }
+      function centerOnCurrent() {
+        const rect = canvas.getBoundingClientRect();
+        const savedX = state.viewOffsetX;
+        const savedY = state.viewOffsetY;
+        state.viewOffsetX = 0;
+        state.viewOffsetY = 0;
+        const point = baseScreen(state.current.x, state.current.y);
+        state.viewOffsetX = savedX;
+        state.viewOffsetY = savedY;
+        state.viewOffsetX = rect.width / 2 - point.x;
+        state.viewOffsetY = rect.height / 2 - point.y;
+      }
+      function updateWorldFromData() {
+        const floor = currentFloor();
+        const imageBounds = floorImageBounds(floor);
+        if (imageBounds) {
+          world.left = imageBounds.left;
+          world.top = imageBounds.top;
+          world.width = imageBounds.width;
+          world.height = imageBounds.height;
+          floorImage(floor.imageUrl);
+          return;
+        }
+        const candidates = state.places
+          .filter((place) => place.floorId === state.currentFloorId)
+          .concat(
+            state.wifiPoints.filter(
+              (point) => point.floorId === state.currentFloorId,
+            ),
+          );
+        if (candidates.length === 0) {
+          world.left = 0;
+          world.top = 250;
+          world.width = 900;
+          world.height = 480;
+          return;
+        }
+        const xs = candidates
+          .map((item) => Number(item.x))
+          .filter(Number.isFinite);
+        const ys = candidates
+          .map((item) => Number(item.y))
+          .filter(Number.isFinite);
+        const minX = Math.min(...xs);
+        const maxX = Math.max(...xs);
+        const minY = Math.min(...ys);
+        const maxY = Math.max(...ys);
+        const margin = 30;
+        world.left = minX - margin;
+        world.top = minY - margin;
+        world.width = Math.max(60, maxX - minX + margin * 2);
+        world.height = Math.max(60, maxY - minY + margin * 2);
+        if (floor?.imageUrl) floorImage(floor.imageUrl);
+      }
+      function floorImageBounds(floor) {
+        if (!floor?.imageUrl) return null;
+        const left = Number(floor.imageLeft);
+        const top = Number(floor.imageTop);
+        let width = Number(floor.imageWidth || floor.width);
+        let height = Number(floor.imageHeight || floor.height);
+        const image = state.floorImages.get(floor.imageUrl);
+        const naturalWidth = Number(
+          floor.imageNaturalWidth || image?.naturalWidth,
+        );
+        const naturalHeight = Number(
+          floor.imageNaturalHeight || image?.naturalHeight,
+        );
+        if (
+          Number.isFinite(naturalWidth) &&
+          Number.isFinite(naturalHeight) &&
+          naturalWidth > 0 &&
+          naturalHeight > 0
+        ) {
+          const naturalAspect = naturalWidth / naturalHeight;
+          if (Number.isFinite(width) && width > 0) {
+            height = width / naturalAspect;
+          } else if (Number.isFinite(height) && height > 0) {
+            width = height * naturalAspect;
+          }
+        }
+        if (
+          [left, top, width, height].every(Number.isFinite) &&
+          width > 0 &&
+          height > 0
+        ) {
+          return { left, top, width, height };
+        }
+        return null;
+      }
+      function currentFloor() {
+        return (
+          state.floors.find((floor) => floor.id === state.currentFloorId) ||
+          null
+        );
+      }
+      function floorImage(url) {
+        if (!state.floorImages.has(url)) {
+          const image = new Image();
+          image.onload = () => drawMap();
+          image.src = url;
+          state.floorImages.set(url, image);
+        }
+        return state.floorImages.get(url);
+      }
+      function setZoom(value) {
+        state.zoom = Math.max(0.55, Math.min(5, value));
+        drawMap();
+      }
+      function resetView() {
+        if (!focusOnWifiPoints(true)) {
+          state.zoom = 1;
+          state.viewOffsetX = 0;
+          state.viewOffsetY = 0;
+        }
+        drawMap();
+      }
+      function focusOnWifiPoints(force = false) {
+        const key = `${state.currentMapId}:${state.currentFloorId}:${state.wifiPoints.length}`;
+        if (!force && state.viewFocusedKey === key) return false;
+        const points = state.wifiPoints
+          .filter((point) => point.floorId === state.currentFloorId)
+          .map((point) => ({ x: Number(point.x), y: Number(point.y) }))
+          .filter(
+            (point) => Number.isFinite(point.x) && Number.isFinite(point.y),
+          );
+        if (points.length < 2) return false;
+        const rect = canvas.getBoundingClientRect();
+        if (
+          rect.width <= 0 ||
+          rect.height <= 0 ||
+          world.width <= 0 ||
+          world.height <= 0
+        )
+          return false;
+        const xs = points.map((point) => point.x);
+        const ys = points.map((point) => point.y);
+        const minX = Math.min(...xs);
+        const maxX = Math.max(...xs);
+        const minY = Math.min(...ys);
+        const maxY = Math.max(...ys);
+        const targetWidth = Math.max(1, maxX - minX);
+        const targetHeight = Math.max(1, maxY - minY);
+        const baseWidth =
+          (targetWidth / world.width) * Math.max(1, rect.width - 56);
+        const baseHeight =
+          (targetHeight / world.height) * Math.max(1, rect.height - 56);
+        const usableWidth = Math.max(1, rect.width - 120);
+        const usableHeight = Math.max(1, rect.height - 150);
+        const nextZoom = Math.max(
+          1,
+          Math.min(
+            5,
+            Math.min(usableWidth / baseWidth, usableHeight / baseHeight),
+          ),
+        );
+        state.zoom = nextZoom;
+        state.viewOffsetX = 0;
+        state.viewOffsetY = 0;
+        const center = baseScreen((minX + maxX) / 2, (minY + maxY) / 2);
+        state.viewOffsetX = rect.width / 2 - center.x;
+        state.viewOffsetY = rect.height / 2 - center.y;
+        state.viewFocusedKey = key;
+        return true;
+      }
+      function startPan(event) {
+        state.dragStart = {
+          pointerId: event.pointerId,
+          x: event.clientX,
+          y: event.clientY,
+          offsetX: state.viewOffsetX,
+          offsetY: state.viewOffsetY,
+        };
+        canvas.setPointerCapture(event.pointerId);
+      }
+      function movePan(event) {
+        if (!state.dragStart || state.dragStart.pointerId !== event.pointerId)
+          return;
+        state.viewOffsetX =
+          state.dragStart.offsetX + event.clientX - state.dragStart.x;
+        state.viewOffsetY =
+          state.dragStart.offsetY + event.clientY - state.dragStart.y;
+        drawMap();
+      }
+      function endPan(event) {
+        if (state.dragStart?.pointerId === event.pointerId) {
+          state.dragStart = null;
+        }
+      }
+      function handleWheel(event) {
+        event.preventDefault();
+        const factor = event.deltaY < 0 ? 1.12 : 0.88;
+        setZoom(state.zoom * factor);
+      }
+      function handleOrientation(event) {
+        const alpha = Number(event.alpha);
+        if (Number.isFinite(alpha)) {
+          const offset = Number(currentFloor()?.mapHeadingOffsetDegrees || 0);
+          state.heading = normalizeDegrees(
+            alpha + (Number.isFinite(offset) ? offset : 0),
+          );
+          drawMap();
+        }
+      }
+      function normalizeDegrees(value) {
+        const normalized = value % 360;
+        return normalized < 0 ? normalized + 360 : normalized;
+      }
+      async function submitFeedback(arrivedDestination) {
+        if (!state.feedbackAllowed || !state.destination) return;
+        await postJson("/api/navigation-feedback", {
+          anonymousUserId: anonymousId(),
+          mapId: state.currentMapId,
+          floorId: state.currentFloorId,
+          estimatedX: state.current.x,
+          estimatedY: state.current.y,
+          currentRouteId: "web-demo-route",
+          nearestRouteNodeId: "web-demo",
+          currentWifiList: [],
+          heading: state.heading,
+          stepDelta: 0,
+          confidence: 35,
+          estimatedError: 20,
+          isOffRoute: false,
+          relocalizeCount: 0,
+          arrivedDestination,
+          deviceInfo: navigator.userAgent,
+          collectedAt: Date.now(),
+        }).catch(() => {});
+      }
+      function nextStepText() {
+        if (!state.destination) return "請搜尋目的地，或從結果中選擇地點。";
+        if (state.destination.floorId !== state.current.floorId) {
+          return `請先前往樓層連接點，再切換到 ${floorName(state.destination.floorId)}。`;
+        }
+        if (state.destination.source === "wifiPoint") {
+          return `沿著路線前進，目的地是 ${state.destination.name}。`;
+        }
+        return `沿著路線前進，目的地是 ${state.destination.name}。`;
+      }
+      function navigationTargets() {
+        const wifiTargets = state.wifiPoints.map((point) => ({
+          id: point.pointId,
+          name: point.pointId,
+          mapId: point.mapId,
+          floorId: point.floorId,
+          category: "定位點",
+          x: Number(point.x),
+          y: Number(point.y),
+          description: `掃描 ${point.scanCount || 0} 筆，AP ${point.bssidCount || 0} 個`,
+          searchable: true,
+          businessStatus: "unset",
+          source: "wifiPoint",
+        }));
+        return state.places.concat(wifiTargets);
+      }
+      function setFeedbackAllowed(allowed) {
+        state.feedbackAllowed = allowed;
+        feedbackSwitch.checked = allowed;
+        localStorage.setItem("feedbackConsentAsked", "true");
+        localStorage.setItem("feedbackAllowed", String(allowed));
+        privacyDialog.close();
+      }
+      function floorName(id) {
+        const floor = state.floors.find((item) => item.id === id);
+        return floor ? floor.floorName || floor.name || floor.id : id;
+      }
+      function shortFloorName(floor, index) {
+        const name = floor.floorName || floor.name || floor.id;
+        if (/ground|地面|一樓|1f/i.test(`${floor.id} ${name}`)) return "1F";
+        if (/second|二樓|2f|2/i.test(`${floor.id} ${name}`)) return "2F";
+        return name.length <= 3 ? name : `${index + 1}F`;
+      }
+      function isSecondFloor(id) {
+        return /second|2|二樓/i.test(`${id} ${floorName(id)}`);
+      }
+      function distance(x1, y1, x2, y2) {
+        return Math.hypot(x1 - x2, y1 - y2);
+      }
+      async function fetchJson(url) {
+        const response = await fetch(url);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        return response.json();
+      }
+      async function postJson(url, body) {
+        const response = await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        return response.json();
+      }
+      function anonymousId() {
+        let id = localStorage.getItem("anonymousUserId");
+        if (!id) {
+          id = crypto.randomUUID
+            ? crypto.randomUUID()
+            : `web-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+          localStorage.setItem("anonymousUserId", id);
+        }
+        return id;
+      }
+      function escapeHtml(value) {
+        return String(value ?? "").replace(
+          /[&<>"']/g,
+          (char) =>
+            ({
+              "&": "&amp;",
+              "<": "&lt;",
+              ">": "&gt;",
+              '"': "&quot;",
+              "'": "&#039;",
+            })[char],
+        );
+      }
+
+      // 🌟 新增：評價系統全域變數與功能
+      let currentReviewPlaceId = null;
+
+      async function openReviewModal(placeId, placeName) {
+        currentReviewPlaceId = placeId;
+        document.getElementById("reviewPlaceName").textContent = placeName + " - 評價與評論";
+        document.getElementById("reviewText").value = "";
+        document.getElementById("reviewStar").value = "5";
+        
+        const reviewDialog = document.getElementById("reviewDialog");
+        reviewDialog.showModal();
+
+        // 開啟彈窗時，自動載入大家的評價
+        await loadReviews(placeId);
+      }
+
+      async function loadReviews(placeId) {
+        const container = document.getElementById("reviewsContainer");
+        container.innerHTML = `<div style="text-align: center; color: var(--muted);">載入評論中...</div>`;
+        try {
+          const response = await fetch(`/api/reviews?placeId=${encodeURIComponent(placeId)}`);
+          if (!response.ok) throw new Error("讀取失敗");
+          const reviews = await response.json();
+          
+          if (reviews.length === 0) {
+            container.innerHTML = `<div style="text-align: center; color: var(--muted); padding: 20px 0;">目前還沒有人評論，搶先留下第一則評價吧！</div>`;
+            return;
+          }
+
+          // 計算平均星數
+          const avgStar = (reviews.reduce((acc, r) => acc + Number(r.star), 0) / reviews.length).toFixed(1);
+          let html = `<div style="margin-bottom: 10px; font-weight: bold; color: var(--accent);">平均評分：⭐ ${avgStar} / 5.0 (${reviews.length} 則評論)</div>`;
+          
+          // 顯示每則評論 (越新的在越上面)
+          reviews.reverse().forEach(r => {
+            const stars = "⭐".repeat(r.star);
+            const date = new Date(r.timestamp).toLocaleString("zh-TW", { hour12: false });
+            html += `
+              <div style="border-bottom: 1px solid var(--line); padding: 10px 0;">
+                <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+                  <span>${stars}</span>
+                  <span style="font-size: 12px; color: var(--muted);">${date}</span>
+                </div>
+                <div style="font-size: 14px; line-height: 1.4;">${escapeHtml(r.text)}</div>
+              </div>
+            `;
+          });
+          container.innerHTML = html;
+        } catch (err) {
+          container.innerHTML = `<div style="color: var(--danger); text-align: center;">無法載入評價</div>`;
+        }
+      }
+
+      async function submitReview() {
+        const star = document.getElementById("reviewStar").value;
+        const text = document.getElementById("reviewText").value.trim();
+        
+        if (!text) {
+          alert("請輸入評論內容！");
+          return;
+        }
+
+        try {
+          // 防止重複點擊
+          const btn = document.querySelector("#reviewDialog .primary");
+          btn.textContent = "傳送中...";
+          btn.disabled = true;
+
+          const response = await fetch("/api/reviews", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              placeId: currentReviewPlaceId,
+              star: Number(star),
+              text: text,
+              timestamp: Date.now()
+            })
+          });
+
+          if (!response.ok) throw new Error("儲存失敗");
+          
+          // 重新載入評價，讓剛剛輸入的評價立刻顯示出來
+          await loadReviews(currentReviewPlaceId);
+          document.getElementById("reviewText").value = "";
+        } catch (err) {
+          alert("送出失敗，請稍後再試。");
+        } finally {
+          const btn = document.querySelector("#reviewDialog .primary");
+          btn.textContent = "送出評價";
+          btn.disabled = false;
+        }
+      }
+    </script>
+    
+
+    <script>
+     window.receiveAndroidWifiSignals = async function (signalsJsonString) {
+        try {
+          const realSignals = JSON.parse(signalsJsonString);
+          const response = await fetch("http://127.0.0.1:8000/api/locate", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ signals: realSignals }),
+          });
+          
+          if (response.ok) {
+            const data = await response.json();
+            if (data.status === "success") {
+              // 🎯 直接將後端回傳的網格座標對應到畫布像素，保證藍點 100% 完美現身
+              state.current.gridX = data.x;
+              state.current.gridY = data.y;
+              
+              // 使用你地圖最穩定的等比例基準 (每一格 10 像素 + 5 像素置中)
+              state.current.x = (data.x * 10) + 5;
+              state.current.y = (data.y * 10) + 5;
+              
+              if (state.navigationActive && state.destination) {
+                showRoute();
+              }
+              if (state.viewFollow) {
+                centerOnCurrent();
+              }
+              drawMap();
+            }
+          }
+        } catch (error) {
+          console.error("定位運算發生錯誤:", error);
+        }
+      };
+    </script>
+  </body>
+</html>
