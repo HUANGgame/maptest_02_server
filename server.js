@@ -1,7 +1,6 @@
 const http = require("http");
 const fs = require("fs");
 const path = require("path");
-const { floorTransitions } = require("./lib/demoData");
 const { createFloor, createMap, createPlace, readFloors, readMaps } = require("./lib/catalogStore");
 const { appendFeedback, readFeedback, writeFeedback } = require("./lib/feedbackStore");
 const { appendHistory, appendSavedLocation, clearHistory, clearSavedLocations, readHistory, readSavedLocations } = require("./lib/historyStore");
@@ -9,7 +8,7 @@ const { activateModel, activeModel, createModelVersion, readModels } = require("
 const { readPlaces, updatePlaceStatus } = require("./lib/placeStore");
 const { appendPolicyLog, createDqnRun, readDqnRuns, readPolicyLogs } = require("./lib/policyStore");
 const { appendReport, readReports } = require("./lib/reportStore");
-const { createRouteSegment, deleteRouteEdge, deleteRouteNode, readRouteEdges, readRouteNodes, setRouteEdgeBlocked } = require("./lib/routeEdgeStore");
+const { createFloorTransition, createRouteNode, createRouteSegment, deleteFloorTransition, deleteRouteEdge, deleteRouteNode, readFloorTransitions, readRouteEdges, readRouteNodes, restoreLastDeleted, setRouteEdgeBlocked } = require("./lib/routeEdgeStore");
 const { createTrainingJob, readTrainingJobs } = require("./lib/trainingJobStore");
 const { appendScans, readScans } = require("./lib/jsonStore");
 const mysqlMirror = require("./lib/mysqlMirror");
@@ -396,6 +395,16 @@ const server = http.createServer(async (request, response) => {
     return;
   }
 
+  if (request.method === "POST" && url.pathname === "/api/route-nodes") {
+    try {
+      const body = await readJsonBody(request);
+      sendJson(response, 201, createRouteNode(body));
+    } catch (error) {
+      sendJson(response, 400, { success: false, message: error.message });
+    }
+    return;
+  }
+
   if (request.method === "POST" && url.pathname === "/api/route-segments") {
     try {
       const body = await readJsonBody(request);
@@ -403,6 +412,40 @@ const server = http.createServer(async (request, response) => {
     } catch (error) {
       sendJson(response, 400, { success: false, message: error.message });
     }
+    return;
+  }
+
+  if (request.method === "POST" && url.pathname === "/api/route-graph/restore-last") {
+    const result = restoreLastDeleted();
+    sendJson(response, result ? 200 : 404, result || { success: false, message: "沒有可回復的刪除紀錄" });
+    return;
+  }
+
+  if (request.method === "GET" && url.pathname === "/api/floor-transitions") {
+    const mapId = url.searchParams.get("mapId") || "";
+    const floorId = url.searchParams.get("floorId") || "";
+    sendJson(response, 200, readFloorTransitions().filter((transition) => {
+      if (mapId && transition.mapId !== mapId) return false;
+      if (floorId && transition.fromFloorId !== floorId && transition.toFloorId !== floorId) return false;
+      return true;
+    }));
+    return;
+  }
+
+  if (request.method === "POST" && url.pathname === "/api/floor-transitions") {
+    try {
+      const body = await readJsonBody(request);
+      sendJson(response, 201, createFloorTransition(body));
+    } catch (error) {
+      sendJson(response, 400, { success: false, message: error.message });
+    }
+    return;
+  }
+
+  if (request.method === "DELETE" && url.pathname === "/api/floor-transitions") {
+    const transitionId = url.searchParams.get("transitionId") || "";
+    const result = deleteFloorTransition(transitionId);
+    sendJson(response, result ? 200 : 404, result || { success: false, message: "only admin-created floor transitions can be deleted" });
     return;
   }
 
@@ -904,7 +947,7 @@ function buildScopedExport(mapId, floorId) {
     places: readPlaces().filter(scopeMatches),
     routeNodes: readRouteNodes().filter(scopeMatches),
     routeEdges: readRouteEdges().filter(scopeMatches),
-    floorTransitions: floorTransitions.filter((transition) => {
+    floorTransitions: readFloorTransitions().filter((transition) => {
       if (mapId && transition.mapId !== mapId) return false;
       if (floorId && transition.fromFloorId !== floorId && transition.toFloorId !== floorId) return false;
       return true;
@@ -1473,7 +1516,7 @@ function planRoute(body) {
 }
 
 function planCrossFloorRoute(mapId, startFloorId, startX, startY, destination) {
-  const transition = floorTransitions.find((item) => item.mapId === mapId && item.fromFloorId === startFloorId && item.toFloorId === destination.floorId);
+  const transition = readFloorTransitions().find((item) => item.mapId === mapId && item.fromFloorId === startFloorId && item.toFloorId === destination.floorId);
   if (!transition) return null;
   const firstLegDestination = { id: "transition-destination", x: nodeById(transition.fromNodeId)?.x, y: nodeById(transition.fromNodeId)?.y, floorId: startFloorId };
   if (firstLegDestination.x == null || firstLegDestination.y == null) return null;
@@ -1628,7 +1671,7 @@ function simulateNavigationPolicyTraining(mapId, floorId, episodes) {
   const scopedEdges = readRouteEdges().filter((edge) => edge.mapId === mapId && (!floorId || edge.floorId === floorId));
   const openEdges = scopedEdges.filter((edge) => edge.isBlocked !== true);
   const blockedEdges = scopedEdges.length - openEdges.length;
-  const transitions = floorTransitions.filter((transition) => transition.mapId === mapId && (transition.fromFloorId === floorId || transition.toFloorId === floorId));
+  const transitions = readFloorTransitions().filter((transition) => transition.mapId === mapId && (transition.fromFloorId === floorId || transition.toFloorId === floorId));
   const scenarioCount = Math.max(1, Math.min(Number(episodes) || 100, 1000));
   const baselineRouteCount = Math.max(0, Math.min(openEdges.length, Math.floor(scopedNodes.length * 1.5)));
   const hasEnoughGraph = scopedNodes.length >= 2 && openEdges.length >= 1;

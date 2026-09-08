@@ -159,6 +159,16 @@
       padding-top: 12px;
       border-top: 1px solid var(--line);
     }
+    dialog {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      max-width: 420px;
+      width: calc(100% - 32px);
+      padding: 16px;
+    }
+    dialog::backdrop {
+      background: rgba(15, 23, 42, 0.35);
+    }
     @media (max-width: 900px) {
       main, .grid, .map-editor { grid-template-columns: 1fr; }
     }
@@ -200,26 +210,30 @@
           <div>
             <div class="inline-buttons">
               <button id="placeModeButton" class="active">標點</button>
+              <button id="markModeButton" class="secondary">標記</button>
               <button id="routeModeButton" class="secondary">畫路線</button>
               <button id="deleteNodeModeButton" class="secondary">刪節點</button>
               <button id="deleteEdgeModeButton" class="secondary">刪路線</button>
+              <button id="transitionModeButton" class="secondary">連樓層</button>
             </div>
+            <button id="restoreLastButton" class="secondary">回復上一個</button>
             <button id="clearRouteDraftButton" class="secondary">清除路線暫選</button>
             <div id="mapEditorInfo" class="muted" style="margin-top:12px">點地圖後會帶入座標。</div>
-            <div id="placeEditorForm" class="editor-form hidden">
-              <label for="newPlaceName">名稱</label>
-              <input id="newPlaceName" placeholder="例如 K12、電梯、店名">
-              <label for="newPlaceCategory">分類設施</label>
-              <input id="newPlaceCategory" placeholder="例如 店家、樓梯、電梯、出口">
-              <label for="newPlaceKeywords">關鍵詞</label>
-              <input id="newPlaceKeywords" placeholder="例如 東森 K12 出口">
-              <label for="newPlaceDescription">備註</label>
-              <textarea id="newPlaceDescription" placeholder="例如 靠近樓梯，往機捷方向"></textarea>
-              <label for="newPlaceX">座標 X</label>
-              <input id="newPlaceX" type="number" placeholder="0">
-              <label for="newPlaceY">座標 Y</label>
-              <input id="newPlaceY" type="number" placeholder="0">
-              <button id="createPlaceButton">儲存標點</button>
+            <div id="transitionEditorForm" class="editor-form hidden">
+              <label for="transitionFromNode">本樓層節點</label>
+              <input id="transitionFromNode" readonly>
+              <label for="transitionToNode">連到另一張地圖節點</label>
+              <select id="transitionToNode"></select>
+              <label for="transitionType">連接類型</label>
+              <select id="transitionType">
+                <option value="escalator">手扶梯</option>
+                <option value="stairs">樓梯</option>
+                <option value="elevator">電梯</option>
+                <option value="corridor">通道</option>
+              </select>
+              <label for="transitionName">名稱</label>
+              <input id="transitionName" placeholder="例如 F1 手扶梯到 F2 手扶梯">
+              <button id="createTransitionButton">儲存連接</button>
             </div>
           </div>
         </div>
@@ -255,6 +269,13 @@
         <table>
           <thead><tr><th>路段</th><th>距離</th><th>狀態</th><th>操作</th></tr></thead>
           <tbody id="routeEdgesBody"></tbody>
+        </table>
+      </section>
+      <section>
+        <h2>樓層連接</h2>
+        <table>
+          <thead><tr><th>名稱</th><th>來源</th><th>目標</th><th>操作</th></tr></thead>
+          <tbody id="transitionsBody"></tbody>
         </table>
       </section>
       <section>
@@ -317,6 +338,33 @@
       </section>
     </div>
   </main>
+  <dialog id="placeEditorForm">
+    <h2>標記資訊</h2>
+    <label for="newPlaceName">名稱</label>
+    <input id="newPlaceName" placeholder="例如 K12、電梯、店名">
+    <label for="newPlaceCategory">分類設施</label>
+    <input id="newPlaceCategory" placeholder="例如 店家、樓梯、電梯、出口">
+    <label for="newPlaceKeywords">關鍵詞</label>
+    <input id="newPlaceKeywords" placeholder="例如 東森 K12 出口">
+    <label for="newPlaceDescription">備註</label>
+    <textarea id="newPlaceDescription" placeholder="例如 靠近樓梯，往機捷方向"></textarea>
+    <label for="newPlaceX">座標 X</label>
+    <input id="newPlaceX" type="number" placeholder="0" readonly>
+    <label for="newPlaceY">座標 Y</label>
+    <input id="newPlaceY" type="number" placeholder="0" readonly>
+    <div class="inline-buttons" style="margin-top:12px">
+      <button id="createPlaceButton">儲存標記</button>
+      <button id="cancelPlaceButton" class="secondary">取消</button>
+    </div>
+  </dialog>
+  <dialog id="deleteConfirmDialog">
+    <h2 id="deleteConfirmTitle">確認刪除</h2>
+    <div id="deleteConfirmText" class="muted">確認要刪除嗎？</div>
+    <div class="inline-buttons" style="margin-top:12px">
+      <button id="confirmDeleteButton">刪除</button>
+      <button id="cancelDeleteButton" class="secondary">取消</button>
+    </div>
+  </dialog>
   <script>
     const mapSelect = document.querySelector("#mapSelect");
     const floorSelect = document.querySelector("#floorSelect");
@@ -328,16 +376,37 @@
     let currentPoints = [];
     let currentRouteEdges = [];
     let currentRouteNodes = [];
+    let allRouteNodes = [];
+    let currentTransitions = [];
+    let selectedTransitionFromNode = null;
     let editorMode = "place";
     let routeDraft = [];
     let mapEditorImage = null;
     let mapEditorBounds = null;
+    let selectedPlaceNode = null;
+    let selectedDeleteTarget = null;
 
     reloadButton.addEventListener("click", loadDashboard);
     document.querySelector("#placeModeButton").addEventListener("click", () => setEditorMode("place"));
+    document.querySelector("#markModeButton").addEventListener("click", () => setEditorMode("mark"));
     document.querySelector("#routeModeButton").addEventListener("click", () => setEditorMode("route"));
     document.querySelector("#deleteNodeModeButton").addEventListener("click", () => setEditorMode("deleteNode"));
     document.querySelector("#deleteEdgeModeButton").addEventListener("click", () => setEditorMode("deleteEdge"));
+    document.querySelector("#transitionModeButton").addEventListener("click", () => setEditorMode("transition"));
+    document.querySelector("#createTransitionButton").addEventListener("click", createSelectedTransition);
+    document.querySelector("#cancelPlaceButton").addEventListener("click", () => document.querySelector("#placeEditorForm").close());
+    document.querySelector("#cancelDeleteButton").addEventListener("click", () => {
+      selectedDeleteTarget = null;
+      document.querySelector("#deleteConfirmDialog").close();
+      renderMapEditor();
+    });
+    document.querySelector("#confirmDeleteButton").addEventListener("click", confirmDeleteTarget);
+    document.querySelector("#restoreLastButton").addEventListener("click", async () => {
+      await runAdminAction("已回復上一個", async () => {
+        await postJson("/api/route-graph/restore-last", {});
+        await loadDashboard();
+      });
+    });
     document.querySelector("#clearRouteDraftButton").addEventListener("click", () => {
       routeDraft = [];
       renderMapEditor();
@@ -431,8 +500,8 @@
       const category = document.querySelector("#newPlaceCategory").value.trim() || "未分類";
       const keywords = document.querySelector("#newPlaceKeywords").value.trim();
       const description = document.querySelector("#newPlaceDescription").value.trim();
-      const x = Number(document.querySelector("#newPlaceX").value);
-      const y = Number(document.querySelector("#newPlaceY").value);
+      const x = Number(selectedPlaceNode?.x ?? document.querySelector("#newPlaceX").value);
+      const y = Number(selectedPlaceNode?.y ?? document.querySelector("#newPlaceY").value);
       await runAdminAction("已新增地點", async () => {
         await postJson("/api/places", {
           mapId: mapSelect.value,
@@ -445,7 +514,8 @@
           keywords,
           searchable: true,
         });
-        document.querySelector("#placeEditorForm").classList.add("hidden");
+        selectedPlaceNode = null;
+        document.querySelector("#placeEditorForm").close();
         document.querySelector("#newPlaceName").value = "";
         document.querySelector("#newPlaceCategory").value = "";
         document.querySelector("#newPlaceKeywords").value = "";
@@ -500,13 +570,15 @@
     async function loadDashboard() {
       const mapId = mapSelect.value;
       const floorId = floorSelect.value;
-      const [places, summary, points, quality, routeEdges, routeNodes, feedback, models, jobs, policyRuns, policyLogs, reports] = await Promise.all([
+      const [places, summary, points, quality, routeEdges, routeNodes, allNodes, transitions, feedback, models, jobs, policyRuns, policyLogs, reports] = await Promise.all([
         getJson(`/api/places?mapId=${encodeURIComponent(mapId)}&floorId=${encodeURIComponent(floorId)}`),
         getJson(`/api/wifi-scans/summary?mapId=${encodeURIComponent(mapId)}&floorId=${encodeURIComponent(floorId)}`),
         getJson(`/api/wifi-scans/points?mapId=${encodeURIComponent(mapId)}&floorId=${encodeURIComponent(floorId)}`),
         getJson(`/api/wifi-scans/quality?mapId=${encodeURIComponent(mapId)}&floorId=${encodeURIComponent(floorId)}`),
         getJson(`/api/route-edges?mapId=${encodeURIComponent(mapId)}&floorId=${encodeURIComponent(floorId)}`),
         getJson(`/api/route-nodes?mapId=${encodeURIComponent(mapId)}&floorId=${encodeURIComponent(floorId)}`),
+        getJson(`/api/route-nodes?mapId=${encodeURIComponent(mapId)}`),
+        getJson(`/api/floor-transitions?mapId=${encodeURIComponent(mapId)}&floorId=${encodeURIComponent(floorId)}`),
         getJson(`/api/navigation-feedback/quality-summary?mapId=${encodeURIComponent(mapId)}&floorId=${encodeURIComponent(floorId)}`),
         getJson(`/api/models?mapId=${encodeURIComponent(mapId)}&floorId=${encodeURIComponent(floorId)}`),
         getJson(`/api/model-training-jobs?mapId=${encodeURIComponent(mapId)}&floorId=${encodeURIComponent(floorId)}`),
@@ -518,6 +590,8 @@
       currentPoints = Array.isArray(points.points) ? points.points : [];
       currentRouteEdges = routeEdges;
       currentRouteNodes = routeNodes;
+      allRouteNodes = allNodes;
+      currentTransitions = transitions;
       await loadMapEditorImage();
 
       document.querySelector("#placesBody").innerHTML = places.map(place => `
@@ -578,6 +652,23 @@
               edgeId: button.getAttribute("data-route-edge"),
               isBlocked: button.getAttribute("data-blocked") === "true",
             });
+            await loadDashboard();
+          });
+        });
+      });
+
+      document.querySelector("#transitionsBody").innerHTML = transitions.map(transition => `
+        <tr>
+          <td>${escapeHtml(transition.name || transition.transitionType)}</td>
+          <td>${escapeHtml(floorName(transition.fromFloorId))}<br>${escapeHtml(transition.fromNodeId)}</td>
+          <td>${escapeHtml(floorName(transition.toFloorId))}<br>${escapeHtml(transition.toNodeId)}</td>
+          <td>${transition.source === "admin" ? `<button data-transition-delete="${escapeHtml(transition.id)}">刪除</button>` : "內建"}</td>
+        </tr>
+      `).join("") || `<tr><td colspan="4" class="muted">目前沒有樓層連接</td></tr>`;
+      document.querySelectorAll("[data-transition-delete]").forEach(button => {
+        button.addEventListener("click", async () => {
+          await runAdminAction("已刪除樓層連接", async () => {
+            await deleteJson(`/api/floor-transitions?transitionId=${encodeURIComponent(button.getAttribute("data-transition-delete"))}`);
             await loadDashboard();
           });
         });
@@ -678,9 +769,11 @@
       mapEditorCtx.drawImage(mapEditorImage, bounds.x, bounds.y, bounds.width, bounds.height);
       drawRouteSegments(bounds);
       drawRouteNodes(bounds);
+      drawTransitionNodes(bounds);
       drawWifiPoints(bounds);
       drawPlaces(bounds);
       drawRouteDraft(bounds);
+      drawSelectedDeleteTarget(bounds);
     }
 
     function drawRouteSegments(bounds) {
@@ -705,8 +798,25 @@
         const y = mapToCanvasY(node.y, bounds);
         mapEditorCtx.fillStyle = node.source === "admin" ? "#f59e0b" : "#64748b";
         mapEditorCtx.beginPath();
-        mapEditorCtx.arc(x, y, node.source === "admin" ? 4 : 3, 0, Math.PI * 2);
+        mapEditorCtx.arc(x, y, 2, 0, Math.PI * 2);
         mapEditorCtx.fill();
+      });
+    }
+
+    function drawTransitionNodes(bounds) {
+      const transitionNodeIds = new Set();
+      currentTransitions.forEach(transition => {
+        if (transition.fromFloorId === floorSelect.value) transitionNodeIds.add(transition.fromNodeId);
+        if (transition.toFloorId === floorSelect.value) transitionNodeIds.add(transition.toNodeId);
+      });
+      currentRouteNodes.filter(node => transitionNodeIds.has(node.id)).forEach(node => {
+        const x = mapToCanvasX(node.x, bounds);
+        const y = mapToCanvasY(node.y, bounds);
+        mapEditorCtx.strokeStyle = "#7c3aed";
+        mapEditorCtx.lineWidth = 1;
+        mapEditorCtx.beginPath();
+        mapEditorCtx.arc(x, y, 5, 0, Math.PI * 2);
+        mapEditorCtx.stroke();
       });
     }
 
@@ -714,7 +824,7 @@
       mapEditorCtx.fillStyle = "rgba(20,108,99,0.7)";
       currentPoints.forEach(point => {
         mapEditorCtx.beginPath();
-        mapEditorCtx.arc(mapToCanvasX(point.x, bounds), mapToCanvasY(point.y, bounds), 4, 0, Math.PI * 2);
+        mapEditorCtx.arc(mapToCanvasX(point.x, bounds), mapToCanvasY(point.y, bounds), 2, 0, Math.PI * 2);
         mapEditorCtx.fill();
       });
     }
@@ -726,7 +836,7 @@
         const y = mapToCanvasY(place.y, bounds);
         mapEditorCtx.fillStyle = "#dc2626";
         mapEditorCtx.beginPath();
-        mapEditorCtx.arc(x, y, 6, 0, Math.PI * 2);
+        mapEditorCtx.arc(x, y, 3, 0, Math.PI * 2);
         mapEditorCtx.fill();
         mapEditorCtx.fillStyle = "#111827";
         mapEditorCtx.fillText(place.name, x + 8, y - 8);
@@ -738,9 +848,29 @@
       mapEditorCtx.fillStyle = "#f59e0b";
       routeDraft.forEach(point => {
         mapEditorCtx.beginPath();
-        mapEditorCtx.arc(mapToCanvasX(point.x, bounds), mapToCanvasY(point.y, bounds), 7, 0, Math.PI * 2);
+        mapEditorCtx.arc(mapToCanvasX(point.x, bounds), mapToCanvasY(point.y, bounds), 4, 0, Math.PI * 2);
         mapEditorCtx.fill();
       });
+    }
+
+    function drawSelectedDeleteTarget(bounds) {
+      if (!selectedDeleteTarget) return;
+      mapEditorCtx.strokeStyle = "#dc2626";
+      mapEditorCtx.lineWidth = 2;
+      if (selectedDeleteTarget.type === "node") {
+        const node = selectedDeleteTarget.value;
+        mapEditorCtx.strokeRect(mapToCanvasX(node.x, bounds) - 7, mapToCanvasY(node.y, bounds) - 7, 14, 14);
+        return;
+      }
+      const edge = selectedDeleteTarget.value;
+      const nodes = new Map(currentRouteNodes.map(node => [node.id, node]));
+      const from = nodes.get(edge.fromNodeId);
+      const to = nodes.get(edge.toNodeId);
+      if (!from || !to) return;
+      mapEditorCtx.beginPath();
+      mapEditorCtx.moveTo(mapToCanvasX(from.x, bounds), mapToCanvasY(from.y, bounds));
+      mapEditorCtx.lineTo(mapToCanvasX(to.x, bounds), mapToCanvasY(to.y, bounds));
+      mapEditorCtx.stroke();
     }
 
     async function handleMapEditorClick(event) {
@@ -753,20 +883,40 @@
       document.querySelector("#newPlaceX").value = point.x.toFixed(1);
       document.querySelector("#newPlaceY").value = point.y.toFixed(1);
       if (editorMode === "place") {
-        document.querySelector("#placeEditorForm").classList.remove("hidden");
-        setEditorInfo(`已選座標：${point.x.toFixed(1)}, ${point.y.toFixed(1)}，填資料後按儲存標點。`);
+        await runAdminAction("已新增節點", async () => {
+          await postJson("/api/route-nodes", {
+            mapId: mapSelect.value,
+            floorId: floorSelect.value,
+            x: point.x,
+            y: point.y,
+            label: "路線點",
+          });
+          await loadDashboard();
+        });
+        return;
+      }
+      if (editorMode === "mark") {
+        const node = nearestAnyRouteNode(point);
+        if (!node) {
+          setEditorInfo("請先按標點建立節點，再用標記填資料。");
+          return;
+        }
+        selectedPlaceNode = node;
+        document.querySelector("#newPlaceX").value = Number(node.x).toFixed(1);
+        document.querySelector("#newPlaceY").value = Number(node.y).toFixed(1);
+        document.querySelector("#placeEditorForm").showModal();
+        setEditorInfo("已選節點，請在彈框輸入名稱、關鍵詞、分類設施、備註。");
         return;
       }
       if (editorMode === "deleteNode") {
-        const node = nearestRouteNode(point);
+        const node = nearestAnyRouteNode(point);
         if (!node) {
-          setEditorInfo("附近沒有可刪除的後台節點。");
+          setEditorInfo("附近沒有節點可刪除。");
           return;
         }
-        await runAdminAction("已刪除節點", async () => {
-          await deleteJson(`/api/route-nodes?nodeId=${encodeURIComponent(node.id)}`);
-          await loadDashboard();
-        });
+        selectedDeleteTarget = { type: "node", value: node };
+        renderMapEditor();
+        showDeleteDialog("刪除節點", `${node.label || node.nodeType || node.id}，座標 ${Number(node.x).toFixed(1)}, ${Number(node.y).toFixed(1)}`);
         return;
       }
       if (editorMode === "deleteEdge") {
@@ -775,10 +925,22 @@
           setEditorInfo("附近沒有路線可刪除。");
           return;
         }
-        await runAdminAction(edge.source === "admin" ? "已刪除路線" : "已封鎖內建路線", async () => {
-          await deleteJson(`/api/route-edges?edgeId=${encodeURIComponent(edge.id)}`);
-          await loadDashboard();
-        });
+        selectedDeleteTarget = { type: "edge", value: edge };
+        renderMapEditor();
+        showDeleteDialog("刪除路線", `${edge.fromNodeId} -> ${edge.toNodeId}`);
+        return;
+      }
+      if (editorMode === "transition") {
+        const node = nearestAnyRouteNode(point);
+        if (!node) {
+          setEditorInfo("請點在節點附近，才能建立樓層連接。");
+          return;
+        }
+        selectedTransitionFromNode = node;
+        document.querySelector("#transitionEditorForm").classList.remove("hidden");
+        document.querySelector("#transitionFromNode").value = `${floorName(node.floorId)} / ${node.label || node.nodeType || node.id}`;
+        renderTransitionTargets(node);
+        setEditorInfo("已選本樓層節點，請選另一張地圖上的對應節點後儲存。");
         return;
       }
       routeDraft.push(point);
@@ -801,27 +963,87 @@
       });
     }
 
+    async function createSelectedTransition() {
+      if (!selectedTransitionFromNode) {
+        setEditorInfo("請先在地圖上點一個本樓層節點。");
+        return;
+      }
+      const toNodeId = document.querySelector("#transitionToNode").value;
+      if (!toNodeId) {
+        setEditorInfo("請選擇另一層的對應節點。");
+        return;
+      }
+      await runAdminAction("已建立樓層連接", async () => {
+        await postJson("/api/floor-transitions", {
+          mapId: mapSelect.value,
+          fromNodeId: selectedTransitionFromNode.id,
+          toNodeId,
+          transitionType: document.querySelector("#transitionType").value,
+          name: document.querySelector("#transitionName").value.trim() || "樓層連接點",
+        });
+        selectedTransitionFromNode = null;
+        document.querySelector("#transitionEditorForm").classList.add("hidden");
+        await loadDashboard();
+      });
+    }
+
+    function renderTransitionTargets(fromNode) {
+      const options = allRouteNodes
+        .filter(node => node.floorId !== fromNode.floorId)
+        .map(node => `<option value="${escapeHtml(node.id)}">${escapeHtml(floorName(node.floorId))} / ${escapeHtml(node.label || node.nodeType || node.id)} / ${Number(node.x).toFixed(0)},${Number(node.y).toFixed(0)}</option>`)
+        .join("");
+      document.querySelector("#transitionToNode").innerHTML = options || `<option value="">沒有其他樓層節點</option>`;
+    }
+
     function setEditorMode(mode) {
       editorMode = mode;
       routeDraft = [];
-      document.querySelector("#placeEditorForm").classList.add("hidden");
+      selectedTransitionFromNode = null;
+      selectedDeleteTarget = null;
+      if (document.querySelector("#placeEditorForm").open) document.querySelector("#placeEditorForm").close();
+      document.querySelector("#transitionEditorForm").classList.add("hidden");
       [
         ["placeModeButton", "place"],
+        ["markModeButton", "mark"],
         ["routeModeButton", "route"],
         ["deleteNodeModeButton", "deleteNode"],
         ["deleteEdgeModeButton", "deleteEdge"],
+        ["transitionModeButton", "transition"],
       ].forEach(([id, value]) => {
         document.querySelector(`#${id}`).classList.toggle("active", mode === value);
         document.querySelector(`#${id}`).classList.toggle("secondary", mode !== value);
       });
       renderMapEditor();
       const messages = {
-        place: "按標點後點一下地圖，才會出現名稱、關鍵詞、分類設施、備註。",
+        place: "點地圖新增最小節點。",
+        mark: "點節點後輸入名稱、關鍵詞、分類設施、備註。",
         route: "點兩個可走位置建立路段。",
-        deleteNode: "點後台新增的節點即可刪除。",
-        deleteEdge: "點路線即可刪除；內建路線會改成封鎖。",
+        deleteNode: "點節點後會先框起來，確認後刪除。",
+        deleteEdge: "點路線後會先框起來，確認後刪除。",
+        transition: "點本樓層的手扶梯、樓梯或電梯節點，再選另一層對應節點。",
       };
       setEditorInfo(messages[mode] || "");
+    }
+
+    function showDeleteDialog(title, text) {
+      document.querySelector("#deleteConfirmTitle").textContent = title;
+      document.querySelector("#deleteConfirmText").textContent = text;
+      document.querySelector("#deleteConfirmDialog").showModal();
+    }
+
+    async function confirmDeleteTarget() {
+      if (!selectedDeleteTarget) return;
+      const target = selectedDeleteTarget;
+      document.querySelector("#deleteConfirmDialog").close();
+      await runAdminAction(target.type === "node" ? "已刪除節點" : "已刪除路線", async () => {
+        if (target.type === "node") {
+          await deleteJson(`/api/route-nodes?nodeId=${encodeURIComponent(target.value.id)}`);
+        } else {
+          await deleteJson(`/api/route-edges?edgeId=${encodeURIComponent(target.value.id)}`);
+        }
+        selectedDeleteTarget = null;
+        await loadDashboard();
+      });
     }
 
     function setEditorInfo(message) {
@@ -833,6 +1055,13 @@
         .filter(node => node.source === "admin")
         .map(node => ({ ...node, hitDistance: distance(point.x, point.y, node.x, node.y) }))
         .filter(node => node.hitDistance <= 20)
+        .sort((left, right) => left.hitDistance - right.hitDistance)[0] || null;
+    }
+
+    function nearestAnyRouteNode(point) {
+      return currentRouteNodes
+        .map(node => ({ ...node, hitDistance: distance(point.x, point.y, node.x, node.y) }))
+        .filter(node => node.hitDistance <= 24)
         .sort((left, right) => left.hitDistance - right.hitDistance)[0] || null;
     }
 
@@ -954,6 +1183,10 @@
         ? `，換樓層：${result.floorTransitions.map(item => item.name).join("、")}`
         : "";
       document.querySelector("#routeTestResult").textContent = `距離 ${result.distance}，預估 ${result.estimatedTime} 分鐘${transitionText}`;
+    }
+
+    function floorName(floorId) {
+      return currentFloors.find(floor => floor.id === floorId)?.floorName || floorId;
     }
 
     function statusText(value) {
