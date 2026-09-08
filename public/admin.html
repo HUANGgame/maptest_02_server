@@ -56,7 +56,7 @@
       color: var(--muted);
       font-size: 13px;
     }
-    select, input, button {
+    select, input, textarea, button {
       width: 100%;
       min-height: 38px;
       margin-top: 4px;
@@ -66,6 +66,10 @@
       color: var(--text);
       font: inherit;
       padding: 7px 10px;
+    }
+    textarea {
+      min-height: 72px;
+      resize: vertical;
     }
     button {
       margin-top: 12px;
@@ -114,8 +118,43 @@
     .muted { color: var(--muted); }
     .warn { color: var(--warn); }
     .bad { color: var(--bad); }
+    .full { grid-column: 1 / -1; }
+    .map-editor {
+      display: grid;
+      gap: 12px;
+      grid-template-columns: 1fr 260px;
+      align-items: start;
+    }
+    .map-editor-canvas-wrap {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #eef1f4;
+      min-height: 360px;
+      overflow: hidden;
+    }
+    #mapEditorCanvas {
+      display: block;
+      width: 100%;
+      height: 520px;
+      cursor: crosshair;
+    }
+    .inline-buttons {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+    }
+    .inline-buttons button {
+      margin-top: 0;
+    }
+    button.secondary {
+      background: #fff;
+      color: var(--accent);
+    }
+    button.active {
+      outline: 3px solid rgba(20, 108, 99, 0.22);
+    }
     @media (max-width: 900px) {
-      main, .grid { grid-template-columns: 1fr; }
+      main, .grid, .map-editor { grid-template-columns: 1fr; }
     }
   </style>
 </head>
@@ -148,6 +187,10 @@
       <input id="newPlaceName" placeholder="例如 服務台">
       <label for="newPlaceCategory">分類</label>
       <input id="newPlaceCategory" placeholder="例如 設施">
+      <label for="newPlaceKeywords">關鍵詞</label>
+      <input id="newPlaceKeywords" placeholder="例如 東森 K12 出口">
+      <label for="newPlaceDescription">備註</label>
+      <textarea id="newPlaceDescription" placeholder="例如 靠近樓梯，往機捷方向"></textarea>
       <label for="newPlaceX">座標 X</label>
       <input id="newPlaceX" type="number" placeholder="0">
       <label for="newPlaceY">座標 Y</label>
@@ -155,6 +198,22 @@
       <button id="createPlaceButton">新增地點</button>
     </aside>
     <div class="grid">
+      <section class="full">
+        <h2>地圖編輯</h2>
+        <div class="map-editor">
+          <div class="map-editor-canvas-wrap">
+            <canvas id="mapEditorCanvas"></canvas>
+          </div>
+          <div>
+            <div class="inline-buttons">
+              <button id="placeModeButton" class="active">新增地點</button>
+              <button id="routeModeButton" class="secondary">畫路線</button>
+            </div>
+            <button id="clearRouteDraftButton" class="secondary">清除路線暫選</button>
+            <div id="mapEditorInfo" class="muted" style="margin-top:12px">點地圖後會帶入座標。</div>
+          </div>
+        </div>
+      </section>
       <section>
         <h2>地點資料</h2>
         <table>
@@ -252,10 +311,27 @@
     const mapSelect = document.querySelector("#mapSelect");
     const floorSelect = document.querySelector("#floorSelect");
     const reloadButton = document.querySelector("#reloadButton");
+    const mapEditorCanvas = document.querySelector("#mapEditorCanvas");
+    const mapEditorCtx = mapEditorCanvas.getContext("2d");
     let currentPlaces = [];
     let currentFloors = [];
+    let currentPoints = [];
+    let currentRouteEdges = [];
+    let currentRouteNodes = [];
+    let editorMode = "place";
+    let routeDraft = [];
+    let mapEditorImage = null;
+    let mapEditorBounds = null;
 
     reloadButton.addEventListener("click", loadDashboard);
+    document.querySelector("#placeModeButton").addEventListener("click", () => setEditorMode("place"));
+    document.querySelector("#routeModeButton").addEventListener("click", () => setEditorMode("route"));
+    document.querySelector("#clearRouteDraftButton").addEventListener("click", () => {
+      routeDraft = [];
+      renderMapEditor();
+      setEditorInfo("已清除路線暫選。");
+    });
+    mapEditorCanvas.addEventListener("click", handleMapEditorClick);
     document.querySelector("#exportScopeButton").addEventListener("click", async () => {
       await runAdminAction("已匯出", async () => {
         const mapId = mapSelect.value;
@@ -341,6 +417,8 @@
     document.querySelector("#createPlaceButton").addEventListener("click", async () => {
       const name = document.querySelector("#newPlaceName").value.trim();
       const category = document.querySelector("#newPlaceCategory").value.trim() || "未分類";
+      const keywords = document.querySelector("#newPlaceKeywords").value.trim();
+      const description = document.querySelector("#newPlaceDescription").value.trim();
       const x = Number(document.querySelector("#newPlaceX").value);
       const y = Number(document.querySelector("#newPlaceY").value);
       await runAdminAction("已新增地點", async () => {
@@ -351,7 +429,8 @@
           category,
           x,
           y,
-          description: "",
+          description,
+          keywords,
           searchable: true,
         });
         await loadDashboard();
@@ -404,12 +483,13 @@
     async function loadDashboard() {
       const mapId = mapSelect.value;
       const floorId = floorSelect.value;
-      const [places, summary, points, quality, routeEdges, feedback, models, jobs, policyRuns, policyLogs, reports] = await Promise.all([
+      const [places, summary, points, quality, routeEdges, routeNodes, feedback, models, jobs, policyRuns, policyLogs, reports] = await Promise.all([
         getJson(`/api/places?mapId=${encodeURIComponent(mapId)}&floorId=${encodeURIComponent(floorId)}`),
         getJson(`/api/wifi-scans/summary?mapId=${encodeURIComponent(mapId)}&floorId=${encodeURIComponent(floorId)}`),
         getJson(`/api/wifi-scans/points?mapId=${encodeURIComponent(mapId)}&floorId=${encodeURIComponent(floorId)}`),
         getJson(`/api/wifi-scans/quality?mapId=${encodeURIComponent(mapId)}&floorId=${encodeURIComponent(floorId)}`),
         getJson(`/api/route-edges?mapId=${encodeURIComponent(mapId)}&floorId=${encodeURIComponent(floorId)}`),
+        getJson(`/api/route-nodes?mapId=${encodeURIComponent(mapId)}&floorId=${encodeURIComponent(floorId)}`),
         getJson(`/api/navigation-feedback/quality-summary?mapId=${encodeURIComponent(mapId)}&floorId=${encodeURIComponent(floorId)}`),
         getJson(`/api/models?mapId=${encodeURIComponent(mapId)}&floorId=${encodeURIComponent(floorId)}`),
         getJson(`/api/model-training-jobs?mapId=${encodeURIComponent(mapId)}&floorId=${encodeURIComponent(floorId)}`),
@@ -418,6 +498,10 @@
         getJson(`/api/user-reports?mapId=${encodeURIComponent(mapId)}&floorId=${encodeURIComponent(floorId)}`),
       ]);
       currentPlaces = places;
+      currentPoints = Array.isArray(points.points) ? points.points : [];
+      currentRouteEdges = routeEdges;
+      currentRouteNodes = routeNodes;
+      await loadMapEditorImage();
 
       document.querySelector("#placesBody").innerHTML = places.map(place => `
         <tr>
@@ -534,6 +618,183 @@
           <td>${escapeHtml(report.description || "-")}</td>
         </tr>
       `).join("") || `<tr><td colspan="3" class="muted">目前沒有使用者回報</td></tr>`;
+    }
+
+    async function loadMapEditorImage() {
+      const floor = currentFloors.find(item => item.id === floorSelect.value);
+      mapEditorImage = null;
+      mapEditorBounds = null;
+      if (!floor?.imageUrl) {
+        renderMapEditor();
+        setEditorInfo("目前樓層沒有地圖圖片。");
+        return;
+      }
+      await new Promise((resolve) => {
+        const image = new Image();
+        image.onload = () => {
+          mapEditorImage = image;
+          renderMapEditor();
+          resolve();
+        };
+        image.onerror = () => {
+          renderMapEditor();
+          setEditorInfo("地圖圖片載入失敗。");
+          resolve();
+        };
+        image.src = `${floor.imageUrl}?v=${encodeURIComponent(floor.updatedAt || "")}`;
+      });
+    }
+
+    function renderMapEditor() {
+      const ratio = window.devicePixelRatio || 1;
+      const rect = mapEditorCanvas.getBoundingClientRect();
+      mapEditorCanvas.width = Math.max(1, Math.round(rect.width * ratio));
+      mapEditorCanvas.height = Math.max(1, Math.round(rect.height * ratio));
+      mapEditorCtx.setTransform(ratio, 0, 0, ratio, 0, 0);
+      mapEditorCtx.clearRect(0, 0, rect.width, rect.height);
+      mapEditorCtx.fillStyle = "#eef1f4";
+      mapEditorCtx.fillRect(0, 0, rect.width, rect.height);
+      if (!mapEditorImage) return;
+
+      const bounds = containRect(rect.width, rect.height, mapEditorImage.naturalWidth, mapEditorImage.naturalHeight);
+      mapEditorBounds = bounds;
+      mapEditorCtx.drawImage(mapEditorImage, bounds.x, bounds.y, bounds.width, bounds.height);
+      drawRouteSegments(bounds);
+      drawWifiPoints(bounds);
+      drawPlaces(bounds);
+      drawRouteDraft(bounds);
+    }
+
+    function drawRouteSegments(bounds) {
+      const nodes = new Map(currentRouteNodes.map(node => [node.id, node]));
+      mapEditorCtx.lineWidth = 4;
+      mapEditorCtx.strokeStyle = "#2563eb";
+      mapEditorCtx.lineCap = "round";
+      currentRouteEdges.filter(edge => edge.isBlocked !== true).forEach(edge => {
+        const from = nodes.get(edge.fromNodeId);
+        const to = nodes.get(edge.toNodeId);
+        if (!from || !to) return;
+        mapEditorCtx.beginPath();
+        mapEditorCtx.moveTo(mapToCanvasX(from.x, bounds), mapToCanvasY(from.y, bounds));
+        mapEditorCtx.lineTo(mapToCanvasX(to.x, bounds), mapToCanvasY(to.y, bounds));
+        mapEditorCtx.stroke();
+      });
+    }
+
+    function drawWifiPoints(bounds) {
+      mapEditorCtx.fillStyle = "rgba(20,108,99,0.7)";
+      currentPoints.forEach(point => {
+        mapEditorCtx.beginPath();
+        mapEditorCtx.arc(mapToCanvasX(point.x, bounds), mapToCanvasY(point.y, bounds), 4, 0, Math.PI * 2);
+        mapEditorCtx.fill();
+      });
+    }
+
+    function drawPlaces(bounds) {
+      mapEditorCtx.font = "13px Microsoft JhengHei, sans-serif";
+      currentPlaces.forEach(place => {
+        const x = mapToCanvasX(place.x, bounds);
+        const y = mapToCanvasY(place.y, bounds);
+        mapEditorCtx.fillStyle = "#dc2626";
+        mapEditorCtx.beginPath();
+        mapEditorCtx.arc(x, y, 6, 0, Math.PI * 2);
+        mapEditorCtx.fill();
+        mapEditorCtx.fillStyle = "#111827";
+        mapEditorCtx.fillText(place.name, x + 8, y - 8);
+      });
+    }
+
+    function drawRouteDraft(bounds) {
+      if (routeDraft.length === 0) return;
+      mapEditorCtx.fillStyle = "#f59e0b";
+      routeDraft.forEach(point => {
+        mapEditorCtx.beginPath();
+        mapEditorCtx.arc(mapToCanvasX(point.x, bounds), mapToCanvasY(point.y, bounds), 7, 0, Math.PI * 2);
+        mapEditorCtx.fill();
+      });
+    }
+
+    async function handleMapEditorClick(event) {
+      if (!mapEditorBounds || !mapEditorImage) return;
+      const rect = mapEditorCanvas.getBoundingClientRect();
+      const canvasX = event.clientX - rect.left;
+      const canvasY = event.clientY - rect.top;
+      const point = canvasToMapPoint(canvasX, canvasY, mapEditorBounds);
+      if (!point) return;
+      document.querySelector("#newPlaceX").value = point.x.toFixed(1);
+      document.querySelector("#newPlaceY").value = point.y.toFixed(1);
+      if (editorMode === "place") {
+        setEditorInfo(`已選座標：${point.x.toFixed(1)}, ${point.y.toFixed(1)}，填名稱後按新增地點。`);
+        return;
+      }
+      routeDraft.push(point);
+      if (routeDraft.length < 2) {
+        renderMapEditor();
+        setEditorInfo("已選路線起點，請再點終點。");
+        return;
+      }
+      const [from, to] = routeDraft;
+      await runAdminAction("已新增路段", async () => {
+        await postJson("/api/route-segments", {
+          mapId: mapSelect.value,
+          floorId: floorSelect.value,
+          from,
+          to,
+          name: document.querySelector("#newPlaceDescription").value.trim(),
+        });
+        routeDraft = [];
+        await loadDashboard();
+      });
+    }
+
+    function setEditorMode(mode) {
+      editorMode = mode;
+      routeDraft = [];
+      document.querySelector("#placeModeButton").classList.toggle("active", mode === "place");
+      document.querySelector("#placeModeButton").classList.toggle("secondary", mode !== "place");
+      document.querySelector("#routeModeButton").classList.toggle("active", mode === "route");
+      document.querySelector("#routeModeButton").classList.toggle("secondary", mode !== "route");
+      renderMapEditor();
+      setEditorInfo(mode === "place" ? "點地圖新增可搜尋地點。" : "點兩個可走位置建立路段。");
+    }
+
+    function setEditorInfo(message) {
+      document.querySelector("#mapEditorInfo").textContent = message;
+    }
+
+    function containRect(containerWidth, containerHeight, imageWidth, imageHeight) {
+      const scale = Math.min(containerWidth / imageWidth, containerHeight / imageHeight);
+      const width = imageWidth * scale;
+      const height = imageHeight * scale;
+      return {
+        x: (containerWidth - width) / 2,
+        y: (containerHeight - height) / 2,
+        width,
+        height,
+      };
+    }
+
+    function canvasToMapPoint(canvasX, canvasY, bounds) {
+      if (canvasX < bounds.x || canvasY < bounds.y || canvasX > bounds.x + bounds.width || canvasY > bounds.y + bounds.height) return null;
+      const floor = currentFloors.find(item => item.id === floorSelect.value) || {};
+      const width = Number(floor.width || floor.imageNaturalWidth || mapEditorImage.naturalWidth);
+      const height = Number(floor.height || floor.imageNaturalHeight || mapEditorImage.naturalHeight);
+      return {
+        x: ((canvasX - bounds.x) / bounds.width) * width,
+        y: ((canvasY - bounds.y) / bounds.height) * height,
+      };
+    }
+
+    function mapToCanvasX(x, bounds) {
+      const floor = currentFloors.find(item => item.id === floorSelect.value) || {};
+      const width = Number(floor.width || floor.imageNaturalWidth || mapEditorImage.naturalWidth);
+      return bounds.x + (Number(x) / width) * bounds.width;
+    }
+
+    function mapToCanvasY(y, bounds) {
+      const floor = currentFloors.find(item => item.id === floorSelect.value) || {};
+      const height = Number(floor.height || floor.imageNaturalHeight || mapEditorImage.naturalHeight);
+      return bounds.y + (Number(y) / height) * bounds.height;
     }
 
     async function getJson(path) {

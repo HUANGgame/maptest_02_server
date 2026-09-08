@@ -1,7 +1,7 @@
 const http = require("http");
 const fs = require("fs");
 const path = require("path");
-const { floorTransitions, routeNodes } = require("./lib/demoData");
+const { floorTransitions } = require("./lib/demoData");
 const { createFloor, createMap, createPlace, readFloors, readMaps } = require("./lib/catalogStore");
 const { appendFeedback, readFeedback, writeFeedback } = require("./lib/feedbackStore");
 const { appendHistory, appendSavedLocation, clearHistory, clearSavedLocations, readHistory, readSavedLocations } = require("./lib/historyStore");
@@ -9,7 +9,7 @@ const { activateModel, activeModel, createModelVersion, readModels } = require("
 const { readPlaces, updatePlaceStatus } = require("./lib/placeStore");
 const { appendPolicyLog, createDqnRun, readDqnRuns, readPolicyLogs } = require("./lib/policyStore");
 const { appendReport, readReports } = require("./lib/reportStore");
-const { readRouteEdges, setRouteEdgeBlocked } = require("./lib/routeEdgeStore");
+const { createRouteSegment, readRouteEdges, readRouteNodes, setRouteEdgeBlocked } = require("./lib/routeEdgeStore");
 const { createTrainingJob, readTrainingJobs } = require("./lib/trainingJobStore");
 const { appendScans, readScans } = require("./lib/jsonStore");
 const mysqlMirror = require("./lib/mysqlMirror");
@@ -137,7 +137,7 @@ const server = http.createServer(async (request, response) => {
       if (mapId && place.mapId !== mapId) return false;
       if (floorId && place.floorId !== floorId) return false;
       if (!keyword) return true;
-      return [place.name, place.category, place.description].some((value) => String(value || "").toLowerCase().includes(keyword));
+      return [place.name, place.category, place.description, place.keywords].some((value) => String(value || "").toLowerCase().includes(keyword));
     }));
     return;
   }
@@ -382,6 +382,27 @@ const server = http.createServer(async (request, response) => {
       if (floorId && edge.floorId !== floorId) return false;
       return true;
     }));
+    return;
+  }
+
+  if (request.method === "GET" && url.pathname === "/api/route-nodes") {
+    const mapId = url.searchParams.get("mapId") || "";
+    const floorId = url.searchParams.get("floorId") || "";
+    sendJson(response, 200, readRouteNodes().filter((node) => {
+      if (mapId && node.mapId !== mapId) return false;
+      if (floorId && node.floorId !== floorId) return false;
+      return true;
+    }));
+    return;
+  }
+
+  if (request.method === "POST" && url.pathname === "/api/route-segments") {
+    try {
+      const body = await readJsonBody(request);
+      sendJson(response, 201, createRouteSegment(body));
+    } catch (error) {
+      sendJson(response, 400, { success: false, message: error.message });
+    }
     return;
   }
 
@@ -867,7 +888,7 @@ function buildScopedExport(mapId, floorId) {
     maps: exportedMaps,
     floors: exportedFloors,
     places: readPlaces().filter(scopeMatches),
-    routeNodes: routeNodes.filter(scopeMatches),
+    routeNodes: readRouteNodes().filter(scopeMatches),
     routeEdges: readRouteEdges().filter(scopeMatches),
     floorTransitions: floorTransitions.filter((transition) => {
       if (mapId && transition.mapId !== mapId) return false;
@@ -1421,7 +1442,7 @@ function planRoute(body) {
   if (destination && destination.floorId !== floorId) {
     return planCrossFloorRoute(mapId, floorId, startX, startY, destination);
   }
-  const nodes = routeNodes.filter((node) => node.mapId === mapId && node.floorId === floorId && node.isWalkable);
+  const nodes = readRouteNodes().filter((node) => node.mapId === mapId && node.floorId === floorId && node.isWalkable);
   if (!destination || nodes.length < 2) return null;
   const startNode = nearestNode(startX, startY, nodes);
   const targetNode = nearestNode(destination.x, destination.y, nodes);
@@ -1449,7 +1470,7 @@ function planCrossFloorRoute(mapId, startFloorId, startX, startY, destination) {
     startY,
     destinationPlaceId: nearestPlaceForNode(transition.fromNodeId)?.id || "place-service-desk",
   });
-  const secondFloorNodes = routeNodes.filter((node) => node.mapId === mapId && node.floorId === destination.floorId && node.isWalkable);
+  const secondFloorNodes = readRouteNodes().filter((node) => node.mapId === mapId && node.floorId === destination.floorId && node.isWalkable);
   const secondStart = nodeById(transition.toNodeId);
   const secondTarget = nearestNode(destination.x, destination.y, secondFloorNodes);
   const secondIds = aStarRoute(secondStart.id, secondTarget.id, secondFloorNodes, readRouteEdges().filter((edge) => edge.mapId === mapId && edge.floorId === destination.floorId && !edge.isBlocked)) || [];
@@ -1472,7 +1493,7 @@ function planCrossFloorRoute(mapId, startFloorId, startX, startY, destination) {
 }
 
 function nodeById(id) {
-  return routeNodes.find((node) => node.id === id);
+  return readRouteNodes().find((node) => node.id === id);
 }
 
 function nearestPlaceForNode(nodeId) {
@@ -1589,7 +1610,7 @@ function feedbackQualitySummary(records) {
 }
 
 function simulateNavigationPolicyTraining(mapId, floorId, episodes) {
-  const scopedNodes = routeNodes.filter((node) => node.mapId === mapId && (!floorId || node.floorId === floorId) && node.isWalkable !== false);
+  const scopedNodes = readRouteNodes().filter((node) => node.mapId === mapId && (!floorId || node.floorId === floorId) && node.isWalkable !== false);
   const scopedEdges = readRouteEdges().filter((edge) => edge.mapId === mapId && (!floorId || edge.floorId === floorId));
   const openEdges = scopedEdges.filter((edge) => edge.isBlocked !== true);
   const blockedEdges = scopedEdges.length - openEdges.length;
