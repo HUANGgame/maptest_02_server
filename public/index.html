@@ -620,19 +620,39 @@
         destinationPlaceId: state.destination.id,
       };
       try {
-        if (state.destination.source === "wifiPoint") throw new Error("sampled route");
-        const route = await postJson("/api/routes", body);
-        state.route = (route.routePoints || []).map((point) => ({
-          x: Number(point.x || 0),
-          y: Number(point.y || 0),
-          floorId: point.floorId || state.currentFloorId,
-        }));
-        state.routeDistance = Number(route.distance || 0);
-        state.routeTime = Math.max(1, Number(route.estimatedTime || 1));
-      } catch {
-        state.route = buildLocalRoute();
-        state.routeDistance = routeDistance(state.route);
-        state.routeTime = Math.max(1, Math.ceil(state.routeDistance / 80));
+        if (state.destination.source === "wifiPoint") {
+          state.route = await sampledDestinationRouteFromGraph(state.destination);
+          state.routeDistance = routeDistance(state.route);
+          state.routeTime = Math.max(1, Math.ceil(state.routeDistance / 80));
+        } else {
+          const route = await postJson("/api/routes", body);
+          state.route = (route.routePoints || []).map((point) => ({
+            x: Number(point.x || 0),
+            y: Number(point.y || 0),
+            floorId: point.floorId || state.currentFloorId,
+          }));
+          state.routeDistance = Number(route.distance || 0);
+          state.routeTime = Math.max(1, Number(route.estimatedTime || 1));
+        }
+      } catch (error) {
+        if (state.destination.source === "wifiPoint") {
+          state.route = [];
+          state.routeDistance = 0;
+          state.routeTime = 0;
+          distanceText.textContent = "距離：-- 公尺";
+          timeText.textContent = "時間：-- 分鐘";
+          nextStep.textContent = "目前沒有可走路網，不能用採樣線當導航路線。";
+          renderAll();
+          return;
+        }
+        state.route = [];
+        state.routeDistance = 0;
+        state.routeTime = 0;
+        distanceText.textContent = "距離：-- 公尺";
+        timeText.textContent = "時間：-- 分鐘";
+        nextStep.textContent = "目前找不到可行路線。";
+        renderAll();
+        return;
       }
       distanceText.textContent = `距離：${Math.round(state.routeDistance)} 公尺`;
       timeText.textContent = `時間：${state.routeTime} 分鐘`;
@@ -803,29 +823,6 @@
       pointModeButton.textContent = "顯示";
       pointModeButton.title = titles[state.pointDisplayMode] || titles.important;
       pointModeButton.classList.toggle("active", state.pointDisplayMode !== "current");
-    }
-
-    function buildLocalRoute() {
-      if (!state.destination) return [];
-      const sampledRoute = sampledRouteToDestination();
-      if (sampledRoute.length >= 2) return sampledRoute;
-      if (state.destination.floorId !== state.current.floorId) {
-        return [
-          { x: state.current.x, y: state.current.y, floorId: state.current.floorId },
-          { x: 250, y: 570, floorId: state.current.floorId },
-          { x: 390, y: 500, floorId: state.current.floorId },
-          { x: 610, y: 500, floorId: state.current.floorId },
-          { x: 610, y: 500, floorId: state.destination.floorId },
-          { x: 610, y: 390, floorId: state.destination.floorId },
-          { x: state.destination.x, y: state.destination.y, floorId: state.destination.floorId },
-        ];
-      }
-      return [
-        { x: state.current.x, y: state.current.y, floorId: state.current.floorId },
-        { x: 250, y: 570, floorId: state.current.floorId },
-        { x: 390, y: 500, floorId: state.current.floorId },
-        { x: state.destination.x, y: state.destination.y, floorId: state.current.floorId },
-      ];
     }
 
     function renderAll() {
@@ -1531,6 +1528,65 @@
         y: Number(point.y),
         floorId: point.floorId,
       }));
+    }
+
+    async function sampledDestinationRouteFromGraph(destination) {
+      const graph = await fetchJson(`/api/data/export?mapId=${encodeURIComponent(state.currentMapId)}&floorId=${encodeURIComponent(state.currentFloorId)}`);
+      const nodes = Array.isArray(graph.routeNodes) ? graph.routeNodes.filter((node) => node.floorId === state.currentFloorId) : [];
+      const edges = Array.isArray(graph.routeEdges) ? graph.routeEdges.filter((edge) => edge.floorId === state.currentFloorId && edge.isBlocked !== true) : [];
+      if (nodes.length < 2 || edges.length < 1) throw new Error("missing route graph");
+      const start = nearestGraphNode(nodes, state.current.x, state.current.y);
+      const target = nearestGraphNode(nodes, destination.x, destination.y);
+      const ids = routeNodeIds(start.id, target.id, nodes, edges);
+      if (!ids.length) throw new Error("no graph route");
+      return ids.map((id) => {
+        const node = nodes.find((item) => item.id === id);
+        return { x: Number(node.x), y: Number(node.y), floorId: node.floorId };
+      });
+    }
+
+    function nearestGraphNode(nodes, x, y) {
+      return nodes
+        .map((node) => ({ ...node, score: distance(Number(node.x), Number(node.y), x, y) }))
+        .sort((left, right) => left.score - right.score)[0];
+    }
+
+    function routeNodeIds(startId, targetId, nodes, edges) {
+      const nodeById = new Map(nodes.map((node) => [node.id, node]));
+      const open = new Set([startId]);
+      const cameFrom = new Map();
+      const gScore = new Map([[startId, 0]]);
+      const fScore = new Map([[startId, distance(Number(nodeById.get(startId)?.x), Number(nodeById.get(startId)?.y), Number(nodeById.get(targetId)?.x), Number(nodeById.get(targetId)?.y))]]);
+      while (open.size) {
+        const current = Array.from(open).sort((a, b) => (fScore.get(a) ?? Infinity) - (fScore.get(b) ?? Infinity))[0];
+        if (current === targetId) return reconstructNodeIds(cameFrom, current);
+        open.delete(current);
+        edges
+          .filter((edge) => edge.fromNodeId === current || edge.toNodeId === current)
+          .forEach((edge) => {
+            const neighbor = edge.fromNodeId === current ? edge.toNodeId : edge.fromNodeId;
+            if (!nodeById.has(neighbor)) return;
+            const tentative = (gScore.get(current) ?? Infinity) + Number(edge.distance || 0);
+            if (tentative < (gScore.get(neighbor) ?? Infinity)) {
+              cameFrom.set(neighbor, current);
+              gScore.set(neighbor, tentative);
+              const node = nodeById.get(neighbor);
+              const target = nodeById.get(targetId);
+              fScore.set(neighbor, tentative + distance(Number(node.x), Number(node.y), Number(target.x), Number(target.y)));
+              open.add(neighbor);
+            }
+          });
+      }
+      return [];
+    }
+
+    function reconstructNodeIds(cameFrom, current) {
+      const route = [current];
+      while (cameFrom.has(current)) {
+        current = cameFrom.get(current);
+        route.push(current);
+      }
+      return route.reverse();
     }
 
     function nearestPointIndex(points, current) {
