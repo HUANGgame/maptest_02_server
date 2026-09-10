@@ -162,12 +162,16 @@
       align-items: center;
       justify-content: space-between;
       gap: 10px;
+      flex-wrap: wrap;
       padding: 8px 12px;
       background: rgba(255,255,255,.96);
       border: 1px solid var(--line);
       border-radius: 8px;
       color: var(--muted);
       font-size: 13px;
+    }
+    .status-chip span:last-child {
+      text-align: right;
     }
     .nav-flash {
       position: absolute;
@@ -360,11 +364,17 @@
       floors: [],
       places: [],
       wifiPoints: [],
+      wifiSummary: { totalRecords: 0, pointCount: 0, bssidCount: 0 },
       floorImages: new Map(),
       currentMapId: "k-area-airport",
       currentFloorId: "k-area-airport-1f",
       current: { x: 867, y: 296, floorId: "k-area-airport-1f" },
       hasCurrentPosition: false,
+      currentWifiList: [],
+      liveLocatorTimer: null,
+      locateInFlight: false,
+      lastLocationAt: 0,
+      lastLocationConfidence: null,
       heading: null,
       destination: null,
       route: [],
@@ -448,6 +458,8 @@
     window.addEventListener("resize", resizeCanvas);
     window.addEventListener("deviceorientationabsolute", handleOrientation, true);
     window.addEventListener("deviceorientation", handleOrientation, true);
+    window.updateIndoorWifiSignals = receiveWifiSignals;
+    window.setIndoorWifiSignals = receiveWifiSignals;
     canvas.addEventListener("pointerdown", startPan);
     canvas.addEventListener("pointermove", movePan);
     canvas.addEventListener("pointerup", endPan);
@@ -468,7 +480,107 @@
       resizeCanvas();
       focusOnWifiPoints();
       performSearch();
+      startLiveLocator();
       renderAll();
+    }
+
+    function startLiveLocator() {
+      stopLiveLocator();
+      state.liveLocatorTimer = window.setInterval(() => {
+        locateFromCurrentWifi().catch(() => {});
+      }, 2500);
+      locateFromCurrentWifi().catch(() => {});
+    }
+
+    function stopLiveLocator() {
+      if (state.liveLocatorTimer) {
+        window.clearInterval(state.liveLocatorTimer);
+        state.liveLocatorTimer = null;
+      }
+    }
+
+    function receiveWifiSignals(signals) {
+      state.currentWifiList = normalizeInjectedWifiList(signals);
+      updateDataStatus();
+      if (state.currentWifiList.length === 0) {
+        state.hasCurrentPosition = false;
+        state.lastLocationConfidence = null;
+        nextStep.textContent = "目前沒有可用 Wi-Fi 訊號，無法定位。";
+        renderAll();
+        return { accepted: false, count: 0 };
+      }
+      locateFromCurrentWifi().catch(() => {});
+      return { accepted: true, count: state.currentWifiList.length };
+    }
+
+    function normalizeInjectedWifiList(signals) {
+      let list = [];
+      if (Array.isArray(signals)) {
+        list = signals;
+      } else if (signals && typeof signals === "object" && Array.isArray(signals.signals)) {
+        list = signals.signals;
+      } else if (signals && typeof signals === "object" && signals.signals && typeof signals.signals === "object") {
+        list = Object.entries(signals.signals).map(([bssid, rssi]) => ({ bssid, rssi }));
+      } else if (signals && typeof signals === "object") {
+        list = Object.entries(signals).map(([bssid, rssi]) => ({ bssid, rssi }));
+      }
+      return list
+        .map((item) => ({
+          bssid: String(item.bssid || item.BSSID || "").trim().toLowerCase(),
+          ssid: String(item.ssid || item.SSID || "").trim(),
+          rssi: Number(item.rssi ?? item.level ?? item.RSSI),
+        }))
+        .filter((item) => item.bssid && Number.isFinite(item.rssi));
+    }
+
+    async function locateFromCurrentWifi() {
+      if (state.locateInFlight || state.currentWifiList.length === 0) return;
+      state.locateInFlight = true;
+      try {
+        const result = await postJson("/api/location/estimate", {
+          mapId: state.currentMapId,
+          floorId: state.currentFloorId,
+          currentWifiList: state.currentWifiList,
+        });
+        if (result.mapId !== state.currentMapId) {
+          state.hasCurrentPosition = false;
+          nextStep.textContent = "目前位置不在這個地圖範圍。";
+          return;
+        }
+        if (result.floorId !== state.currentFloorId) {
+          state.currentFloorId = result.floorId;
+          state.current = { x: Number(result.x), y: Number(result.y), floorId: result.floorId };
+          state.hasCurrentPosition = true;
+          state.lastLocationAt = Date.now();
+          state.lastLocationConfidence = Number(result.confidence || 0);
+          state.viewFocusedKey = "";
+          await loadWifiPoints();
+          renderFloorButtons();
+          centerOnCurrent();
+        } else {
+          state.current = { x: Number(result.x), y: Number(result.y), floorId: result.floorId };
+          state.hasCurrentPosition = true;
+          state.lastLocationAt = Date.now();
+          state.lastLocationConfidence = Number(result.confidence || 0);
+          if (state.viewFollow) centerOnCurrent();
+        }
+        if (state.navigationActive) state.navigationRouteIndex = nearestRouteIndexOnCurrentFloor();
+        nextStep.textContent = state.destination
+          ? `${nextStepText()}｜定位信心 ${state.lastLocationConfidence}%`
+          : `目前位置已更新，定位信心 ${state.lastLocationConfidence}%。`;
+        updateDataStatus();
+        renderAll();
+      } catch {
+        state.hasCurrentPosition = false;
+        state.lastLocationConfidence = null;
+        nextStep.textContent = state.wifiSummary.totalRecords > 0
+          ? "定位失敗，請確認本樓層有啟用模型，且 App 已提供即時 Wi-Fi。"
+          : "目前樓層沒有指紋資料，無法定位。";
+        updateDataStatus();
+        renderAll();
+      } finally {
+        state.locateInFlight = false;
+      }
     }
 
     async function loadMaps() {
@@ -505,8 +617,16 @@
     async function loadWifiPoints() {
       try {
         updateWorldFromData();
-        const data = await fetchJson(`/api/wifi-scans/points?mapId=${encodeURIComponent(state.currentMapId)}&floorId=${encodeURIComponent(state.currentFloorId)}`);
+        const [data, summary] = await Promise.all([
+          fetchJson(`/api/wifi-scans/points?mapId=${encodeURIComponent(state.currentMapId)}&floorId=${encodeURIComponent(state.currentFloorId)}`),
+          fetchJson(`/api/wifi-scans/summary?mapId=${encodeURIComponent(state.currentMapId)}&floorId=${encodeURIComponent(state.currentFloorId)}`),
+        ]);
         state.wifiPoints = Array.isArray(data.points) ? data.points.filter((point) => point.mapId === state.currentMapId && point.floorId === state.currentFloorId) : [];
+        state.wifiSummary = {
+          totalRecords: Number(summary.totalRecords || 0),
+          pointCount: Number(summary.pointCount || 0),
+          bssidCount: Number(summary.bssidCount || 0),
+        };
         if (!state.navigationActive) {
           state.current = { x: world.left + world.width / 2, y: world.top + world.height / 2, floorId: state.currentFloorId };
           state.hasCurrentPosition = false;
@@ -514,18 +634,26 @@
         focusOnWifiPoints();
       } catch {
         state.wifiPoints = [];
+        state.wifiSummary = { totalRecords: 0, pointCount: 0, bssidCount: 0 };
         state.hasCurrentPosition = false;
       }
       updateDataStatus();
     }
 
     function updateDataStatus() {
-      if (state.places.length) {
-        dataStatus.textContent = "已載入地點資料";
-      } else if (state.wifiPoints.length) {
-        dataStatus.textContent = `已載入 ${state.wifiPoints.length} 個定位點`;
+      const summary = state.wifiSummary || {};
+      const records = Number(summary.totalRecords || 0);
+      const points = Number(summary.pointCount || state.wifiPoints.length || 0);
+      const aps = Number(summary.bssidCount || 0);
+      const locating = state.currentWifiList.length
+        ? `定位訊號 ${state.currentWifiList.length} AP`
+        : "等待 App 提供 Wi-Fi";
+      if (records > 0 || points > 0) {
+        dataStatus.textContent = `指紋 ${records.toLocaleString()} 筆｜點位 ${points}｜AP ${aps}｜${locating}`;
+      } else if (state.places.length) {
+        dataStatus.textContent = `已載入地點資料｜${locating}`;
       } else {
-        dataStatus.textContent = "尚無地圖資料";
+        dataStatus.textContent = `尚無本樓層指紋｜${locating}`;
       }
     }
 

@@ -58,8 +58,8 @@
   {
     "id": "model-android-import-1780338801812",
     "versionName": "KNN-android-import-2026-06-01T18:33:21.812Z",
-    "mapId": "F1_M1",
-    "floorId": "floor_1",
+    "mapId": "k-area-airport",
+    "floorId": "k-area-airport-1f",
     "algorithm": "knn",
     "trainingDataCount": 50777,
     "averageError": null,
@@ -74,8 +74,8 @@
   {
     "id": "model-1788671235257",
     "versionName": "KNN-2026-09-06T05:07:15.257Z",
-    "mapId": "F1_M1",
-    "floorId": "floor_1",
+    "mapId": "k-area-airport",
+    "floorId": "k-area-airport-1f",
     "algorithm": "knn",
     "trainingDataCount": 50777,
     "averageError": 4.53,
