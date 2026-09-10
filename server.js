@@ -23,8 +23,8 @@ const server = http.createServer(async (request, response) => {
     sendJson(response, 200, {
       status: "ok",
       project: "地下街室內導航系統",
-      demoVenue: "淡江大學淡水校園",
-      phase: "user-client-ready",
+      demoVenue: "K區地下街往機捷",
+      phase: "formal-navigation-ready",
       storage: mysqlMirror.isEnabled() ? "mysql" : "json",
     });
     return;
@@ -103,7 +103,9 @@ const server = http.createServer(async (request, response) => {
   if (request.method === "POST" && url.pathname === "/api/maps") {
     try {
       const body = await readJsonBody(request);
-      sendJson(response, 201, { success: true, map: createMap(body) });
+      const map = createMap(body);
+      mirrorFullAdminSnapshot().catch((error) => console.error("MySQL admin mirror failed:", error.message));
+      sendJson(response, 201, { success: true, map });
     } catch (error) {
       sendJson(response, 400, { success: false, message: error.message });
     }
@@ -121,7 +123,9 @@ const server = http.createServer(async (request, response) => {
   if (request.method === "POST" && url.pathname === "/api/floors") {
     try {
       const body = await readJsonBody(request);
-      sendJson(response, 201, { success: true, floor: createFloor(body) });
+      const floor = createFloor(body);
+      mirrorFullAdminSnapshot().catch((error) => console.error("MySQL admin mirror failed:", error.message));
+      sendJson(response, 201, { success: true, floor });
     } catch (error) {
       sendJson(response, 400, { success: false, message: error.message });
     }
@@ -144,7 +148,9 @@ const server = http.createServer(async (request, response) => {
   if (request.method === "POST" && url.pathname === "/api/places") {
     try {
       const body = await readJsonBody(request);
-      sendJson(response, 201, { success: true, place: createPlace(body) });
+      const place = createPlace(body);
+      mirrorFullAdminSnapshot().catch((error) => console.error("MySQL admin mirror failed:", error.message));
+      sendJson(response, 201, { success: true, place });
     } catch (error) {
       sendJson(response, 400, { success: false, message: error.message });
     }
@@ -155,6 +161,7 @@ const server = http.createServer(async (request, response) => {
     try {
       const body = await readJsonBody(request);
       const place = updatePlaceStatus(String(body.placeId || "").trim(), String(body.businessStatus || "unset").trim());
+      if (place) mirrorFullAdminSnapshot().catch((error) => console.error("MySQL admin mirror failed:", error.message));
       sendJson(response, place ? 200 : 400, place ? { success: true, place } : { success: false, message: "找不到地點或狀態不合法。" });
     } catch (error) {
       sendJson(response, 400, { success: false, message: error.message });
@@ -395,10 +402,36 @@ const server = http.createServer(async (request, response) => {
     return;
   }
 
+  if (request.method === "GET" && url.pathname === "/api/storage/status") {
+    try {
+      const summary = await mysqlMirror.statusSummary();
+      sendJson(response, 200, {
+        ...summary,
+        jsonFallback: true,
+        note: summary.enabled ? "MySQL mirror is active." : "MYSQL_URL/DATABASE_URL is not configured; JSON files are the active store.",
+      });
+    } catch (error) {
+      sendJson(response, 500, { enabled: false, storage: "error", message: error.message });
+    }
+    return;
+  }
+
+  if (request.method === "POST" && url.pathname === "/api/storage/sync") {
+    try {
+      const mysqlEnabled = await mirrorFullAdminSnapshot();
+      sendJson(response, 200, { success: true, mysqlEnabled, status: await mysqlMirror.statusSummary() });
+    } catch (error) {
+      sendJson(response, 500, { success: false, message: error.message });
+    }
+    return;
+  }
+
   if (request.method === "POST" && url.pathname === "/api/route-nodes") {
     try {
       const body = await readJsonBody(request);
-      sendJson(response, 201, createRouteNode(body));
+      const result = createRouteNode(body);
+      mirrorFullAdminSnapshot().catch((error) => console.error("MySQL admin mirror failed:", error.message));
+      sendJson(response, 201, result);
     } catch (error) {
       sendJson(response, 400, { success: false, message: error.message });
     }
@@ -408,7 +441,9 @@ const server = http.createServer(async (request, response) => {
   if (request.method === "POST" && url.pathname === "/api/route-segments") {
     try {
       const body = await readJsonBody(request);
-      sendJson(response, 201, createRouteSegment(body));
+      const result = createRouteSegment(body);
+      mirrorFullAdminSnapshot().catch((error) => console.error("MySQL admin mirror failed:", error.message));
+      sendJson(response, 201, result);
     } catch (error) {
       sendJson(response, 400, { success: false, message: error.message });
     }
@@ -417,6 +452,7 @@ const server = http.createServer(async (request, response) => {
 
   if (request.method === "POST" && url.pathname === "/api/route-graph/restore-last") {
     const result = restoreLastDeleted();
+    if (result) mirrorFullAdminSnapshot().catch((error) => console.error("MySQL admin mirror failed:", error.message));
     sendJson(response, result ? 200 : 404, result || { success: false, message: "沒有可回復的刪除紀錄" });
     return;
   }
@@ -435,7 +471,9 @@ const server = http.createServer(async (request, response) => {
   if (request.method === "POST" && url.pathname === "/api/floor-transitions") {
     try {
       const body = await readJsonBody(request);
-      sendJson(response, 201, createFloorTransition(body));
+      const result = createFloorTransition(body);
+      mirrorFullAdminSnapshot().catch((error) => console.error("MySQL admin mirror failed:", error.message));
+      sendJson(response, 201, result);
     } catch (error) {
       sendJson(response, 400, { success: false, message: error.message });
     }
@@ -445,6 +483,7 @@ const server = http.createServer(async (request, response) => {
   if (request.method === "DELETE" && url.pathname === "/api/floor-transitions") {
     const transitionId = url.searchParams.get("transitionId") || "";
     const result = deleteFloorTransition(transitionId);
+    if (result) mirrorFullAdminSnapshot().catch((error) => console.error("MySQL admin mirror failed:", error.message));
     sendJson(response, result ? 200 : 404, result || { success: false, message: "only admin-created floor transitions can be deleted" });
     return;
   }
@@ -452,6 +491,7 @@ const server = http.createServer(async (request, response) => {
   if (request.method === "DELETE" && url.pathname === "/api/route-edges") {
     const edgeId = url.searchParams.get("edgeId") || "";
     const result = deleteRouteEdge(edgeId);
+    if (result) mirrorFullAdminSnapshot().catch((error) => console.error("MySQL admin mirror failed:", error.message));
     sendJson(response, result ? 200 : 404, result || { success: false, message: "route edge not found" });
     return;
   }
@@ -459,6 +499,7 @@ const server = http.createServer(async (request, response) => {
   if (request.method === "DELETE" && url.pathname === "/api/route-nodes") {
     const nodeId = url.searchParams.get("nodeId") || "";
     const result = deleteRouteNode(nodeId);
+    if (result) mirrorFullAdminSnapshot().catch((error) => console.error("MySQL admin mirror failed:", error.message));
     sendJson(response, result ? 200 : 404, result || { success: false, message: "only admin-created route nodes can be deleted" });
     return;
   }
@@ -467,6 +508,7 @@ const server = http.createServer(async (request, response) => {
     try {
       const body = await readJsonBody(request);
       const edge = setRouteEdgeBlocked(String(body.edgeId || "").trim(), body.isBlocked === true);
+      if (edge) mirrorFullAdminSnapshot().catch((error) => console.error("MySQL admin mirror failed:", error.message));
       sendJson(response, edge ? 200 : 404, edge ? { success: true, edge } : { success: false, message: "route edge not found" });
     } catch (error) {
       sendJson(response, 400, { success: false, message: error.message });
@@ -614,6 +656,7 @@ const server = http.createServer(async (request, response) => {
         modelPath: `models/${mapId}/${floorId}/dqn_policy_${Date.now()}.json`,
         isActive: body.activate !== false,
       });
+      mirrorFullAdminSnapshot().catch((error) => console.error("MySQL admin mirror failed:", error.message));
       sendJson(response, 201, { success: true, run, simulation });
     } catch (error) {
       sendJson(response, 400, { success: false, message: error.message });
@@ -650,6 +693,7 @@ const server = http.createServer(async (request, response) => {
         recommendedAction: decision.recommendedAction,
         accepted: null,
       });
+      mirrorFullAdminSnapshot().catch((error) => console.error("MySQL admin mirror failed:", error.message));
       sendJson(response, 200, decision);
     } catch (error) {
       sendJson(response, 400, { message: error.message });
@@ -782,6 +826,19 @@ mysqlMirror.startMirror()
       console.log(`Navigation backend listening on http://localhost:${port} (json storage)`);
     });
   });
+
+function mirrorFullAdminSnapshot() {
+  return mysqlMirror.mirrorAdminData({
+    maps: readMaps(),
+    floors: readFloors(),
+    places: readPlaces(),
+    routeNodes: readRouteNodes(),
+    routeEdges: readRouteEdges(),
+    floorTransitions: readFloorTransitions(),
+    dqnRuns: readDqnRuns(),
+    policyLogs: readPolicyLogs(),
+  });
+}
 
 function sendJson(response, statusCode, body) {
   response.writeHead(statusCode, {

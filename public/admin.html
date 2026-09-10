@@ -283,6 +283,11 @@
         <div id="scopeInfo" class="muted"></div>
       </section>
       <section>
+        <h2>正式資料庫狀態</h2>
+        <div id="storageInfo" class="muted">檢查中</div>
+        <button id="syncStorageButton">同步到 MySQL</button>
+      </section>
+      <section>
         <h2>匿名回饋</h2>
         <div class="metric">
           <div><span class="muted">待評估</span><strong id="pendingFeedback">0</strong></div>
@@ -411,6 +416,12 @@
       routeDraft = [];
       renderMapEditor();
       setEditorInfo("已清除路線暫選。");
+    });
+    document.querySelector("#syncStorageButton").addEventListener("click", async () => {
+      await runAdminAction("已同步正式資料庫", async () => {
+        await postJson("/api/storage/sync", {});
+        await loadStorageStatus();
+      });
     });
     mapEditorCanvas.addEventListener("click", handleMapEditorClick);
     document.querySelector("#exportScopeButton").addEventListener("click", async () => {
@@ -552,12 +563,27 @@
       mapSelect.innerHTML = maps.map(map => `<option value="${escapeHtml(map.id)}">${escapeHtml(map.name)}</option>`).join("");
       await loadFloors();
       await loadHealth();
+      await loadStorageStatus();
       await loadDashboard();
     }
 
     async function loadHealth() {
       const health = await getJson("/api/health");
-      document.querySelector("#healthInfo").textContent = `後端：正常`;
+      document.querySelector("#healthInfo").textContent = `後端：正常，儲存：${health.storage}`;
+    }
+
+    async function loadStorageStatus() {
+      const info = await getJson("/api/storage/status");
+      const counts = info.counts || {};
+      const scopes = Array.isArray(info.fingerprintScopes) ? info.fingerprintScopes : [];
+      document.querySelector("#storageInfo").innerHTML = [
+        `儲存模式：${info.storage || "json"}${info.enabled ? "，MySQL 已啟用" : "，MySQL 未設定"}`,
+        `地圖 ${counts.maps ?? "-"}，樓層 ${counts.floors ?? "-"}，地點 ${counts.places ?? "-"}，節點 ${counts.route_nodes ?? "-"}，路線 ${counts.route_edges ?? "-"}，跨樓層 ${counts.floor_transitions ?? "-"}`,
+        `指紋 ${counts.wifi_scan_records ?? "-"}，模型 ${counts.model_versions ?? "-"}，DQN ${counts.dqn_training_runs ?? "-"}，策略紀錄 ${counts.navigation_policy_logs ?? "-"}`,
+        scopes.length
+          ? scopes.map(scope => `${escapeHtml(scope.mapId)} / ${escapeHtml(scope.floorId)}：${scope.records} 筆，${scope.points} 點，${scope.aps} AP`).join("<br>")
+          : "尚無 MySQL 指紋 scope 統計",
+      ].join("<br>");
     }
 
     async function loadFloors() {
@@ -570,6 +596,7 @@
     async function loadDashboard() {
       const mapId = mapSelect.value;
       const floorId = floorSelect.value;
+      loadStorageStatus().catch(() => {});
       const [places, summary, points, quality, routeEdges, routeNodes, allNodes, transitions, feedback, models, jobs, policyRuns, policyLogs, reports] = await Promise.all([
         getJson(`/api/places?mapId=${encodeURIComponent(mapId)}&floorId=${encodeURIComponent(floorId)}`),
         getJson(`/api/wifi-scans/summary?mapId=${encodeURIComponent(mapId)}&floorId=${encodeURIComponent(floorId)}`),
