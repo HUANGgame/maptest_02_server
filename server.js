@@ -1,7 +1,7 @@
 const http = require("http");
 const fs = require("fs");
 const path = require("path");
-const { createFloor, createMap, createPlace, readFloors, readMaps } = require("./lib/catalogStore");
+const { createFloor, createMap, createPlace, deletePlace, readFloors, readMaps } = require("./lib/catalogStore");
 const { appendFeedback, readFeedback, writeFeedback } = require("./lib/feedbackStore");
 const { appendHistory, appendSavedLocation, clearHistory, clearSavedLocations, readHistory, readSavedLocations } = require("./lib/historyStore");
 const { activateModel, activeModel, createModelVersion, readModels } = require("./lib/modelStore");
@@ -157,6 +157,18 @@ const server = http.createServer(async (request, response) => {
       const place = createPlace(body);
       mirrorFullAdminSnapshot().catch((error) => console.error("MySQL admin mirror failed:", error.message));
       sendJson(response, 201, { success: true, place });
+    } catch (error) {
+      sendJson(response, 400, { success: false, message: error.message });
+    }
+    return;
+  }
+
+  if (request.method === "DELETE" && url.pathname === "/api/places") {
+    try {
+      const placeId = url.searchParams.get("placeId") || "";
+      const place = deletePlace(placeId);
+      if (place) mirrorFullAdminSnapshot().catch((error) => console.error("MySQL admin mirror failed:", error.message));
+      sendJson(response, place ? 200 : 404, place ? { success: true, place } : { success: false, message: "place not found" });
     } catch (error) {
       sendJson(response, 400, { success: false, message: error.message });
     }
