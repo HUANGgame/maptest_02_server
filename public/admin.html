@@ -1115,10 +1115,22 @@
       const mapArea = floorWidth * floorHeight;
       const boxAreaRatio = (width * height) / mapArea;
       const componentAreaRatio = (component.count * step * step) / (naturalWidth * naturalHeight);
-      const nearlyWholeMap = boxAreaRatio > 0.75 && width > floorWidth * 0.8 && height > floorHeight * 0.8;
-      const dominantBackground = componentAreaRatio > 0.65 && width > floorWidth * 0.7 && height > floorHeight * 0.7;
-      if (width * height < minMapArea || width < 4 || height < 4 || nearlyWholeMap || dominantBackground) return [];
+      const broadBackground = (boxAreaRatio > 0.08 && width > floorWidth * 0.22 && height > floorHeight * 0.18)
+        || (componentAreaRatio > 0.06 && width > floorWidth * 0.18 && height > floorHeight * 0.15);
+      if (width * height < minMapArea || width < 4 || height < 4) return [];
+      if (broadBackground) return [localColorZone(point, floorWidth, floorHeight)];
       return [{ x: left, y: top, width, height }];
+    }
+
+    function localColorZone(point, floorWidth, floorHeight) {
+      const width = Math.min(120, Math.max(40, floorWidth * 0.07));
+      const height = Math.min(80, Math.max(30, floorHeight * 0.1));
+      return {
+        x: Math.max(0, Math.min(floorWidth - width, point.x - width / 2)),
+        y: Math.max(0, Math.min(floorHeight - height, point.y - height / 2)),
+        width,
+        height,
+      };
     }
 
     function floodColorComponent(startX, startY, matches, visited, gridWidth, gridHeight) {
@@ -1596,11 +1608,11 @@
         deleteEdge: "點路線後會先框起來，確認後刪除。",
         transition: "點本樓層的手扶梯、樓梯或電梯節點，再選另一層對應節點。",
         walkableZone: "拖拉建立淺綠色可走區；不畫綠框時，整張地圖會預設為可走區。",
-        colorWalkableZone: "點地圖色階，自動把同色且相連的區塊分別建立為綠色可走框。",
+        colorWalkableZone: "點地圖色階建立綠色可走框；若同色區太大，會先在點擊位置建立小框，再用調整框框拉伸。",
         blockedZone: "拖拉建立紅色不可進入區，導航會避開。",
-        colorBlockedZone: "點地圖色階，自動把同色且相連的區塊分別建立為紅色禁入框。",
+        colorBlockedZone: "點地圖色階建立紅色禁入框；若同色區太大，會先在點擊位置建立小框，再用調整框框拉伸。",
         cautionZone: "拖拉建立橘色待確認區，導航可走但會提高成本。",
-        colorCautionZone: "點地圖色階，自動把同色且相連的區塊分別建立為橘色待確認框。",
+        colorCautionZone: "點地圖色階建立橘色待確認框；若同色區太大，會先在點擊位置建立小框，再用調整框框拉伸。",
         resizeZone: "拖框框節點可變形；拖節點之間的框線會新增節點並拉出去。",
         deleteZone: "點框框後會先選取，確認後刪除。",
       };
