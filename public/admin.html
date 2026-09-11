@@ -1708,9 +1708,11 @@
       if (Array.isArray(serverZones) && serverZones.length > 0) return serverZones;
       const backup = loadRouteZoneBackup(mapId, floorId);
       if (!backup.length) return Array.isArray(serverZones) ? serverZones : [];
-      try {
-        for (const zone of backup) {
-          await postJson("/api/route-zones", {
+      let restoredCount = 0;
+      let failedCount = 0;
+      for (const zone of backup) {
+        try {
+          await retryAdminRequest(() => postJson("/api/route-zones", {
             id: zone.id,
             mapId,
             floorId,
@@ -1721,17 +1723,40 @@
             height: zone.height,
             points: zone.points,
             label: zone.label,
-          });
+          }));
+          restoredCount += 1;
+        } catch (error) {
+          failedCount += 1;
+          console.warn("Route zone backup restore skipped:", error);
         }
+      }
+      try {
         const restored = await getJson(`/api/route-zones?mapId=${encodeURIComponent(mapId)}&floorId=${encodeURIComponent(floorId)}`);
-        document.querySelector("#adminNotice").textContent = `後端框框為空，已從本機備份恢復 ${restored.length} 個框框。`;
-        document.querySelector("#adminNotice").className = "muted";
+        const notice = document.querySelector("#adminNotice");
+        notice.textContent = failedCount > 0
+          ? `後端框框為空，已從本機備份恢復 ${restoredCount} 個框框，略過 ${failedCount} 個失敗備份。`
+          : `後端框框為空，已從本機備份恢復 ${restored.length} 個框框。`;
+        notice.className = failedCount > 0 ? "bad" : "muted";
         return restored;
       } catch (error) {
         document.querySelector("#adminNotice").textContent = `本機備份恢復失敗：${error.message}`;
         document.querySelector("#adminNotice").className = "bad";
         return Array.isArray(serverZones) ? serverZones : [];
       }
+    }
+
+    async function retryAdminRequest(requestFactory, retries = 2) {
+      let lastError = null;
+      for (let attempt = 0; attempt <= retries; attempt += 1) {
+        try {
+          return await requestFactory();
+        } catch (error) {
+          lastError = error;
+          if (!/HTTP 50[0-9]|Failed to fetch|NetworkError/i.test(String(error.message || ""))) break;
+          await new Promise(resolve => setTimeout(resolve, 700 * (attempt + 1)));
+        }
+      }
+      throw lastError;
     }
 
     function routeZoneBackupKey(mapId, floorId) {
