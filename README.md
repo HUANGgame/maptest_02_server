@@ -52,22 +52,40 @@ http://localhost:3015/
 http://localhost:3015/admin
 ```
 
-## 資料庫結構
+## 正式資料庫
 
-正式資料表以 `backend/schema` 為準：
+正式資料統一放 Firebase Realtime Database。JSON 檔只作為 Render 執行中的本機快取，不作為正式保存來源。
 
-```sql
-SOURCE backend/schema/001_initial_must_have.sql;
-SOURCE backend/schema/002_seed_tamkang_demo.sql;
-SOURCE backend/schema/003_navigation_feedback.sql;
-SOURCE backend/schema/004_training_jobs.sql;
-SOURCE backend/schema/005_dqn_policy.sql;
-SOURCE backend/schema/006_history_saved_locations.sql;
-SOURCE backend/schema/007_floor_transitions.sql;
-SOURCE backend/schema/008_user_reports.sql;
+Render 必須設定：
+
+```text
+FIREBASE_DATABASE_URL=https://wifi-f-default-rtdb.firebaseio.com
+FIREBASE_SERVICE_ACCOUNT_JSON=<Firebase service account JSON>
+FIREBASE_ROOT_PATH=indoor_navigation
 ```
 
-目前 Node 後端使用 JSON 檔作為 Demo store，方便在沒有 MySQL 的環境展示。
+也可以改用 `FIREBASE_SERVICE_ACCOUNT_BASE64` 放 base64 後的 service account JSON。
+
+伺服器啟動時會先讀 Firebase：
+
+```text
+Firebase 有資料：覆蓋本機 JSON 快取，避免部署後資料消失。
+Firebase 沒資料：把目前本機 JSON 種進 Firebase，避免第一次接資料庫時遺失舊資料。
+```
+
+手動同步目前資料到 Firebase：
+
+```powershell
+Invoke-WebRequest -Method POST https://maptest-02-server.onrender.com/api/storage/sync
+```
+
+檢查目前是否真的使用 Firebase：
+
+```text
+https://maptest-02-server.onrender.com/api/storage/status
+```
+
+需要看到 `storage` 是 `firebase-rtdb`，且 `firebase.enabled` 是 `true`。
 
 ## 測試
 
