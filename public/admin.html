@@ -224,6 +224,7 @@
             <button id="restoreLastButton" class="secondary">回復上一個</button>
             <button id="clearRouteDraftButton" class="secondary">清除路線暫選</button>
             <button id="clearFloorRouteGraphButton" class="danger">清空本樓層點線</button>
+            <button id="toggleWifiPointsButton" class="secondary">顯示採樣點</button>
             <div id="mapEditorInfo" class="muted" style="margin-top:12px">點地圖後會帶入座標。</div>
             <div id="transitionEditorForm" class="editor-form hidden">
               <label for="transitionFromNode">本樓層節點</label>
@@ -408,6 +409,7 @@
     let zoneDraft = null;
     let isDrawingZone = false;
     let zoneResizeState = null;
+    let showWifiPointsOnMap = false;
 
     reloadButton.addEventListener("click", loadDashboard);
     document.querySelector("#placeModeButton").addEventListener("click", () => setEditorMode("place"));
@@ -441,6 +443,14 @@
       setEditorInfo("已清除路線暫選。");
     });
     document.querySelector("#clearFloorRouteGraphButton").addEventListener("click", clearCurrentFloorRouteGraph);
+    document.querySelector("#toggleWifiPointsButton").addEventListener("click", () => {
+      showWifiPointsOnMap = !showWifiPointsOnMap;
+      document.querySelector("#toggleWifiPointsButton").textContent = showWifiPointsOnMap ? "隱藏採樣點" : "顯示採樣點";
+      document.querySelector("#toggleWifiPointsButton").classList.toggle("active", showWifiPointsOnMap);
+      document.querySelector("#toggleWifiPointsButton").classList.toggle("secondary", !showWifiPointsOnMap);
+      renderMapEditor();
+      setEditorInfo(showWifiPointsOnMap ? "已顯示目前樓層採樣點。" : "已隱藏採樣點。");
+    });
     document.querySelector("#syncStorageButton").addEventListener("click", async () => {
       await runAdminAction("已同步正式資料庫", async () => {
         await postJson("/api/storage/sync", {});
@@ -951,6 +961,7 @@
     }
 
     function drawWifiPoints(bounds) {
+      if (!showWifiPointsOnMap) return;
       mapEditorCtx.fillStyle = "rgba(20,108,99,0.7)";
       currentPoints.forEach(point => {
         mapEditorCtx.beginPath();
