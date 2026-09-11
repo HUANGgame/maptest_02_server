@@ -412,6 +412,7 @@
     let zoneResizeState = null;
     let showPlaceMarkersOnMap = false;
     let showWifiPointsOnMap = false;
+    let suppressZoneAutoRestoreOnce = false;
 
     reloadButton.addEventListener("click", loadDashboard);
     document.querySelector("#placeModeButton").addEventListener("click", () => setEditorMode("place"));
@@ -666,7 +667,8 @@
       currentPoints = Array.isArray(points.points) ? points.points : [];
       currentRouteEdges = routeEdges;
       currentRouteNodes = routeNodes;
-      currentRouteZones = routeZones;
+      currentRouteZones = await effectiveRouteZones(mapId, floorId, routeZones);
+      backupRouteZones(mapId, floorId, currentRouteZones);
       allRouteNodes = allNodes;
       currentTransitions = transitions;
       await loadMapEditorImage();
@@ -734,7 +736,7 @@
         });
       });
 
-      document.querySelector("#routeZonesBody").innerHTML = routeZones.map(zone => `
+      document.querySelector("#routeZonesBody").innerHTML = currentRouteZones.map(zone => `
         <tr>
           <td>${zoneTypeText(zone.zoneType)}</td>
           <td>${Number(zone.x).toFixed(1)}, ${Number(zone.y).toFixed(1)}</td>
@@ -1483,6 +1485,7 @@
         } else if (target.type === "edge") {
           await deleteJson(`/api/route-edges?edgeId=${encodeURIComponent(target.value.id)}`);
         } else {
+          suppressZoneAutoRestoreOnce = true;
           await deleteJson(`/api/route-zones?zoneId=${encodeURIComponent(target.value.id)}`);
         }
         selectedDeleteTarget = null;
@@ -1694,6 +1697,63 @@
       } catch (error) {
         notice.textContent = `失敗：${error.message}`;
         notice.className = "bad";
+      }
+    }
+
+    async function effectiveRouteZones(mapId, floorId, serverZones) {
+      if (suppressZoneAutoRestoreOnce) {
+        suppressZoneAutoRestoreOnce = false;
+        return Array.isArray(serverZones) ? serverZones : [];
+      }
+      if (Array.isArray(serverZones) && serverZones.length > 0) return serverZones;
+      const backup = loadRouteZoneBackup(mapId, floorId);
+      if (!backup.length) return Array.isArray(serverZones) ? serverZones : [];
+      try {
+        for (const zone of backup) {
+          await postJson("/api/route-zones", {
+            id: zone.id,
+            mapId,
+            floorId,
+            zoneType: zone.zoneType,
+            x: zone.x,
+            y: zone.y,
+            width: zone.width,
+            height: zone.height,
+            points: zone.points,
+            label: zone.label,
+          });
+        }
+        const restored = await getJson(`/api/route-zones?mapId=${encodeURIComponent(mapId)}&floorId=${encodeURIComponent(floorId)}`);
+        document.querySelector("#adminNotice").textContent = `後端框框為空，已從本機備份恢復 ${restored.length} 個框框。`;
+        document.querySelector("#adminNotice").className = "muted";
+        return restored;
+      } catch (error) {
+        document.querySelector("#adminNotice").textContent = `本機備份恢復失敗：${error.message}`;
+        document.querySelector("#adminNotice").className = "bad";
+        return Array.isArray(serverZones) ? serverZones : [];
+      }
+    }
+
+    function routeZoneBackupKey(mapId, floorId) {
+      return `route-zones-backup:${mapId}:${floorId}`;
+    }
+
+    function backupRouteZones(mapId, floorId, zones) {
+      try {
+        localStorage.setItem(routeZoneBackupKey(mapId, floorId), JSON.stringify({
+          savedAt: new Date().toISOString(),
+          zones: Array.isArray(zones) ? zones : [],
+        }));
+      } catch {
+      }
+    }
+
+    function loadRouteZoneBackup(mapId, floorId) {
+      try {
+        const parsed = JSON.parse(localStorage.getItem(routeZoneBackupKey(mapId, floorId)) || "{}");
+        return Array.isArray(parsed.zones) ? parsed.zones : [];
+      } catch {
+        return [];
       }
     }
 
