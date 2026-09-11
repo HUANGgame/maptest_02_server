@@ -1761,9 +1761,8 @@ function planCrossFloorRoute(mapId, startFloorId, startX, startY, destination) {
 }
 
 function planZoneRoute(mapId, floorId, start, destination) {
-  const zones = readRouteZones().filter((zone) => zone.mapId === mapId && zone.floorId === floorId);
-  const walkableZones = zones.filter((zone) => zone.zoneType === "walkable");
-  if (walkableZones.length === 0) return null;
+  const zones = buildRoutingZones(mapId, floorId);
+  if (zones.length === 0) return null;
   const startPoint = nearestPassableGridPoint(start.x, start.y, zones);
   const targetPoint = nearestPassableGridPoint(destination.x, destination.y, zones);
   if (!startPoint || !targetPoint) return null;
@@ -1789,6 +1788,27 @@ function planZoneRoute(mapId, floorId, start, destination) {
   }));
   const distance = routePoints.slice(1).reduce((sum, point, index) => sum + pointDistance(routePoints[index], point), 0);
   return { routePoints, distance: roundNumber(distance, 2), estimatedTime: Math.max(1, Math.ceil(distance / 75)), floorTransitions: [] };
+}
+
+function buildRoutingZones(mapId, floorId) {
+  const zones = readRouteZones().filter((zone) => zone.mapId === mapId && zone.floorId === floorId);
+  if (zones.some((zone) => zone.zoneType === "walkable")) return zones;
+  const floor = readFloors().find((item) => item.mapId === mapId && item.id === floorId);
+  const width = Number(floor?.width || floor?.imageNaturalWidth || 0);
+  const height = Number(floor?.height || floor?.imageNaturalHeight || 0);
+  if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) return zones;
+  return [{
+    id: `default-walkable-${mapId}-${floorId}`,
+    mapId,
+    floorId,
+    zoneType: "walkable",
+    x: 0,
+    y: 0,
+    width,
+    height,
+    label: "預設可走區",
+    source: "system",
+  }].concat(zones);
 }
 
 function nearestPassableGridPoint(x, y, zones) {

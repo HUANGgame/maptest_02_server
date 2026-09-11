@@ -832,6 +832,7 @@
       const bounds = containRect(rect.width, rect.height, mapEditorImage.naturalWidth, mapEditorImage.naturalHeight);
       mapEditorBounds = bounds;
       mapEditorCtx.drawImage(mapEditorImage, bounds.x, bounds.y, bounds.width, bounds.height);
+      drawDefaultWalkableZone(bounds);
       drawRouteZones(bounds);
       drawRouteSegments(bounds);
       drawRouteNodes(bounds);
@@ -862,6 +863,16 @@
         mapEditorCtx.fillRect(x, y, width, height);
         mapEditorCtx.strokeRect(x, y, width, height);
       });
+    }
+
+    function drawDefaultWalkableZone(bounds) {
+      const hasWalkableZone = currentRouteZones.some(zone => zone.zoneType === "walkable");
+      if (hasWalkableZone) return;
+      mapEditorCtx.fillStyle = "rgba(20, 184, 166, 0.08)";
+      mapEditorCtx.strokeStyle = "rgba(20, 184, 166, 0.45)";
+      mapEditorCtx.lineWidth = 1;
+      mapEditorCtx.fillRect(bounds.x, bounds.y, bounds.width, bounds.height);
+      mapEditorCtx.strokeRect(bounds.x, bounds.y, bounds.width, bounds.height);
     }
 
     function drawZoneDraft(bounds) {
@@ -1336,7 +1347,7 @@
         deleteNode: "點節點後會先框起來，確認後刪除。",
         deleteEdge: "點路線後會先框起來，確認後刪除。",
         transition: "點本樓層的手扶梯、樓梯或電梯節點，再選另一層對應節點。",
-        walkableZone: "拖拉建立淺綠色可走區，導航會優先在此範圍內找路。",
+        walkableZone: "拖拉建立淺綠色可走區；不畫綠框時，整張地圖會預設為可走區。",
         blockedZone: "拖拉建立紅色不可進入區，導航會避開。",
         cautionZone: "拖拉建立橘色待確認區，導航可走但會提高成本。",
         resizeZone: "點框框後，拖四角或邊線的小方塊拉伸。",
