@@ -8,7 +8,7 @@ const { activateModel, activeModel, createModelVersion, readModels } = require("
 const { readPlaces, updatePlaceStatus } = require("./lib/placeStore");
 const { appendPolicyLog, createDqnRun, readDqnRuns, readPolicyLogs } = require("./lib/policyStore");
 const { appendReport, readReports } = require("./lib/reportStore");
-const { createFloorTransition, createRouteNode, createRouteSegment, createRouteZone, deleteFloorTransition, deleteRouteEdge, deleteRouteNode, deleteRouteZone, readFloorTransitions, readRouteEdges, readRouteNodes, readRouteZones, restoreLastDeleted, setRouteEdgeBlocked } = require("./lib/routeEdgeStore");
+const { clearRouteGraphForFloor, createFloorTransition, createRouteNode, createRouteSegment, createRouteZone, deleteFloorTransition, deleteRouteEdge, deleteRouteNode, deleteRouteZone, readFloorTransitions, readRouteEdges, readRouteNodes, readRouteZones, restoreLastDeleted, setRouteEdgeBlocked } = require("./lib/routeEdgeStore");
 const { createTrainingJob, readTrainingJobs } = require("./lib/trainingJobStore");
 const { appendScans, readScans } = require("./lib/jsonStore");
 const firebaseMirror = require("./lib/firebaseMirror");
@@ -569,6 +569,17 @@ const server = http.createServer(async (request, response) => {
     const result = deleteRouteZone(url.searchParams.get("zoneId"));
     if (result) mirrorFullAdminSnapshot().catch((error) => console.error("MySQL admin mirror failed:", error.message));
     sendJson(response, result ? 200 : 404, result || { success: false, message: "zone not found" });
+    return;
+  }
+
+  if (request.method === "DELETE" && url.pathname === "/api/route-graph/floor") {
+    try {
+      const result = clearRouteGraphForFloor(url.searchParams.get("mapId"), url.searchParams.get("floorId"));
+      mirrorFullAdminSnapshot().catch((error) => console.error("MySQL admin mirror failed:", error.message));
+      sendJson(response, 200, result);
+    } catch (error) {
+      sendJson(response, 400, { success: false, message: error.message });
+    }
     return;
   }
 

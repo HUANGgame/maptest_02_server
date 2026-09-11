@@ -222,6 +222,7 @@
             </div>
             <button id="restoreLastButton" class="secondary">回復上一個</button>
             <button id="clearRouteDraftButton" class="secondary">清除路線暫選</button>
+            <button id="clearFloorRouteGraphButton" class="danger">清空本樓層點線</button>
             <div id="mapEditorInfo" class="muted" style="margin-top:12px">點地圖後會帶入座標。</div>
             <div id="transitionEditorForm" class="editor-form hidden">
               <label for="transitionFromNode">本樓層節點</label>
@@ -435,6 +436,7 @@
       renderMapEditor();
       setEditorInfo("已清除路線暫選。");
     });
+    document.querySelector("#clearFloorRouteGraphButton").addEventListener("click", clearCurrentFloorRouteGraph);
     document.querySelector("#syncStorageButton").addEventListener("click", async () => {
       await runAdminAction("已同步正式資料庫", async () => {
         await postJson("/api/storage/sync", {});
@@ -1232,6 +1234,21 @@
 
     function setEditorInfo(message) {
       document.querySelector("#mapEditorInfo").textContent = message;
+    }
+
+    async function clearCurrentFloorRouteGraph() {
+      const mapId = mapSelect.value;
+      const floorId = floorSelect.value;
+      if (!mapId || !floorId) return;
+      const confirmed = window.confirm("確定清空目前樓層的節點、路線與相關跨樓層連接？地圖、指紋、綠紅橘框不會刪除。");
+      if (!confirmed) return;
+      await runAdminAction("已清空本樓層點線", async () => {
+        await deleteJson(`/api/route-graph/floor?mapId=${encodeURIComponent(mapId)}&floorId=${encodeURIComponent(floorId)}`);
+        routeDraft = [];
+        selectedDeleteTarget = null;
+        selectedTransitionFromNode = null;
+        await loadDashboard();
+      });
     }
 
     function routeZoneAt(point) {
