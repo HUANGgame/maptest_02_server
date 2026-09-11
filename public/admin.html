@@ -867,10 +867,6 @@
 
     function drawRouteZones(bounds) {
       currentRouteZones.forEach(zone => {
-        const x = mapToCanvasX(zone.x, bounds);
-        const y = mapToCanvasY(zone.y, bounds);
-        const width = mapToCanvasX(zone.x + zone.width, bounds) - x;
-        const height = mapToCanvasY(zone.y + zone.height, bounds) - y;
         const fill = zone.zoneType === "blocked"
           ? "rgba(220, 38, 38, 0.28)"
           : zone.zoneType === "caution"
@@ -880,8 +876,9 @@
         mapEditorCtx.fillStyle = fill;
         mapEditorCtx.strokeStyle = stroke;
         mapEditorCtx.lineWidth = 1;
-        mapEditorCtx.fillRect(x, y, width, height);
-        mapEditorCtx.strokeRect(x, y, width, height);
+        drawZonePath(zone, bounds);
+        mapEditorCtx.fill();
+        mapEditorCtx.stroke();
       });
     }
 
@@ -912,10 +909,18 @@
       if (!selectedRouteZone) return;
       const zone = currentRouteZones.find(item => item.id === selectedRouteZone.id);
       if (!zone) return;
-      const rect = zoneCanvasRect(zone, bounds);
       mapEditorCtx.strokeStyle = "#111827";
       mapEditorCtx.lineWidth = 2;
-      mapEditorCtx.strokeRect(rect.x - 2, rect.y - 2, rect.width + 4, rect.height + 4);
+      drawZonePath(zone, bounds);
+      mapEditorCtx.stroke();
+      zonePolygonPoints(zone).forEach(point => {
+        const x = mapToCanvasX(point.x, bounds);
+        const y = mapToCanvasY(point.y, bounds);
+        mapEditorCtx.fillStyle = "#111827";
+        mapEditorCtx.beginPath();
+        mapEditorCtx.arc(x, y, 2.5, 0, Math.PI * 2);
+        mapEditorCtx.fill();
+      });
     }
 
     function drawRouteSegments(bounds) {
@@ -1008,11 +1013,8 @@
       }
       if (selectedDeleteTarget.type === "zone") {
         const zone = selectedDeleteTarget.value;
-        const x = mapToCanvasX(zone.x, bounds);
-        const y = mapToCanvasY(zone.y, bounds);
-        const width = mapToCanvasX(zone.x + zone.width, bounds) - x;
-        const height = mapToCanvasY(zone.y + zone.height, bounds) - y;
-        mapEditorCtx.strokeRect(x - 3, y - 3, width + 6, height + 6);
+        drawZonePath(zone, bounds);
+        mapEditorCtx.stroke();
         return;
       }
       const edge = selectedDeleteTarget.value;
@@ -1234,7 +1236,7 @@
       }
       zoneResizeState = {
         zoneId: zone.id,
-        handle: handle.name,
+        handle,
         original: { ...zone },
       };
       mapEditorCanvas.setPointerCapture(event.pointerId);
@@ -1262,6 +1264,7 @@
           y: zone.y,
           width: zone.width,
           height: zone.height,
+          points: zone.points,
         });
         await loadDashboard();
       });
@@ -1269,15 +1272,17 @@
     }
 
     function resizedZoneFromPoint(zone, handleName, point) {
+      if (typeof handleName === "object" && handleName.kind) return resizedPolygonZoneFromPoint(zone, handleName, point);
+      const handle = typeof handleName === "object" ? handleName.name : handleName;
       const minSize = 3;
       let left = Number(zone.x);
       let top = Number(zone.y);
       let right = left + Number(zone.width);
       let bottom = top + Number(zone.height);
-      if (handleName.includes("w")) left = Math.min(point.x, right - minSize);
-      if (handleName.includes("e")) right = Math.max(point.x, left + minSize);
-      if (handleName.includes("n")) top = Math.min(point.y, bottom - minSize);
-      if (handleName.includes("s")) bottom = Math.max(point.y, top + minSize);
+      if (handle.includes("w")) left = Math.min(point.x, right - minSize);
+      if (handle.includes("e")) right = Math.max(point.x, left + minSize);
+      if (handle.includes("n")) top = Math.min(point.y, bottom - minSize);
+      if (handle.includes("s")) bottom = Math.max(point.y, top + minSize);
       return {
         ...zone,
         x: left,
@@ -1287,9 +1292,61 @@
       };
     }
 
+    function resizedPolygonZoneFromPoint(zone, handle, point) {
+      const points = zonePolygonPoints(zone);
+      if (handle.kind === "vertex") {
+        points[handle.index] = { x: point.x, y: point.y };
+      }
+      if (handle.kind === "edge") {
+        points.splice(handle.index + 1, 0, { x: point.x, y: point.y });
+        handle.kind = "vertex";
+        handle.index = handle.index + 1;
+      }
+      return zoneFromPolygonPoints(zone, points);
+    }
+
+    function nearestZoneVertex(point, zone) {
+      const radius = zoneEditHitTolerance();
+      const points = zonePolygonPoints(zone)
+        .map((candidate, index) => ({ kind: "vertex", index, hitDistance: distance(point.x, point.y, candidate.x, candidate.y) }))
+        .filter(candidate => candidate.hitDistance <= radius)
+        .sort((left, right) => left.hitDistance - right.hitDistance);
+      return points[0] || null;
+    }
+
+    function nearestZoneEdge(point, zone) {
+      const radius = zoneEditHitTolerance();
+      const points = zonePolygonPoints(zone);
+      const edges = points.map((from, index) => {
+        const to = points[(index + 1) % points.length];
+        return { kind: "edge", index, hitDistance: distanceToSegment(point, from, to) };
+      }).filter(edge => edge.hitDistance <= radius)
+        .sort((left, right) => left.hitDistance - right.hitDistance);
+      return edges[0] || null;
+    }
+
+    function zoneFromPolygonPoints(zone, points) {
+      const xs = points.map(point => point.x);
+      const ys = points.map(point => point.y);
+      const left = Math.min(...xs);
+      const top = Math.min(...ys);
+      const right = Math.max(...xs);
+      const bottom = Math.max(...ys);
+      return {
+        ...zone,
+        x: left,
+        y: top,
+        width: right - left,
+        height: bottom - top,
+        points,
+      };
+    }
+
     function nearestZoneResizeHandle(point, zone) {
-      const edgeHandle = zoneResizeHandleFromEdges(point, zone);
-      if (edgeHandle) return edgeHandle;
+      const vertex = nearestZoneVertex(point, zone);
+      if (vertex) return vertex;
+      const edge = nearestZoneEdge(point, zone);
+      if (edge) return edge;
       return zoneResizeHandleFromInterior(point, zone);
     }
 
@@ -1329,6 +1386,10 @@
     }
 
     function zoneEdgeHitTolerance() {
+      return zoneEditHitTolerance();
+    }
+
+    function zoneEditHitTolerance() {
       const floor = currentFloors.find(item => item.id === floorSelect.value) || {};
       const width = Number(floor.width || floor.imageNaturalWidth || mapEditorImage?.naturalWidth || 1);
       return Math.max(14, width / 70);
@@ -1400,7 +1461,7 @@
         walkableZone: "拖拉建立淺綠色可走區；不畫綠框時，整張地圖會預設為可走區。",
         blockedZone: "拖拉建立紅色不可進入區，導航會避開。",
         cautionZone: "拖拉建立橘色待確認區，導航可走但會提高成本。",
-        resizeZone: "按框內任一位置拖拉，系統會自動調整最近的邊或角。",
+        resizeZone: "拖框框節點可變形；拖節點之間的框線會新增節點並拉出去。",
         deleteZone: "點框框後會先選取，確認後刪除。",
       };
       setEditorInfo(messages[mode] || "");
@@ -1450,19 +1511,51 @@
 
     function routeZoneAt(point) {
       return currentRouteZones
-        .filter(zone => point.x >= zone.x && point.x <= zone.x + zone.width && point.y >= zone.y && point.y <= zone.y + zone.height)
+        .filter(zone => pointInZoneShape(point, zone))
         .sort((a, b) => (a.width * a.height) - (b.width * b.height))[0] || null;
     }
 
-    function zoneCanvasRect(zone, bounds) {
-      const x = mapToCanvasX(zone.x, bounds);
-      const y = mapToCanvasY(zone.y, bounds);
-      return {
-        x,
-        y,
-        width: mapToCanvasX(zone.x + zone.width, bounds) - x,
-        height: mapToCanvasY(zone.y + zone.height, bounds) - y,
-      };
+    function pointInZoneShape(point, zone) {
+      const points = zonePolygonPoints(zone);
+      let inside = false;
+      for (let i = 0, j = points.length - 1; i < points.length; j = i++) {
+        const xi = points[i].x;
+        const yi = points[i].y;
+        const xj = points[j].x;
+        const yj = points[j].y;
+        const intersects = ((yi > point.y) !== (yj > point.y)) &&
+          (point.x < ((xj - xi) * (point.y - yi)) / ((yj - yi) || Number.EPSILON) + xi);
+        if (intersects) inside = !inside;
+      }
+      return inside;
+    }
+
+    function drawZonePath(zone, bounds) {
+      const points = zonePolygonPoints(zone);
+      mapEditorCtx.beginPath();
+      points.forEach((point, index) => {
+        const x = mapToCanvasX(point.x, bounds);
+        const y = mapToCanvasY(point.y, bounds);
+        if (index === 0) mapEditorCtx.moveTo(x, y);
+        else mapEditorCtx.lineTo(x, y);
+      });
+      mapEditorCtx.closePath();
+    }
+
+    function zonePolygonPoints(zone) {
+      if (Array.isArray(zone.points) && zone.points.length >= 3) {
+        return zone.points.map(point => ({ x: Number(point.x), y: Number(point.y) }));
+      }
+      const left = Number(zone.x);
+      const top = Number(zone.y);
+      const right = left + Number(zone.width);
+      const bottom = top + Number(zone.height);
+      return [
+        { x: left, y: top },
+        { x: right, y: top },
+        { x: right, y: bottom },
+        { x: left, y: bottom },
+      ];
     }
 
     function zoneTypeText(zoneType) {

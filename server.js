@@ -1889,7 +1889,22 @@ function zoneTypeAt(x, y, zones) {
 }
 
 function pointInZone(x, y, zone) {
+  if (Array.isArray(zone.points) && zone.points.length >= 3) return pointInPolygon(x, y, zone.points);
   return x >= zone.x && x <= zone.x + zone.width && y >= zone.y && y <= zone.y + zone.height;
+}
+
+function pointInPolygon(x, y, points) {
+  let inside = false;
+  for (let i = 0, j = points.length - 1; i < points.length; j = i++) {
+    const xi = Number(points[i].x);
+    const yi = Number(points[i].y);
+    const xj = Number(points[j].x);
+    const yj = Number(points[j].y);
+    const intersects = ((yi > y) !== (yj > y)) &&
+      (x < ((xj - xi) * (y - yi)) / ((yj - yi) || Number.EPSILON) + xi);
+    if (intersects) inside = !inside;
+  }
+  return inside;
 }
 
 function zoneBounds(zones) {
