@@ -608,12 +608,22 @@
     init();
 
     async function init() {
-      const maps = await getJson("/api/maps");
+      const maps = sortMapsForAdmin(await getJson("/api/maps"));
       mapSelect.innerHTML = maps.map(map => `<option value="${escapeHtml(map.id)}">${escapeHtml(map.name)}</option>`).join("");
       await loadFloors();
       await loadHealth();
       await loadStorageStatus();
       await loadDashboard();
+    }
+
+    function sortMapsForAdmin(maps) {
+      return [...maps].sort((left, right) => mapSortPriority(left) - mapSortPriority(right) || String(left.name || "").localeCompare(String(right.name || ""), "zh-Hant"));
+    }
+
+    function mapSortPriority(map) {
+      if (map.id === "k-area-airport" || map.name === "K區地下街往機捷") return 0;
+      if (String(map.name || "").includes("K區地下街往機捷")) return 1;
+      return 10;
     }
 
     async function loadHealth() {
