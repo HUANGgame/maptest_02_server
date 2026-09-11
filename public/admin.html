@@ -1049,7 +1049,7 @@
     async function createZonesFromColor(point, zoneType) {
       const zones = detectColorConnectedZones(point);
       if (zones.length === 0) {
-        setEditorInfo("沒有找到足夠大的同色相連區塊，請點紅色或灰色區域中間再試一次。");
+        setEditorInfo("沒有建立框框：可能點到大面積背景，請點店家、障礙物或明確區塊中間。");
         return;
       }
       await runAdminAction(`已依色階新增 ${zones.length} 個${zoneTypeText(zoneType)}`, async () => {
@@ -1089,7 +1089,6 @@
       const gridWidth = Math.ceil(naturalWidth / step);
       const gridHeight = Math.ceil(naturalHeight / step);
       const matches = new Uint8Array(gridWidth * gridHeight);
-      const visited = new Uint8Array(gridWidth * gridHeight);
       const colorThreshold = 28;
       for (let gy = 0; gy < gridHeight; gy += 1) {
         for (let gx = 0; gx < gridWidth; gx += 1) {
@@ -1099,27 +1098,23 @@
           if (colorDistance(seed, color) <= colorThreshold) matches[gy * gridWidth + gx] = 1;
         }
       }
-      const zones = [];
       const minSamples = 18;
       const minMapArea = 120;
-      for (let gy = 0; gy < gridHeight; gy += 1) {
-        for (let gx = 0; gx < gridWidth; gx += 1) {
-          const index = gy * gridWidth + gx;
-          if (!matches[index] || visited[index]) continue;
-          const component = floodColorComponent(gx, gy, matches, visited, gridWidth, gridHeight);
-          if (component.count < minSamples) continue;
-          const left = (component.minX * step / naturalWidth) * floorWidth;
-          const top = (component.minY * step / naturalHeight) * floorHeight;
-          const right = (Math.min(naturalWidth, (component.maxX + 1) * step) / naturalWidth) * floorWidth;
-          const bottom = (Math.min(naturalHeight, (component.maxY + 1) * step) / naturalHeight) * floorHeight;
-          const width = right - left;
-          const height = bottom - top;
-          if (width * height < minMapArea || width < 4 || height < 4) continue;
-          zones.push({ x: left, y: top, width, height });
-        }
-      }
-      zones.sort((left, right) => (right.width * right.height) - (left.width * left.height));
-      return zones.slice(0, 80);
+      const maxMapArea = floorWidth * floorHeight * 0.2;
+      const seedGridX = clampInt(Math.floor(seedX / step), 0, gridWidth - 1);
+      const seedGridY = clampInt(Math.floor(seedY / step), 0, gridHeight - 1);
+      const seedIndex = seedGridY * gridWidth + seedGridX;
+      if (!matches[seedIndex]) return [];
+      const component = floodColorComponent(seedGridX, seedGridY, matches, new Uint8Array(gridWidth * gridHeight), gridWidth, gridHeight);
+      if (component.count < minSamples) return [];
+      const left = (component.minX * step / naturalWidth) * floorWidth;
+      const top = (component.minY * step / naturalHeight) * floorHeight;
+      const right = (Math.min(naturalWidth, (component.maxX + 1) * step) / naturalWidth) * floorWidth;
+      const bottom = (Math.min(naturalHeight, (component.maxY + 1) * step) / naturalHeight) * floorHeight;
+      const width = right - left;
+      const height = bottom - top;
+      if (width * height < minMapArea || width * height > maxMapArea || width < 4 || height < 4) return [];
+      return [{ x: left, y: top, width, height }];
     }
 
     function floodColorComponent(startX, startY, matches, visited, gridWidth, gridHeight) {
