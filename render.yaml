@@ -8,3 +8,9 @@ services:
     envVars:
       - key: ADMIN_PASSWORD
         sync: false
+      - key: FIREBASE_DATABASE_URL
+        value: https://wifi-f-default-rtdb.firebaseio.com
+      - key: FIREBASE_ROOT_PATH
+        value: indoor_navigation
+      - key: FIREBASE_SERVICE_ACCOUNT_JSON
+        sync: false
