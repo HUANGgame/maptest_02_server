@@ -1049,7 +1049,7 @@
     async function createZonesFromColor(point, zoneType) {
       const zones = detectColorConnectedZones(point);
       if (zones.length === 0) {
-        setEditorInfo("沒有建立框框：可能點到大面積背景，請點店家、障礙物或明確區塊中間。");
+        setEditorInfo("沒有建立框框：可能點到整張背景、太小的文字，或不明顯的色塊。請點要框區域的中間。");
         return;
       }
       await runAdminAction(`已依色階新增 ${zones.length} 個${zoneTypeText(zoneType)}`, async () => {
@@ -1100,7 +1100,6 @@
       }
       const minSamples = 18;
       const minMapArea = 120;
-      const maxMapArea = floorWidth * floorHeight * 0.2;
       const seedGridX = clampInt(Math.floor(seedX / step), 0, gridWidth - 1);
       const seedGridY = clampInt(Math.floor(seedY / step), 0, gridHeight - 1);
       const seedIndex = seedGridY * gridWidth + seedGridX;
@@ -1113,7 +1112,12 @@
       const bottom = (Math.min(naturalHeight, (component.maxY + 1) * step) / naturalHeight) * floorHeight;
       const width = right - left;
       const height = bottom - top;
-      if (width * height < minMapArea || width * height > maxMapArea || width < 4 || height < 4) return [];
+      const mapArea = floorWidth * floorHeight;
+      const boxAreaRatio = (width * height) / mapArea;
+      const componentAreaRatio = (component.count * step * step) / (naturalWidth * naturalHeight);
+      const nearlyWholeMap = boxAreaRatio > 0.75 && width > floorWidth * 0.8 && height > floorHeight * 0.8;
+      const dominantBackground = componentAreaRatio > 0.65 && width > floorWidth * 0.7 && height > floorHeight * 0.7;
+      if (width * height < minMapArea || width < 4 || height < 4 || nearlyWholeMap || dominantBackground) return [];
       return [{ x: left, y: top, width, height }];
     }
 
