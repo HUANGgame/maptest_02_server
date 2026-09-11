@@ -1084,39 +1084,39 @@
       const image = ctx.getImageData(0, 0, naturalWidth, naturalHeight);
       const seed = pixelAt(image.data, naturalWidth, seedX, seedY);
       const step = naturalWidth * naturalHeight > 1_800_000 ? 2 : 1;
-      const gridWidth = Math.ceil(naturalWidth / step);
-      const gridHeight = Math.ceil(naturalHeight / step);
+      const detectRadius = Math.max(40, Math.min(180, naturalWidth * 0.08));
+      const scanLeft = clampInt(seedX - detectRadius, 0, naturalWidth - 1);
+      const scanTop = clampInt(seedY - detectRadius, 0, naturalHeight - 1);
+      const scanRight = clampInt(seedX + detectRadius, 0, naturalWidth - 1);
+      const scanBottom = clampInt(seedY + detectRadius, 0, naturalHeight - 1);
+      const gridWidth = Math.ceil((scanRight - scanLeft + 1) / step);
+      const gridHeight = Math.ceil((scanBottom - scanTop + 1) / step);
       const matches = new Uint8Array(gridWidth * gridHeight);
       const colorThreshold = 18;
       const channelThreshold = 12;
       for (let gy = 0; gy < gridHeight; gy += 1) {
         for (let gx = 0; gx < gridWidth; gx += 1) {
-          const x = Math.min(naturalWidth - 1, gx * step);
-          const y = Math.min(naturalHeight - 1, gy * step);
+          const x = Math.min(scanRight, scanLeft + gx * step);
+          const y = Math.min(scanBottom, scanTop + gy * step);
           const color = pixelAt(image.data, naturalWidth, x, y);
           if (sameColorBand(seed, color, colorThreshold, channelThreshold)) matches[gy * gridWidth + gx] = 1;
         }
       }
       const minSamples = 18;
       const minMapArea = 120;
-      const seedGridX = clampInt(Math.floor(seedX / step), 0, gridWidth - 1);
-      const seedGridY = clampInt(Math.floor(seedY / step), 0, gridHeight - 1);
+      const seedGridX = clampInt(Math.floor((seedX - scanLeft) / step), 0, gridWidth - 1);
+      const seedGridY = clampInt(Math.floor((seedY - scanTop) / step), 0, gridHeight - 1);
       const seedIndex = seedGridY * gridWidth + seedGridX;
       if (!matches[seedIndex]) return [];
       const component = floodColorComponent(seedGridX, seedGridY, matches, new Uint8Array(gridWidth * gridHeight), gridWidth, gridHeight);
       if (component.count < minSamples) return [];
-      const left = (component.minX * step / naturalWidth) * floorWidth;
-      const top = (component.minY * step / naturalHeight) * floorHeight;
-      const right = (Math.min(naturalWidth, (component.maxX + 1) * step) / naturalWidth) * floorWidth;
-      const bottom = (Math.min(naturalHeight, (component.maxY + 1) * step) / naturalHeight) * floorHeight;
+      const left = ((scanLeft + component.minX * step) / naturalWidth) * floorWidth;
+      const top = ((scanTop + component.minY * step) / naturalHeight) * floorHeight;
+      const right = (Math.min(scanRight + 1, scanLeft + (component.maxX + 1) * step) / naturalWidth) * floorWidth;
+      const bottom = (Math.min(scanBottom + 1, scanTop + (component.maxY + 1) * step) / naturalHeight) * floorHeight;
       const width = right - left;
       const height = bottom - top;
-      const mapArea = floorWidth * floorHeight;
-      const boxAreaRatio = (width * height) / mapArea;
-      const componentAreaRatio = (component.count * step * step) / (naturalWidth * naturalHeight);
-      const broadBackground = (boxAreaRatio > 0.08 && width > floorWidth * 0.22 && height > floorHeight * 0.18)
-        || (componentAreaRatio > 0.06 && width > floorWidth * 0.18 && height > floorHeight * 0.15);
-      if (width * height < minMapArea || width < 4 || height < 4 || broadBackground) return [];
+      if (width * height < minMapArea || width < 4 || height < 4) return [];
       return [{ x: left, y: top, width, height }];
     }
 
@@ -1602,11 +1602,11 @@
         deleteEdge: "點路線後會先框起來，確認後刪除。",
         transition: "點本樓層的手扶梯、樓梯或電梯節點，再選另一層對應節點。",
         walkableZone: "拖拉建立淺綠色可走區；不畫綠框時，整張地圖會預設為可走區。",
-        colorWalkableZone: "嚴格色階：只建立你點到的同色相連綠框；太大背景或不明顯色塊不會建立。",
+        colorWalkableZone: "局部色階：只在點擊位置附近建立同色相連綠框，不會掃整張地圖。",
         blockedZone: "拖拉建立紅色不可進入區，導航會避開。",
-        colorBlockedZone: "嚴格色階：只建立你點到的同色相連紅框；太大背景或不明顯色塊不會建立。",
+        colorBlockedZone: "局部色階：只在點擊位置附近建立同色相連紅框，不會掃整張地圖。",
         cautionZone: "拖拉建立橘色待確認區，導航可走但會提高成本。",
-        colorCautionZone: "嚴格色階：只建立你點到的同色相連橘框；太大背景或不明顯色塊不會建立。",
+        colorCautionZone: "局部色階：只在點擊位置附近建立同色相連橘框，不會掃整張地圖。",
         resizeZone: "拖框框節點可變形；拖節點之間的框線會新增節點並拉出去。",
         deleteZone: "點框框後會先選取，確認後刪除。",
       };
