@@ -218,6 +218,7 @@
               <button id="walkableZoneModeButton" class="secondary">綠框可走</button>
               <button id="blockedZoneModeButton" class="secondary">紅框禁入</button>
               <button id="cautionZoneModeButton" class="secondary">橘框待確認</button>
+              <button id="resizeZoneModeButton" class="secondary">調整框框</button>
               <button id="deleteZoneModeButton" class="secondary">刪框框</button>
             </div>
             <button id="restoreLastButton" class="secondary">回復上一個</button>
@@ -403,8 +404,10 @@
     let mapEditorBounds = null;
     let selectedPlaceNode = null;
     let selectedDeleteTarget = null;
+    let selectedRouteZone = null;
     let zoneDraft = null;
     let isDrawingZone = false;
+    let zoneResizeState = null;
 
     reloadButton.addEventListener("click", loadDashboard);
     document.querySelector("#placeModeButton").addEventListener("click", () => setEditorMode("place"));
@@ -416,6 +419,7 @@
     document.querySelector("#walkableZoneModeButton").addEventListener("click", () => setEditorMode("walkableZone"));
     document.querySelector("#blockedZoneModeButton").addEventListener("click", () => setEditorMode("blockedZone"));
     document.querySelector("#cautionZoneModeButton").addEventListener("click", () => setEditorMode("cautionZone"));
+    document.querySelector("#resizeZoneModeButton").addEventListener("click", () => setEditorMode("resizeZone"));
     document.querySelector("#deleteZoneModeButton").addEventListener("click", () => setEditorMode("deleteZone"));
     document.querySelector("#createTransitionButton").addEventListener("click", createSelectedTransition);
     document.querySelector("#cancelPlaceButton").addEventListener("click", () => document.querySelector("#placeEditorForm").close());
@@ -836,6 +840,7 @@
       drawPlaces(bounds);
       drawRouteDraft(bounds);
       drawZoneDraft(bounds);
+      drawSelectedRouteZone(bounds);
       drawSelectedDeleteTarget(bounds);
     }
 
@@ -870,6 +875,24 @@
       mapEditorCtx.lineWidth = 1;
       mapEditorCtx.strokeRect(x, y, width, height);
       mapEditorCtx.setLineDash([]);
+    }
+
+    function drawSelectedRouteZone(bounds) {
+      if (!selectedRouteZone) return;
+      const zone = currentRouteZones.find(item => item.id === selectedRouteZone.id);
+      if (!zone) return;
+      const rect = zoneCanvasRect(zone, bounds);
+      mapEditorCtx.strokeStyle = "#111827";
+      mapEditorCtx.lineWidth = 2;
+      mapEditorCtx.strokeRect(rect.x - 2, rect.y - 2, rect.width + 4, rect.height + 4);
+      mapEditorCtx.fillStyle = "#ffffff";
+      mapEditorCtx.strokeStyle = "#111827";
+      zoneResizeHandles(zone).forEach(handle => {
+        const x = mapToCanvasX(handle.x, bounds);
+        const y = mapToCanvasY(handle.y, bounds);
+        mapEditorCtx.fillRect(x - 4, y - 4, 8, 8);
+        mapEditorCtx.strokeRect(x - 4, y - 4, 8, 8);
+      });
     }
 
     function drawRouteSegments(bounds) {
@@ -1047,6 +1070,19 @@
         showDeleteDialog("刪除框框", `${zoneTypeText(zone.zoneType)}，位置 ${Number(zone.x).toFixed(1)}, ${Number(zone.y).toFixed(1)}`);
         return;
       }
+      if (editorMode === "resizeZone") {
+        const zone = routeZoneAt(point);
+        if (!zone) {
+          selectedRouteZone = null;
+          renderMapEditor();
+          setEditorInfo("請點要調整的框框。");
+          return;
+        }
+        selectedRouteZone = zone;
+        renderMapEditor();
+        setEditorInfo("已選取框框，請拖四角或邊線的小方塊拉伸。");
+        return;
+      }
       if (editorMode === "transition") {
         const node = nearestAnyRouteNode(point);
         if (!node) {
@@ -1081,6 +1117,10 @@
     }
 
     function handleMapPointerDown(event) {
+      if (editorMode === "resizeZone") {
+        beginZoneResize(event);
+        return;
+      }
       if (!mapEditorBounds || !isZoneMode(editorMode)) return;
       const point = pointerMapPoint(event);
       if (!point) return;
@@ -1091,6 +1131,10 @@
     }
 
     function handleMapPointerMove(event) {
+      if (zoneResizeState) {
+        updateZoneResize(event);
+        return;
+      }
       if (!isDrawingZone || !zoneDraft || !isZoneMode(editorMode)) return;
       const point = pointerMapPoint(event);
       if (!point) return;
@@ -1101,6 +1145,10 @@
     }
 
     async function handleMapPointerUp(event) {
+      if (zoneResizeState) {
+        await finishZoneResize(event);
+        return;
+      }
       if (!isDrawingZone || !zoneDraft || !isZoneMode(editorMode)) return;
       const draft = zoneDraft;
       cancelZoneDraft();
@@ -1127,6 +1175,7 @@
     function cancelZoneDraft() {
       isDrawingZone = false;
       zoneDraft = null;
+      zoneResizeState = null;
       renderMapEditor();
     }
 
@@ -1137,6 +1186,91 @@
 
     function isZoneMode(mode) {
       return mode === "walkableZone" || mode === "blockedZone" || mode === "cautionZone";
+    }
+
+    function beginZoneResize(event) {
+      if (!mapEditorBounds) return;
+      const point = pointerMapPoint(event);
+      if (!point) return;
+      const zone = selectedRouteZone ? currentRouteZones.find(item => item.id === selectedRouteZone.id) : routeZoneAt(point);
+      if (!zone) {
+        setEditorInfo("請先點要調整的框框。");
+        return;
+      }
+      selectedRouteZone = zone;
+      const handle = nearestZoneResizeHandle(point, zone);
+      if (!handle) {
+        renderMapEditor();
+        setEditorInfo("已選取框框，請拖四角或邊線的小方塊拉伸。");
+        return;
+      }
+      zoneResizeState = {
+        zoneId: zone.id,
+        handle: handle.name,
+        original: { ...zone },
+      };
+      mapEditorCanvas.setPointerCapture(event.pointerId);
+      event.preventDefault();
+    }
+
+    function updateZoneResize(event) {
+      const point = pointerMapPoint(event);
+      if (!point || !zoneResizeState) return;
+      const next = resizedZoneFromPoint(zoneResizeState.original, zoneResizeState.handle, point);
+      currentRouteZones = currentRouteZones.map(zone => zone.id === zoneResizeState.zoneId ? next : zone);
+      selectedRouteZone = next;
+      renderMapEditor();
+      event.preventDefault();
+    }
+
+    async function finishZoneResize(event) {
+      const state = zoneResizeState;
+      zoneResizeState = null;
+      const zone = currentRouteZones.find(item => item.id === state.zoneId);
+      if (!zone) return;
+      await runAdminAction("已調整框框", async () => {
+        await putJson(`/api/route-zones?zoneId=${encodeURIComponent(zone.id)}`, {
+          x: zone.x,
+          y: zone.y,
+          width: zone.width,
+          height: zone.height,
+        });
+        await loadDashboard();
+      });
+      event.preventDefault();
+    }
+
+    function resizedZoneFromPoint(zone, handleName, point) {
+      const minSize = 3;
+      let left = Number(zone.x);
+      let top = Number(zone.y);
+      let right = left + Number(zone.width);
+      let bottom = top + Number(zone.height);
+      if (handleName.includes("w")) left = Math.min(point.x, right - minSize);
+      if (handleName.includes("e")) right = Math.max(point.x, left + minSize);
+      if (handleName.includes("n")) top = Math.min(point.y, bottom - minSize);
+      if (handleName.includes("s")) bottom = Math.max(point.y, top + minSize);
+      return {
+        ...zone,
+        x: left,
+        y: top,
+        width: right - left,
+        height: bottom - top,
+      };
+    }
+
+    function nearestZoneResizeHandle(point, zone) {
+      const handles = zoneResizeHandles(zone)
+        .map(handle => ({ ...handle, hitDistance: distance(point.x, point.y, handle.x, handle.y) }))
+        .filter(handle => handle.hitDistance <= zoneHandleHitRadius())
+        .sort((left, right) => left.hitDistance - right.hitDistance);
+      return handles[0] || null;
+    }
+
+    function zoneHandleHitRadius() {
+      const floor = currentFloors.find(item => item.id === floorSelect.value) || {};
+      const width = Number(floor.width || floor.imageNaturalWidth || mapEditorImage?.naturalWidth || 1);
+      return Math.max(8, width / 120);
     }
 
     async function createSelectedTransition() {
@@ -1188,6 +1322,7 @@
         ["walkableZoneModeButton", "walkableZone"],
         ["blockedZoneModeButton", "blockedZone"],
         ["cautionZoneModeButton", "cautionZone"],
+        ["resizeZoneModeButton", "resizeZone"],
         ["deleteZoneModeButton", "deleteZone"],
       ].forEach(([id, value]) => {
         document.querySelector(`#${id}`).classList.toggle("active", mode === value);
@@ -1204,6 +1339,7 @@
         walkableZone: "拖拉建立淺綠色可走區，導航會優先在此範圍內找路。",
         blockedZone: "拖拉建立紅色不可進入區，導航會避開。",
         cautionZone: "拖拉建立橘色待確認區，導航可走但會提高成本。",
+        resizeZone: "點框框後，拖四角或邊線的小方塊拉伸。",
         deleteZone: "點框框後會先選取，確認後刪除。",
       };
       setEditorInfo(messages[mode] || "");
@@ -1255,6 +1391,36 @@
       return currentRouteZones
         .filter(zone => point.x >= zone.x && point.x <= zone.x + zone.width && point.y >= zone.y && point.y <= zone.y + zone.height)
         .sort((a, b) => (a.width * a.height) - (b.width * b.height))[0] || null;
+    }
+
+    function zoneResizeHandles(zone) {
+      const left = Number(zone.x);
+      const top = Number(zone.y);
+      const right = left + Number(zone.width);
+      const bottom = top + Number(zone.height);
+      const centerX = (left + right) / 2;
+      const centerY = (top + bottom) / 2;
+      return [
+        { name: "nw", x: left, y: top },
+        { name: "n", x: centerX, y: top },
+        { name: "ne", x: right, y: top },
+        { name: "e", x: right, y: centerY },
+        { name: "se", x: right, y: bottom },
+        { name: "s", x: centerX, y: bottom },
+        { name: "sw", x: left, y: bottom },
+        { name: "w", x: left, y: centerY },
+      ];
+    }
+
+    function zoneCanvasRect(zone, bounds) {
+      const x = mapToCanvasX(zone.x, bounds);
+      const y = mapToCanvasY(zone.y, bounds);
+      return {
+        x,
+        y,
+        width: mapToCanvasX(zone.x + zone.width, bounds) - x,
+        height: mapToCanvasY(zone.y + zone.height, bounds) - y,
+      };
     }
 
     function zoneTypeText(zoneType) {
@@ -1350,6 +1516,19 @@
     async function postJson(path, payload) {
       const response = await fetch(path, {
         method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}));
+        throw new Error(body.message || `HTTP ${response.status}`);
+      }
+      return response.json();
+    }
+
+    async function putJson(path, payload) {
+      const response = await fetch(path, {
+        method: "PUT",
         headers: { "content-type": "application/json" },
         body: JSON.stringify(payload),
       });

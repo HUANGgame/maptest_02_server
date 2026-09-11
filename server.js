@@ -8,7 +8,7 @@ const { activateModel, activeModel, createModelVersion, readModels } = require("
 const { readPlaces, updatePlaceStatus } = require("./lib/placeStore");
 const { appendPolicyLog, createDqnRun, readDqnRuns, readPolicyLogs } = require("./lib/policyStore");
 const { appendReport, readReports } = require("./lib/reportStore");
-const { clearRouteGraphForFloor, createFloorTransition, createRouteNode, createRouteSegment, createRouteZone, deleteFloorTransition, deleteRouteEdge, deleteRouteNode, deleteRouteZone, readFloorTransitions, readRouteEdges, readRouteNodes, readRouteZones, restoreLastDeleted, setRouteEdgeBlocked } = require("./lib/routeEdgeStore");
+const { clearRouteGraphForFloor, createFloorTransition, createRouteNode, createRouteSegment, createRouteZone, deleteFloorTransition, deleteRouteEdge, deleteRouteNode, deleteRouteZone, readFloorTransitions, readRouteEdges, readRouteNodes, readRouteZones, restoreLastDeleted, setRouteEdgeBlocked, updateRouteZone } = require("./lib/routeEdgeStore");
 const { createTrainingJob, readTrainingJobs } = require("./lib/trainingJobStore");
 const { appendScans, readScans } = require("./lib/jsonStore");
 const firebaseMirror = require("./lib/firebaseMirror");
@@ -493,6 +493,18 @@ const server = http.createServer(async (request, response) => {
       const result = createRouteZone(body);
       mirrorFullAdminSnapshot().catch((error) => console.error("MySQL admin mirror failed:", error.message));
       sendJson(response, 201, result);
+    } catch (error) {
+      sendJson(response, 400, { success: false, message: error.message });
+    }
+    return;
+  }
+
+  if (request.method === "PUT" && url.pathname === "/api/route-zones") {
+    try {
+      const body = await readJsonBody(request);
+      const result = updateRouteZone(url.searchParams.get("zoneId"), body);
+      if (result) mirrorFullAdminSnapshot().catch((error) => console.error("MySQL admin mirror failed:", error.message));
+      sendJson(response, result ? 200 : 404, result || { success: false, message: "zone not found" });
     } catch (error) {
       sendJson(response, 400, { success: false, message: error.message });
     }
