@@ -31,7 +31,12 @@ const server = http.createServer(async (request, response) => {
   }
 
   if (request.method === "GET" && (url.pathname === "/" || url.pathname === "/app" || url.pathname === "/navigation")) {
-    sendFile(response, path.join(__dirname, "public", "index.html"), "text/html; charset=utf-8");
+    sendJson(response, 410, {
+      success: false,
+      message: "正式導航已改為 Android App 使用；此服務只保留 API 與管理後台。",
+      admin: "/admin",
+      health: "/api/health",
+    });
     return;
   }
 
