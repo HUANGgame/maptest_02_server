@@ -415,8 +415,7 @@
     let zoneResizeState = null;
     let showPlaceMarkersOnMap = false;
     let showWifiPointsOnMap = false;
-    let suppressZoneAutoRestoreOnce = false;
-
+    clearRouteZoneBackups();
     reloadButton.addEventListener("click", loadDashboard);
     document.querySelector("#placeModeButton").addEventListener("click", () => setEditorMode("place"));
     document.querySelector("#markModeButton").addEventListener("click", () => setEditorMode("mark"));
@@ -683,8 +682,7 @@
       currentPoints = Array.isArray(points.points) ? points.points : [];
       currentRouteEdges = routeEdges;
       currentRouteNodes = routeNodes;
-      currentRouteZones = await effectiveRouteZones(mapId, floorId, routeZones);
-      backupRouteZones(mapId, floorId, currentRouteZones);
+      currentRouteZones = Array.isArray(routeZones) ? routeZones : [];
       allRouteNodes = allNodes;
       currentTransitions = transitions;
       await loadMapEditorImage();
@@ -1085,17 +1083,18 @@
       ctx.drawImage(mapEditorImage, 0, 0);
       const image = ctx.getImageData(0, 0, naturalWidth, naturalHeight);
       const seed = pixelAt(image.data, naturalWidth, seedX, seedY);
-      const step = naturalWidth > 1800 ? 4 : naturalWidth > 1000 ? 3 : 2;
+      const step = naturalWidth * naturalHeight > 1_800_000 ? 2 : 1;
       const gridWidth = Math.ceil(naturalWidth / step);
       const gridHeight = Math.ceil(naturalHeight / step);
       const matches = new Uint8Array(gridWidth * gridHeight);
-      const colorThreshold = 28;
+      const colorThreshold = 18;
+      const channelThreshold = 12;
       for (let gy = 0; gy < gridHeight; gy += 1) {
         for (let gx = 0; gx < gridWidth; gx += 1) {
           const x = Math.min(naturalWidth - 1, gx * step);
           const y = Math.min(naturalHeight - 1, gy * step);
           const color = pixelAt(image.data, naturalWidth, x, y);
-          if (colorDistance(seed, color) <= colorThreshold) matches[gy * gridWidth + gx] = 1;
+          if (sameColorBand(seed, color, colorThreshold, channelThreshold)) matches[gy * gridWidth + gx] = 1;
         }
       }
       const minSamples = 18;
@@ -1117,20 +1116,8 @@
       const componentAreaRatio = (component.count * step * step) / (naturalWidth * naturalHeight);
       const broadBackground = (boxAreaRatio > 0.08 && width > floorWidth * 0.22 && height > floorHeight * 0.18)
         || (componentAreaRatio > 0.06 && width > floorWidth * 0.18 && height > floorHeight * 0.15);
-      if (width * height < minMapArea || width < 4 || height < 4) return [];
-      if (broadBackground) return [localColorZone(point, floorWidth, floorHeight)];
+      if (width * height < minMapArea || width < 4 || height < 4 || broadBackground) return [];
       return [{ x: left, y: top, width, height }];
-    }
-
-    function localColorZone(point, floorWidth, floorHeight) {
-      const width = Math.min(120, Math.max(40, floorWidth * 0.07));
-      const height = Math.min(80, Math.max(30, floorHeight * 0.1));
-      return {
-        x: Math.max(0, Math.min(floorWidth - width, point.x - width / 2)),
-        y: Math.max(0, Math.min(floorHeight - height, point.y - height / 2)),
-        width,
-        height,
-      };
     }
 
     function floodColorComponent(startX, startY, matches, visited, gridWidth, gridHeight) {
@@ -1163,6 +1150,13 @@
 
     function colorDistance(left, right) {
       return Math.hypot(left[0] - right[0], left[1] - right[1], left[2] - right[2]);
+    }
+
+    function sameColorBand(left, right, totalThreshold, channelThreshold) {
+      return Math.abs(left[0] - right[0]) <= channelThreshold
+        && Math.abs(left[1] - right[1]) <= channelThreshold
+        && Math.abs(left[2] - right[2]) <= channelThreshold
+        && colorDistance(left, right) <= totalThreshold;
     }
 
     function clampInt(value, min, max) {
@@ -1608,11 +1602,11 @@
         deleteEdge: "點路線後會先框起來，確認後刪除。",
         transition: "點本樓層的手扶梯、樓梯或電梯節點，再選另一層對應節點。",
         walkableZone: "拖拉建立淺綠色可走區；不畫綠框時，整張地圖會預設為可走區。",
-        colorWalkableZone: "點地圖色階建立綠色可走框；若同色區太大，會先在點擊位置建立小框，再用調整框框拉伸。",
+        colorWalkableZone: "嚴格色階：只建立你點到的同色相連綠框；太大背景或不明顯色塊不會建立。",
         blockedZone: "拖拉建立紅色不可進入區，導航會避開。",
-        colorBlockedZone: "點地圖色階建立紅色禁入框；若同色區太大，會先在點擊位置建立小框，再用調整框框拉伸。",
+        colorBlockedZone: "嚴格色階：只建立你點到的同色相連紅框；太大背景或不明顯色塊不會建立。",
         cautionZone: "拖拉建立橘色待確認區，導航可走但會提高成本。",
-        colorCautionZone: "點地圖色階建立橘色待確認框；若同色區太大，會先在點擊位置建立小框，再用調整框框拉伸。",
+        colorCautionZone: "嚴格色階：只建立你點到的同色相連橘框；太大背景或不明顯色塊不會建立。",
         resizeZone: "拖框框節點可變形；拖節點之間的框線會新增節點並拉出去。",
         deleteZone: "點框框後會先選取，確認後刪除。",
       };
@@ -1635,7 +1629,6 @@
         } else if (target.type === "edge") {
           await deleteJson(`/api/route-edges?edgeId=${encodeURIComponent(target.value.id)}`);
         } else {
-          suppressZoneAutoRestoreOnce = true;
           await deleteJson(`/api/route-zones?zoneId=${encodeURIComponent(target.value.id)}`);
         }
         selectedDeleteTarget = null;
@@ -1850,51 +1843,6 @@
       }
     }
 
-    async function effectiveRouteZones(mapId, floorId, serverZones) {
-      if (suppressZoneAutoRestoreOnce) {
-        suppressZoneAutoRestoreOnce = false;
-        return Array.isArray(serverZones) ? serverZones : [];
-      }
-      if (Array.isArray(serverZones) && serverZones.length > 0) return serverZones;
-      const backup = loadRouteZoneBackup(mapId, floorId);
-      if (!backup.length) return Array.isArray(serverZones) ? serverZones : [];
-      let restoredCount = 0;
-      let failedCount = 0;
-      for (const zone of backup) {
-        try {
-          await retryAdminRequest(() => postJson("/api/route-zones", {
-            id: zone.id,
-            mapId,
-            floorId,
-            zoneType: zone.zoneType,
-            x: zone.x,
-            y: zone.y,
-            width: zone.width,
-            height: zone.height,
-            points: zone.points,
-            label: zone.label,
-          }));
-          restoredCount += 1;
-        } catch (error) {
-          failedCount += 1;
-          console.warn("Route zone backup restore skipped:", error);
-        }
-      }
-      try {
-        const restored = await getJson(`/api/route-zones?mapId=${encodeURIComponent(mapId)}&floorId=${encodeURIComponent(floorId)}`);
-        const notice = document.querySelector("#adminNotice");
-        notice.textContent = failedCount > 0
-          ? `後端框框為空，已從本機備份恢復 ${restoredCount} 個框框，略過 ${failedCount} 個失敗備份。`
-          : `後端框框為空，已從本機備份恢復 ${restored.length} 個框框。`;
-        notice.className = failedCount > 0 ? "bad" : "muted";
-        return restored;
-      } catch (error) {
-        document.querySelector("#adminNotice").textContent = `本機備份恢復失敗：${error.message}`;
-        document.querySelector("#adminNotice").className = "bad";
-        return Array.isArray(serverZones) ? serverZones : [];
-      }
-    }
-
     async function retryAdminRequest(requestFactory, retries = 2) {
       let lastError = null;
       for (let attempt = 0; attempt <= retries; attempt += 1) {
@@ -1909,26 +1857,12 @@
       throw lastError;
     }
 
-    function routeZoneBackupKey(mapId, floorId) {
-      return `route-zones-backup:${mapId}:${floorId}`;
-    }
-
-    function backupRouteZones(mapId, floorId, zones) {
+    function clearRouteZoneBackups() {
       try {
-        localStorage.setItem(routeZoneBackupKey(mapId, floorId), JSON.stringify({
-          savedAt: new Date().toISOString(),
-          zones: Array.isArray(zones) ? zones : [],
-        }));
+        Object.keys(localStorage)
+          .filter(key => key.startsWith("route-zones-backup:"))
+          .forEach(key => localStorage.removeItem(key));
       } catch {
-      }
-    }
-
-    function loadRouteZoneBackup(mapId, floorId) {
-      try {
-        const parsed = JSON.parse(localStorage.getItem(routeZoneBackupKey(mapId, floorId)) || "{}");
-        return Array.isArray(parsed.zones) ? parsed.zones : [];
-      } catch {
-        return [];
       }
     }
 
