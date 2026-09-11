@@ -217,6 +217,7 @@
               <button id="transitionModeButton" class="secondary">連樓層</button>
               <button id="walkableZoneModeButton" class="secondary">綠框可走</button>
               <button id="blockedZoneModeButton" class="secondary">紅框禁入</button>
+              <button id="colorBlockedZoneModeButton" class="secondary">色階禁入</button>
               <button id="cautionZoneModeButton" class="secondary">橘框待確認</button>
               <button id="resizeZoneModeButton" class="secondary">調整框框</button>
               <button id="deleteZoneModeButton" class="secondary">刪框框</button>
@@ -423,6 +424,7 @@
     document.querySelector("#transitionModeButton").addEventListener("click", () => setEditorMode("transition"));
     document.querySelector("#walkableZoneModeButton").addEventListener("click", () => setEditorMode("walkableZone"));
     document.querySelector("#blockedZoneModeButton").addEventListener("click", () => setEditorMode("blockedZone"));
+    document.querySelector("#colorBlockedZoneModeButton").addEventListener("click", () => setEditorMode("colorBlockedZone"));
     document.querySelector("#cautionZoneModeButton").addEventListener("click", () => setEditorMode("cautionZone"));
     document.querySelector("#resizeZoneModeButton").addEventListener("click", () => setEditorMode("resizeZone"));
     document.querySelector("#deleteZoneModeButton").addEventListener("click", () => setEditorMode("deleteZone"));
@@ -1040,6 +1042,118 @@
       mapEditorCtx.stroke();
     }
 
+    async function createBlockedZonesFromColor(point) {
+      const zones = detectColorConnectedZones(point);
+      if (zones.length === 0) {
+        setEditorInfo("沒有找到足夠大的同色相連區塊，請點紅色或灰色區域中間再試一次。");
+        return;
+      }
+      await runAdminAction(`已依色階新增 ${zones.length} 個紅框`, async () => {
+        for (const zone of zones) {
+          await postJson("/api/route-zones", {
+            mapId: mapSelect.value,
+            floorId: floorSelect.value,
+            zoneType: "blocked",
+            x: zone.x,
+            y: zone.y,
+            width: zone.width,
+            height: zone.height,
+            label: "色階禁入區",
+          });
+        }
+        await loadDashboard();
+      });
+    }
+
+    function detectColorConnectedZones(point) {
+      if (!mapEditorImage) return [];
+      const floor = currentFloors.find(item => item.id === floorSelect.value) || {};
+      const floorWidth = Number(floor.width || floor.imageNaturalWidth || mapEditorImage.naturalWidth);
+      const floorHeight = Number(floor.height || floor.imageNaturalHeight || mapEditorImage.naturalHeight);
+      const naturalWidth = mapEditorImage.naturalWidth;
+      const naturalHeight = mapEditorImage.naturalHeight;
+      const seedX = clampInt(Math.round((point.x / floorWidth) * naturalWidth), 0, naturalWidth - 1);
+      const seedY = clampInt(Math.round((point.y / floorHeight) * naturalHeight), 0, naturalHeight - 1);
+      const canvas = document.createElement("canvas");
+      canvas.width = naturalWidth;
+      canvas.height = naturalHeight;
+      const ctx = canvas.getContext("2d", { willReadFrequently: true });
+      ctx.drawImage(mapEditorImage, 0, 0);
+      const image = ctx.getImageData(0, 0, naturalWidth, naturalHeight);
+      const seed = pixelAt(image.data, naturalWidth, seedX, seedY);
+      const step = naturalWidth > 1800 ? 4 : naturalWidth > 1000 ? 3 : 2;
+      const gridWidth = Math.ceil(naturalWidth / step);
+      const gridHeight = Math.ceil(naturalHeight / step);
+      const matches = new Uint8Array(gridWidth * gridHeight);
+      const visited = new Uint8Array(gridWidth * gridHeight);
+      const colorThreshold = 28;
+      for (let gy = 0; gy < gridHeight; gy += 1) {
+        for (let gx = 0; gx < gridWidth; gx += 1) {
+          const x = Math.min(naturalWidth - 1, gx * step);
+          const y = Math.min(naturalHeight - 1, gy * step);
+          const color = pixelAt(image.data, naturalWidth, x, y);
+          if (colorDistance(seed, color) <= colorThreshold) matches[gy * gridWidth + gx] = 1;
+        }
+      }
+      const zones = [];
+      const minSamples = 18;
+      const minMapArea = 120;
+      for (let gy = 0; gy < gridHeight; gy += 1) {
+        for (let gx = 0; gx < gridWidth; gx += 1) {
+          const index = gy * gridWidth + gx;
+          if (!matches[index] || visited[index]) continue;
+          const component = floodColorComponent(gx, gy, matches, visited, gridWidth, gridHeight);
+          if (component.count < minSamples) continue;
+          const left = (component.minX * step / naturalWidth) * floorWidth;
+          const top = (component.minY * step / naturalHeight) * floorHeight;
+          const right = (Math.min(naturalWidth, (component.maxX + 1) * step) / naturalWidth) * floorWidth;
+          const bottom = (Math.min(naturalHeight, (component.maxY + 1) * step) / naturalHeight) * floorHeight;
+          const width = right - left;
+          const height = bottom - top;
+          if (width * height < minMapArea || width < 4 || height < 4) continue;
+          zones.push({ x: left, y: top, width, height });
+        }
+      }
+      zones.sort((left, right) => (right.width * right.height) - (left.width * left.height));
+      return zones.slice(0, 80);
+    }
+
+    function floodColorComponent(startX, startY, matches, visited, gridWidth, gridHeight) {
+      const stack = [[startX, startY]];
+      let count = 0;
+      let minX = startX;
+      let maxX = startX;
+      let minY = startY;
+      let maxY = startY;
+      while (stack.length > 0) {
+        const [x, y] = stack.pop();
+        if (x < 0 || y < 0 || x >= gridWidth || y >= gridHeight) continue;
+        const index = y * gridWidth + x;
+        if (!matches[index] || visited[index]) continue;
+        visited[index] = 1;
+        count += 1;
+        minX = Math.min(minX, x);
+        maxX = Math.max(maxX, x);
+        minY = Math.min(minY, y);
+        maxY = Math.max(maxY, y);
+        stack.push([x + 1, y], [x - 1, y], [x, y + 1], [x, y - 1]);
+      }
+      return { count, minX, maxX, minY, maxY };
+    }
+
+    function pixelAt(data, width, x, y) {
+      const index = (y * width + x) * 4;
+      return [data[index], data[index + 1], data[index + 2]];
+    }
+
+    function colorDistance(left, right) {
+      return Math.hypot(left[0] - right[0], left[1] - right[1], left[2] - right[2]);
+    }
+
+    function clampInt(value, min, max) {
+      return Math.max(min, Math.min(max, value));
+    }
+
     async function handleMapEditorClick(event) {
       if (!mapEditorBounds || !mapEditorImage) return;
       if (isZoneMode(editorMode)) return;
@@ -1050,6 +1164,10 @@
       if (!point) return;
       document.querySelector("#newPlaceX").value = point.x.toFixed(1);
       document.querySelector("#newPlaceY").value = point.y.toFixed(1);
+      if (editorMode === "colorBlockedZone") {
+        await createBlockedZonesFromColor(point);
+        return;
+      }
       if (editorMode === "place") {
         await runAdminAction("已新增節點", async () => {
           await postJson("/api/route-nodes", {
@@ -1455,6 +1573,7 @@
         ["transitionModeButton", "transition"],
         ["walkableZoneModeButton", "walkableZone"],
         ["blockedZoneModeButton", "blockedZone"],
+        ["colorBlockedZoneModeButton", "colorBlockedZone"],
         ["cautionZoneModeButton", "cautionZone"],
         ["resizeZoneModeButton", "resizeZone"],
         ["deleteZoneModeButton", "deleteZone"],
@@ -1472,6 +1591,7 @@
         transition: "點本樓層的手扶梯、樓梯或電梯節點，再選另一層對應節點。",
         walkableZone: "拖拉建立淺綠色可走區；不畫綠框時，整張地圖會預設為可走區。",
         blockedZone: "拖拉建立紅色不可進入區，導航會避開。",
+        colorBlockedZone: "點地圖色階，自動把同色且相連的區塊分別建立為紅色禁入框。",
         cautionZone: "拖拉建立橘色待確認區，導航可走但會提高成本。",
         resizeZone: "拖框框節點可變形；拖節點之間的框線會新增節點並拉出去。",
         deleteZone: "點框框後會先選取，確認後刪除。",
