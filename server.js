@@ -26,7 +26,7 @@ const server = http.createServer(async (request, response) => {
       project: "地下街室內導航系統",
       demoVenue: "K區地下街往機捷",
       phase: "formal-navigation-ready",
-      storage: mysqlMirror.isEnabled() ? "mysql" : "json",
+      storage: firebaseMirror.isEnabled() ? "firebase-rtdb" : mysqlMirror.isEnabled() ? "mysql" : "json",
     });
     return;
   }
@@ -445,7 +445,7 @@ const server = http.createServer(async (request, response) => {
         firebase,
         jsonFallback: true,
         note: firebase.enabled
-          ? "Firebase mirror is active; JSON files are local cache."
+          ? "Firebase Realtime Database is the active store; JSON files are local runtime cache."
           : mysql.enabled
             ? "MySQL mirror is active; JSON files are local cache."
             : "No external database is configured; JSON files are the active store.",
