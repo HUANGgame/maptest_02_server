@@ -916,14 +916,6 @@
       mapEditorCtx.strokeStyle = "#111827";
       mapEditorCtx.lineWidth = 2;
       mapEditorCtx.strokeRect(rect.x - 2, rect.y - 2, rect.width + 4, rect.height + 4);
-      mapEditorCtx.fillStyle = "#ffffff";
-      mapEditorCtx.strokeStyle = "#111827";
-      zoneResizeHandles(zone).forEach(handle => {
-        const x = mapToCanvasX(handle.x, bounds);
-        const y = mapToCanvasY(handle.y, bounds);
-        mapEditorCtx.fillRect(x - 4, y - 4, 8, 8);
-        mapEditorCtx.strokeRect(x - 4, y - 4, 8, 8);
-      });
     }
 
     function drawRouteSegments(bounds) {
@@ -1228,7 +1220,7 @@
       if (!mapEditorBounds) return;
       const point = pointerMapPoint(event);
       if (!point) return;
-      const zone = selectedRouteZone ? currentRouteZones.find(item => item.id === selectedRouteZone.id) : routeZoneAt(point);
+      const zone = routeZoneAt(point) || (selectedRouteZone ? currentRouteZones.find(item => item.id === selectedRouteZone.id) : null);
       if (!zone) {
         setEditorInfo("請先點要調整的框框。");
         return;
@@ -1237,7 +1229,7 @@
       const handle = nearestZoneResizeHandle(point, zone);
       if (!handle) {
         renderMapEditor();
-        setEditorInfo("已選取框框，請拖框線附近任一位置拉伸。");
+        setEditorInfo("已選取框框，請按框內任一位置拖拉調整。");
         return;
       }
       zoneResizeState = {
@@ -1298,11 +1290,7 @@
     function nearestZoneResizeHandle(point, zone) {
       const edgeHandle = zoneResizeHandleFromEdges(point, zone);
       if (edgeHandle) return edgeHandle;
-      const handles = zoneResizeHandles(zone)
-        .map(handle => ({ ...handle, hitDistance: distance(point.x, point.y, handle.x, handle.y) }))
-        .filter(handle => handle.hitDistance <= zoneHandleHitRadius())
-        .sort((left, right) => left.hitDistance - right.hitDistance);
-      return handles[0] || null;
+      return zoneResizeHandleFromInterior(point, zone);
     }
 
     function zoneResizeHandleFromEdges(point, zone) {
@@ -1321,10 +1309,23 @@
       return { name: `${vertical}${horizontal}` || horizontal || vertical, x: point.x, y: point.y, hitDistance: 0 };
     }
 
-    function zoneHandleHitRadius() {
-      const floor = currentFloors.find(item => item.id === floorSelect.value) || {};
-      const width = Number(floor.width || floor.imageNaturalWidth || mapEditorImage?.naturalWidth || 1);
-      return Math.max(12, width / 85);
+    function zoneResizeHandleFromInterior(point, zone) {
+      const left = Number(zone.x);
+      const top = Number(zone.y);
+      const right = left + Number(zone.width);
+      const bottom = top + Number(zone.height);
+      if (point.x < left || point.x > right || point.y < top || point.y > bottom) return null;
+      const distances = [
+        { side: "w", value: Math.abs(point.x - left) },
+        { side: "e", value: Math.abs(point.x - right) },
+        { side: "n", value: Math.abs(point.y - top) },
+        { side: "s", value: Math.abs(point.y - bottom) },
+      ].sort((a, b) => a.value - b.value);
+      const primary = distances[0].side;
+      const secondary = distances[1].value <= distances[0].value * 1.25 ? distances[1].side : "";
+      const vertical = [primary, secondary].find(side => side === "n" || side === "s") || "";
+      const horizontal = [primary, secondary].find(side => side === "w" || side === "e") || "";
+      return { name: `${vertical}${horizontal}` || primary, x: point.x, y: point.y, hitDistance: 0 };
     }
 
     function zoneEdgeHitTolerance() {
@@ -1399,7 +1400,7 @@
         walkableZone: "拖拉建立淺綠色可走區；不畫綠框時，整張地圖會預設為可走區。",
         blockedZone: "拖拉建立紅色不可進入區，導航會避開。",
         cautionZone: "拖拉建立橘色待確認區，導航可走但會提高成本。",
-        resizeZone: "點框框後，拖框線附近任一位置拉伸。",
+        resizeZone: "按框內任一位置拖拉，系統會自動調整最近的邊或角。",
         deleteZone: "點框框後會先選取，確認後刪除。",
       };
       setEditorInfo(messages[mode] || "");
@@ -1451,25 +1452,6 @@
       return currentRouteZones
         .filter(zone => point.x >= zone.x && point.x <= zone.x + zone.width && point.y >= zone.y && point.y <= zone.y + zone.height)
         .sort((a, b) => (a.width * a.height) - (b.width * b.height))[0] || null;
-    }
-
-    function zoneResizeHandles(zone) {
-      const left = Number(zone.x);
-      const top = Number(zone.y);
-      const right = left + Number(zone.width);
-      const bottom = top + Number(zone.height);
-      const centerX = (left + right) / 2;
-      const centerY = (top + bottom) / 2;
-      return [
-        { name: "nw", x: left, y: top },
-        { name: "n", x: centerX, y: top },
-        { name: "ne", x: right, y: top },
-        { name: "e", x: right, y: centerY },
-        { name: "se", x: right, y: bottom },
-        { name: "s", x: centerX, y: bottom },
-        { name: "sw", x: left, y: bottom },
-        { name: "w", x: left, y: centerY },
-      ];
     }
 
     function zoneCanvasRect(zone, bounds) {
