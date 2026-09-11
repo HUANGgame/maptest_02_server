@@ -470,8 +470,8 @@
     mapEditorCanvas.addEventListener("click", handleMapEditorClick);
     mapEditorCanvas.addEventListener("pointerdown", handleMapPointerDown);
     mapEditorCanvas.addEventListener("pointermove", handleMapPointerMove);
-    mapEditorCanvas.addEventListener("pointerup", handleMapPointerUp);
-    mapEditorCanvas.addEventListener("pointercancel", cancelZoneDraft);
+    window.addEventListener("pointerup", handleMapPointerUp);
+    window.addEventListener("pointercancel", cancelZoneDraft);
     document.querySelector("#exportScopeButton").addEventListener("click", async () => {
       await runAdminAction("已匯出", async () => {
         const mapId = mapSelect.value;
@@ -1191,7 +1191,7 @@
         return;
       }
       await runAdminAction(`已新增${zoneTypeText(zoneType)}`, async () => {
-        await postJson("/api/route-zones", {
+        const result = await postJson("/api/route-zones", {
           mapId: mapSelect.value,
           floorId: floorSelect.value,
           zoneType,
@@ -1201,6 +1201,9 @@
           height: draft.height,
         });
         await loadDashboard();
+        if (!currentRouteZones.some(zone => zone.id === result.zone?.id)) {
+          throw new Error("框框已送出但重新讀取不到，請重新整理後再確認。");
+        }
       });
       event.preventDefault();
     }
