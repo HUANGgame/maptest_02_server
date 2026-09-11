@@ -215,6 +215,10 @@
               <button id="deleteNodeModeButton" class="secondary">刪節點</button>
               <button id="deleteEdgeModeButton" class="secondary">刪路線</button>
               <button id="transitionModeButton" class="secondary">連樓層</button>
+              <button id="walkableZoneModeButton" class="secondary">綠框可走</button>
+              <button id="blockedZoneModeButton" class="secondary">紅框禁入</button>
+              <button id="cautionZoneModeButton" class="secondary">橘框待確認</button>
+              <button id="deleteZoneModeButton" class="secondary">刪框框</button>
             </div>
             <button id="restoreLastButton" class="secondary">回復上一個</button>
             <button id="clearRouteDraftButton" class="secondary">清除路線暫選</button>
@@ -269,6 +273,13 @@
         <table>
           <thead><tr><th>路段</th><th>距離</th><th>狀態</th><th>操作</th></tr></thead>
           <tbody id="routeEdgesBody"></tbody>
+        </table>
+      </section>
+      <section>
+        <h2>區域框框</h2>
+        <table>
+          <thead><tr><th>類型</th><th>位置</th><th>大小</th></tr></thead>
+          <tbody id="routeZonesBody"></tbody>
         </table>
       </section>
       <section>
@@ -381,6 +392,7 @@
     let currentPoints = [];
     let currentRouteEdges = [];
     let currentRouteNodes = [];
+    let currentRouteZones = [];
     let allRouteNodes = [];
     let currentTransitions = [];
     let selectedTransitionFromNode = null;
@@ -390,6 +402,8 @@
     let mapEditorBounds = null;
     let selectedPlaceNode = null;
     let selectedDeleteTarget = null;
+    let zoneDraft = null;
+    let isDrawingZone = false;
 
     reloadButton.addEventListener("click", loadDashboard);
     document.querySelector("#placeModeButton").addEventListener("click", () => setEditorMode("place"));
@@ -398,6 +412,10 @@
     document.querySelector("#deleteNodeModeButton").addEventListener("click", () => setEditorMode("deleteNode"));
     document.querySelector("#deleteEdgeModeButton").addEventListener("click", () => setEditorMode("deleteEdge"));
     document.querySelector("#transitionModeButton").addEventListener("click", () => setEditorMode("transition"));
+    document.querySelector("#walkableZoneModeButton").addEventListener("click", () => setEditorMode("walkableZone"));
+    document.querySelector("#blockedZoneModeButton").addEventListener("click", () => setEditorMode("blockedZone"));
+    document.querySelector("#cautionZoneModeButton").addEventListener("click", () => setEditorMode("cautionZone"));
+    document.querySelector("#deleteZoneModeButton").addEventListener("click", () => setEditorMode("deleteZone"));
     document.querySelector("#createTransitionButton").addEventListener("click", createSelectedTransition);
     document.querySelector("#cancelPlaceButton").addEventListener("click", () => document.querySelector("#placeEditorForm").close());
     document.querySelector("#cancelDeleteButton").addEventListener("click", () => {
@@ -424,6 +442,10 @@
       });
     });
     mapEditorCanvas.addEventListener("click", handleMapEditorClick);
+    mapEditorCanvas.addEventListener("pointerdown", handleMapPointerDown);
+    mapEditorCanvas.addEventListener("pointermove", handleMapPointerMove);
+    mapEditorCanvas.addEventListener("pointerup", handleMapPointerUp);
+    mapEditorCanvas.addEventListener("pointercancel", cancelZoneDraft);
     document.querySelector("#exportScopeButton").addEventListener("click", async () => {
       await runAdminAction("已匯出", async () => {
         const mapId = mapSelect.value;
@@ -597,13 +619,14 @@
       const mapId = mapSelect.value;
       const floorId = floorSelect.value;
       loadStorageStatus().catch(() => {});
-      const [places, summary, points, quality, routeEdges, routeNodes, allNodes, transitions, feedback, models, jobs, policyRuns, policyLogs, reports] = await Promise.all([
+      const [places, summary, points, quality, routeEdges, routeNodes, routeZones, allNodes, transitions, feedback, models, jobs, policyRuns, policyLogs, reports] = await Promise.all([
         getJson(`/api/places?mapId=${encodeURIComponent(mapId)}&floorId=${encodeURIComponent(floorId)}`),
         getJson(`/api/wifi-scans/summary?mapId=${encodeURIComponent(mapId)}&floorId=${encodeURIComponent(floorId)}`),
         getJson(`/api/wifi-scans/points?mapId=${encodeURIComponent(mapId)}&floorId=${encodeURIComponent(floorId)}`),
         getJson(`/api/wifi-scans/quality?mapId=${encodeURIComponent(mapId)}&floorId=${encodeURIComponent(floorId)}`),
         getJson(`/api/route-edges?mapId=${encodeURIComponent(mapId)}&floorId=${encodeURIComponent(floorId)}`),
         getJson(`/api/route-nodes?mapId=${encodeURIComponent(mapId)}&floorId=${encodeURIComponent(floorId)}`),
+        getJson(`/api/route-zones?mapId=${encodeURIComponent(mapId)}&floorId=${encodeURIComponent(floorId)}`),
         getJson(`/api/route-nodes?mapId=${encodeURIComponent(mapId)}`),
         getJson(`/api/floor-transitions?mapId=${encodeURIComponent(mapId)}&floorId=${encodeURIComponent(floorId)}`),
         getJson(`/api/navigation-feedback/quality-summary?mapId=${encodeURIComponent(mapId)}&floorId=${encodeURIComponent(floorId)}`),
@@ -617,6 +640,7 @@
       currentPoints = Array.isArray(points.points) ? points.points : [];
       currentRouteEdges = routeEdges;
       currentRouteNodes = routeNodes;
+      currentRouteZones = routeZones;
       allRouteNodes = allNodes;
       currentTransitions = transitions;
       await loadMapEditorImage();
@@ -683,6 +707,14 @@
           });
         });
       });
+
+      document.querySelector("#routeZonesBody").innerHTML = routeZones.map(zone => `
+        <tr>
+          <td>${zoneTypeText(zone.zoneType)}</td>
+          <td>${Number(zone.x).toFixed(1)}, ${Number(zone.y).toFixed(1)}</td>
+          <td>${Number(zone.width).toFixed(1)} x ${Number(zone.height).toFixed(1)}</td>
+        </tr>
+      `).join("") || `<tr><td colspan="3" class="muted">目前沒有區域框框</td></tr>`;
 
       document.querySelector("#transitionsBody").innerHTML = transitions.map(transition => `
         <tr>
@@ -794,13 +826,48 @@
       const bounds = containRect(rect.width, rect.height, mapEditorImage.naturalWidth, mapEditorImage.naturalHeight);
       mapEditorBounds = bounds;
       mapEditorCtx.drawImage(mapEditorImage, bounds.x, bounds.y, bounds.width, bounds.height);
+      drawRouteZones(bounds);
       drawRouteSegments(bounds);
       drawRouteNodes(bounds);
       drawTransitionNodes(bounds);
       drawWifiPoints(bounds);
       drawPlaces(bounds);
       drawRouteDraft(bounds);
+      drawZoneDraft(bounds);
       drawSelectedDeleteTarget(bounds);
+    }
+
+    function drawRouteZones(bounds) {
+      currentRouteZones.forEach(zone => {
+        const x = mapToCanvasX(zone.x, bounds);
+        const y = mapToCanvasY(zone.y, bounds);
+        const width = mapToCanvasX(zone.x + zone.width, bounds) - x;
+        const height = mapToCanvasY(zone.y + zone.height, bounds) - y;
+        const fill = zone.zoneType === "blocked"
+          ? "rgba(220, 38, 38, 0.28)"
+          : zone.zoneType === "caution"
+            ? "rgba(245, 158, 11, 0.28)"
+            : "rgba(20, 184, 166, 0.22)";
+        const stroke = zone.zoneType === "blocked" ? "#dc2626" : zone.zoneType === "caution" ? "#f59e0b" : "#14b8a6";
+        mapEditorCtx.fillStyle = fill;
+        mapEditorCtx.strokeStyle = stroke;
+        mapEditorCtx.lineWidth = 1;
+        mapEditorCtx.fillRect(x, y, width, height);
+        mapEditorCtx.strokeRect(x, y, width, height);
+      });
+    }
+
+    function drawZoneDraft(bounds) {
+      if (!zoneDraft) return;
+      const x = mapToCanvasX(zoneDraft.x, bounds);
+      const y = mapToCanvasY(zoneDraft.y, bounds);
+      const width = mapToCanvasX(zoneDraft.x + zoneDraft.width, bounds) - x;
+      const height = mapToCanvasY(zoneDraft.y + zoneDraft.height, bounds) - y;
+      mapEditorCtx.setLineDash([6, 4]);
+      mapEditorCtx.strokeStyle = "#111827";
+      mapEditorCtx.lineWidth = 1;
+      mapEditorCtx.strokeRect(x, y, width, height);
+      mapEditorCtx.setLineDash([]);
     }
 
     function drawRouteSegments(bounds) {
@@ -889,6 +956,15 @@
         mapEditorCtx.strokeRect(mapToCanvasX(node.x, bounds) - 7, mapToCanvasY(node.y, bounds) - 7, 14, 14);
         return;
       }
+      if (selectedDeleteTarget.type === "zone") {
+        const zone = selectedDeleteTarget.value;
+        const x = mapToCanvasX(zone.x, bounds);
+        const y = mapToCanvasY(zone.y, bounds);
+        const width = mapToCanvasX(zone.x + zone.width, bounds) - x;
+        const height = mapToCanvasY(zone.y + zone.height, bounds) - y;
+        mapEditorCtx.strokeRect(x - 3, y - 3, width + 6, height + 6);
+        return;
+      }
       const edge = selectedDeleteTarget.value;
       const nodes = new Map(currentRouteNodes.map(node => [node.id, node]));
       const from = nodes.get(edge.fromNodeId);
@@ -902,6 +978,7 @@
 
     async function handleMapEditorClick(event) {
       if (!mapEditorBounds || !mapEditorImage) return;
+      if (isZoneMode(editorMode)) return;
       const rect = mapEditorCanvas.getBoundingClientRect();
       const canvasX = event.clientX - rect.left;
       const canvasY = event.clientY - rect.top;
@@ -957,6 +1034,17 @@
         showDeleteDialog("刪除路線", `${edge.fromNodeId} -> ${edge.toNodeId}`);
         return;
       }
+      if (editorMode === "deleteZone") {
+        const zone = routeZoneAt(point);
+        if (!zone) {
+          setEditorInfo("這裡沒有框框可刪除。");
+          return;
+        }
+        selectedDeleteTarget = { type: "zone", value: zone };
+        renderMapEditor();
+        showDeleteDialog("刪除框框", `${zoneTypeText(zone.zoneType)}，位置 ${Number(zone.x).toFixed(1)}, ${Number(zone.y).toFixed(1)}`);
+        return;
+      }
       if (editorMode === "transition") {
         const node = nearestAnyRouteNode(point);
         if (!node) {
@@ -988,6 +1076,65 @@
         routeDraft = [];
         await loadDashboard();
       });
+    }
+
+    function handleMapPointerDown(event) {
+      if (!mapEditorBounds || !isZoneMode(editorMode)) return;
+      const point = pointerMapPoint(event);
+      if (!point) return;
+      isDrawingZone = true;
+      zoneDraft = { x: point.x, y: point.y, width: 0, height: 0 };
+      mapEditorCanvas.setPointerCapture(event.pointerId);
+      event.preventDefault();
+    }
+
+    function handleMapPointerMove(event) {
+      if (!isDrawingZone || !zoneDraft || !isZoneMode(editorMode)) return;
+      const point = pointerMapPoint(event);
+      if (!point) return;
+      zoneDraft.width = point.x - zoneDraft.x;
+      zoneDraft.height = point.y - zoneDraft.y;
+      renderMapEditor();
+      event.preventDefault();
+    }
+
+    async function handleMapPointerUp(event) {
+      if (!isDrawingZone || !zoneDraft || !isZoneMode(editorMode)) return;
+      const draft = zoneDraft;
+      cancelZoneDraft();
+      const zoneType = editorMode === "blockedZone" ? "blocked" : editorMode === "cautionZone" ? "caution" : "walkable";
+      if (Math.abs(draft.width) < 3 || Math.abs(draft.height) < 3) {
+        setEditorInfo("框框太小，請拖拉出一個區域。");
+        return;
+      }
+      await runAdminAction(`已新增${zoneTypeText(zoneType)}`, async () => {
+        await postJson("/api/route-zones", {
+          mapId: mapSelect.value,
+          floorId: floorSelect.value,
+          zoneType,
+          x: draft.x,
+          y: draft.y,
+          width: draft.width,
+          height: draft.height,
+        });
+        await loadDashboard();
+      });
+      event.preventDefault();
+    }
+
+    function cancelZoneDraft() {
+      isDrawingZone = false;
+      zoneDraft = null;
+      renderMapEditor();
+    }
+
+    function pointerMapPoint(event) {
+      const rect = mapEditorCanvas.getBoundingClientRect();
+      return canvasToMapPoint(event.clientX - rect.left, event.clientY - rect.top, mapEditorBounds);
+    }
+
+    function isZoneMode(mode) {
+      return mode === "walkableZone" || mode === "blockedZone" || mode === "cautionZone";
     }
 
     async function createSelectedTransition() {
@@ -1036,6 +1183,10 @@
         ["deleteNodeModeButton", "deleteNode"],
         ["deleteEdgeModeButton", "deleteEdge"],
         ["transitionModeButton", "transition"],
+        ["walkableZoneModeButton", "walkableZone"],
+        ["blockedZoneModeButton", "blockedZone"],
+        ["cautionZoneModeButton", "cautionZone"],
+        ["deleteZoneModeButton", "deleteZone"],
       ].forEach(([id, value]) => {
         document.querySelector(`#${id}`).classList.toggle("active", mode === value);
         document.querySelector(`#${id}`).classList.toggle("secondary", mode !== value);
@@ -1048,6 +1199,10 @@
         deleteNode: "點節點後會先框起來，確認後刪除。",
         deleteEdge: "點路線後會先框起來，確認後刪除。",
         transition: "點本樓層的手扶梯、樓梯或電梯節點，再選另一層對應節點。",
+        walkableZone: "拖拉建立淺綠色可走區，導航會優先在此範圍內找路。",
+        blockedZone: "拖拉建立紅色不可進入區，導航會避開。",
+        cautionZone: "拖拉建立橘色待確認區，導航可走但會提高成本。",
+        deleteZone: "點框框後會先選取，確認後刪除。",
       };
       setEditorInfo(messages[mode] || "");
     }
@@ -1062,11 +1217,13 @@
       if (!selectedDeleteTarget) return;
       const target = selectedDeleteTarget;
       document.querySelector("#deleteConfirmDialog").close();
-      await runAdminAction(target.type === "node" ? "已刪除節點" : "已刪除路線", async () => {
+      await runAdminAction(target.type === "node" ? "已刪除節點" : target.type === "edge" ? "已刪除路線" : "已刪除框框", async () => {
         if (target.type === "node") {
           await deleteJson(`/api/route-nodes?nodeId=${encodeURIComponent(target.value.id)}`);
-        } else {
+        } else if (target.type === "edge") {
           await deleteJson(`/api/route-edges?edgeId=${encodeURIComponent(target.value.id)}`);
+        } else {
+          await deleteJson(`/api/route-zones?zoneId=${encodeURIComponent(target.value.id)}`);
         }
         selectedDeleteTarget = null;
         await loadDashboard();
@@ -1075,6 +1232,18 @@
 
     function setEditorInfo(message) {
       document.querySelector("#mapEditorInfo").textContent = message;
+    }
+
+    function routeZoneAt(point) {
+      return currentRouteZones
+        .filter(zone => point.x >= zone.x && point.x <= zone.x + zone.width && point.y >= zone.y && point.y <= zone.y + zone.height)
+        .sort((a, b) => (a.width * a.height) - (b.width * b.height))[0] || null;
+    }
+
+    function zoneTypeText(zoneType) {
+      if (zoneType === "blocked") return "紅框禁入";
+      if (zoneType === "caution") return "橘框待確認";
+      return "綠框可走";
     }
 
     function nearestRouteNode(point) {

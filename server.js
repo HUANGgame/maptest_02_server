@@ -8,7 +8,7 @@ const { activateModel, activeModel, createModelVersion, readModels } = require("
 const { readPlaces, updatePlaceStatus } = require("./lib/placeStore");
 const { appendPolicyLog, createDqnRun, readDqnRuns, readPolicyLogs } = require("./lib/policyStore");
 const { appendReport, readReports } = require("./lib/reportStore");
-const { createFloorTransition, createRouteNode, createRouteSegment, deleteFloorTransition, deleteRouteEdge, deleteRouteNode, readFloorTransitions, readRouteEdges, readRouteNodes, restoreLastDeleted, setRouteEdgeBlocked } = require("./lib/routeEdgeStore");
+const { createFloorTransition, createRouteNode, createRouteSegment, createRouteZone, deleteFloorTransition, deleteRouteEdge, deleteRouteNode, deleteRouteZone, readFloorTransitions, readRouteEdges, readRouteNodes, readRouteZones, restoreLastDeleted, setRouteEdgeBlocked } = require("./lib/routeEdgeStore");
 const { createTrainingJob, readTrainingJobs } = require("./lib/trainingJobStore");
 const { appendScans, readScans } = require("./lib/jsonStore");
 const firebaseMirror = require("./lib/firebaseMirror");
@@ -423,6 +423,17 @@ const server = http.createServer(async (request, response) => {
     return;
   }
 
+  if (request.method === "GET" && url.pathname === "/api/route-zones") {
+    const mapId = url.searchParams.get("mapId") || "";
+    const floorId = url.searchParams.get("floorId") || "";
+    sendJson(response, 200, readRouteZones().filter((zone) => {
+      if (mapId && zone.mapId !== mapId) return false;
+      if (floorId && zone.floorId !== floorId) return false;
+      return true;
+    }));
+    return;
+  }
+
   if (request.method === "GET" && url.pathname === "/api/storage/status") {
     try {
       const mysql = await mysqlMirror.statusSummary();
@@ -468,6 +479,18 @@ const server = http.createServer(async (request, response) => {
     try {
       const body = await readJsonBody(request);
       const result = createRouteNode(body);
+      mirrorFullAdminSnapshot().catch((error) => console.error("MySQL admin mirror failed:", error.message));
+      sendJson(response, 201, result);
+    } catch (error) {
+      sendJson(response, 400, { success: false, message: error.message });
+    }
+    return;
+  }
+
+  if (request.method === "POST" && url.pathname === "/api/route-zones") {
+    try {
+      const body = await readJsonBody(request);
+      const result = createRouteZone(body);
       mirrorFullAdminSnapshot().catch((error) => console.error("MySQL admin mirror failed:", error.message));
       sendJson(response, 201, result);
     } catch (error) {
@@ -539,6 +562,13 @@ const server = http.createServer(async (request, response) => {
     const result = deleteRouteNode(nodeId);
     if (result) mirrorFullAdminSnapshot().catch((error) => console.error("MySQL admin mirror failed:", error.message));
     sendJson(response, result ? 200 : 404, result || { success: false, message: "only admin-created route nodes can be deleted" });
+    return;
+  }
+
+  if (request.method === "DELETE" && url.pathname === "/api/route-zones") {
+    const result = deleteRouteZone(url.searchParams.get("zoneId"));
+    if (result) mirrorFullAdminSnapshot().catch((error) => console.error("MySQL admin mirror failed:", error.message));
+    sendJson(response, result ? 200 : 404, result || { success: false, message: "zone not found" });
     return;
   }
 
@@ -1645,6 +1675,8 @@ function planRoute(body) {
   if (destination && destination.floorId !== floorId) {
     return planCrossFloorRoute(mapId, floorId, startX, startY, destination);
   }
+  const zoneRoute = destination ? planZoneRoute(mapId, floorId, { x: startX, y: startY, floorId }, destination) : null;
+  if (zoneRoute) return zoneRoute;
   const nodes = readRouteNodes().filter((node) => node.mapId === mapId && node.floorId === floorId && node.isWalkable);
   if (!destination || nodes.length < 2) return null;
   const startNode = nearestNode(startX, startY, nodes);
@@ -1664,9 +1696,10 @@ function planRoute(body) {
 function planCrossFloorRoute(mapId, startFloorId, startX, startY, destination) {
   const transition = readFloorTransitions().find((item) => item.mapId === mapId && item.fromFloorId === startFloorId && item.toFloorId === destination.floorId);
   if (!transition) return null;
-  const firstLegDestination = { id: "transition-destination", x: nodeById(transition.fromNodeId)?.x, y: nodeById(transition.fromNodeId)?.y, floorId: startFloorId };
+  const transitionFrom = nodeById(transition.fromNodeId);
+  const firstLegDestination = { id: "transition-destination", x: transitionFrom?.x, y: transitionFrom?.y, floorId: startFloorId };
   if (firstLegDestination.x == null || firstLegDestination.y == null) return null;
-  const firstLeg = planRoute({
+  const firstLeg = planZoneRoute(mapId, startFloorId, { x: startX, y: startY, floorId: startFloorId }, firstLegDestination) || planRoute({
     mapId,
     startFloorId,
     startX,
@@ -1675,10 +1708,19 @@ function planCrossFloorRoute(mapId, startFloorId, startX, startY, destination) {
   });
   const secondFloorNodes = readRouteNodes().filter((node) => node.mapId === mapId && node.floorId === destination.floorId && node.isWalkable);
   const secondStart = nodeById(transition.toNodeId);
-  const secondTarget = nearestNode(destination.x, destination.y, secondFloorNodes);
-  const secondIds = aStarRoute(secondStart.id, secondTarget.id, secondFloorNodes, readRouteEdges().filter((edge) => edge.mapId === mapId && edge.floorId === destination.floorId && !edge.isBlocked)) || [];
-  const secondPoints = secondIds.map((id) => secondFloorNodes.find((node) => node.id === id)).filter(Boolean);
-  const secondDistance = secondPoints.slice(1).reduce((sum, point, index) => sum + pointDistance(secondPoints[index], point), 0);
+  if (!secondStart) return null;
+  const secondLeg = planZoneRoute(mapId, destination.floorId, secondStart, destination);
+  let secondPoints = [];
+  let secondDistance = 0;
+  if (secondLeg) {
+    secondPoints = secondLeg.routePoints || [];
+    secondDistance = Number(secondLeg.distance || 0);
+  } else {
+    const secondTarget = nearestNode(destination.x, destination.y, secondFloorNodes);
+    const secondIds = secondTarget ? aStarRoute(secondStart.id, secondTarget.id, secondFloorNodes, readRouteEdges().filter((edge) => edge.mapId === mapId && edge.floorId === destination.floorId && !edge.isBlocked)) || [] : [];
+    secondPoints = secondIds.map((id) => secondFloorNodes.find((node) => node.id === id)).filter(Boolean);
+    secondDistance = secondPoints.slice(1).reduce((sum, point, index) => sum + pointDistance(secondPoints[index], point), 0);
+  }
   const firstPoints = firstLeg?.routePoints || [];
   const firstDistance = Number(firstLeg?.distance || 0);
   const totalDistance = firstDistance + secondDistance;
@@ -1693,6 +1735,186 @@ function planCrossFloorRoute(mapId, startFloorId, startX, startY, destination) {
       name: transition.name,
     }],
   };
+}
+
+function planZoneRoute(mapId, floorId, start, destination) {
+  const zones = readRouteZones().filter((zone) => zone.mapId === mapId && zone.floorId === floorId);
+  const walkableZones = zones.filter((zone) => zone.zoneType === "walkable");
+  if (walkableZones.length === 0) return null;
+  const startPoint = nearestPassableGridPoint(start.x, start.y, zones);
+  const targetPoint = nearestPassableGridPoint(destination.x, destination.y, zones);
+  if (!startPoint || !targetPoint) return null;
+  if (directZoneSegmentAllowed(startPoint, targetPoint, zones)) {
+    const routePoints = [
+      { id: "zone-start", mapId, floorId, x: startPoint.x, y: startPoint.y, nodeType: "zone", isWalkable: true },
+      { id: "zone-target", mapId, floorId, x: targetPoint.x, y: targetPoint.y, nodeType: "zone", isWalkable: true },
+    ];
+    const distance = pointDistance(routePoints[0], routePoints[1]);
+    return { routePoints, distance: roundNumber(distance, 2), estimatedTime: Math.max(1, Math.ceil(distance / 75)), floorTransitions: [] };
+  }
+  const route = aStarZoneRoute(startPoint, targetPoint, zones);
+  if (!route || route.length < 2) return null;
+  const simplified = simplifyGridRoute(route);
+  const routePoints = simplified.map((point, index) => ({
+    id: `zone-${index}`,
+    mapId,
+    floorId,
+    x: point.x,
+    y: point.y,
+    nodeType: zoneTypeAt(point.x, point.y, zones) || "zone",
+    isWalkable: true,
+  }));
+  const distance = routePoints.slice(1).reduce((sum, point, index) => sum + pointDistance(routePoints[index], point), 0);
+  return { routePoints, distance: roundNumber(distance, 2), estimatedTime: Math.max(1, Math.ceil(distance / 75)), floorTransitions: [] };
+}
+
+function nearestPassableGridPoint(x, y, zones) {
+  if (isPointPassable(x, y, zones)) return { x, y };
+  const bounds = zoneBounds(zones);
+  const step = routeGridStep(bounds);
+  let best = null;
+  for (let gx = bounds.left; gx <= bounds.right; gx += step) {
+    for (let gy = bounds.top; gy <= bounds.bottom; gy += step) {
+      if (!isPointPassable(gx, gy, zones)) continue;
+      const score = Math.hypot(gx - x, gy - y);
+      if (!best || score < best.score) best = { x: gx, y: gy, score };
+    }
+  }
+  return best ? { x: best.x, y: best.y } : null;
+}
+
+function aStarZoneRoute(start, target, zones) {
+  const bounds = zoneBounds(zones);
+  const step = routeGridStep(bounds);
+  const points = new Map();
+  for (let x = bounds.left; x <= bounds.right; x += step) {
+    for (let y = bounds.top; y <= bounds.bottom; y += step) {
+      if (isPointPassable(x, y, zones)) points.set(gridKey(x, y), { x, y });
+    }
+  }
+  const startKey = nearestGridKey(start, points);
+  const targetKey = nearestGridKey(target, points);
+  if (!startKey || !targetKey) return null;
+  const open = new Set([startKey]);
+  const cameFrom = new Map();
+  const gScore = new Map([[startKey, 0]]);
+  const fScore = new Map([[startKey, heuristicGrid(points.get(startKey), points.get(targetKey))]]);
+  while (open.size > 0) {
+    const current = Array.from(open).sort((a, b) => (fScore.get(a) ?? Infinity) - (fScore.get(b) ?? Infinity))[0];
+    if (current === targetKey) return reconstructGridRoute(cameFrom, current, points);
+    open.delete(current);
+    for (const neighbor of gridNeighbors(points.get(current), step, points)) {
+      if (!directZoneSegmentAllowed(points.get(current), neighbor, zones)) continue;
+      const tentative = (gScore.get(current) ?? Infinity) + Math.hypot(neighbor.x - points.get(current).x, neighbor.y - points.get(current).y) * zoneCostAt(neighbor.x, neighbor.y, zones);
+      const key = gridKey(neighbor.x, neighbor.y);
+      if (tentative < (gScore.get(key) ?? Infinity)) {
+        cameFrom.set(key, current);
+        gScore.set(key, tentative);
+        fScore.set(key, tentative + heuristicGrid(neighbor, points.get(targetKey)));
+        open.add(key);
+      }
+    }
+  }
+  return null;
+}
+
+function isPointPassable(x, y, zones) {
+  if (zones.some((zone) => zone.zoneType === "blocked" && pointInZone(x, y, zone))) return false;
+  return zones.some((zone) => (zone.zoneType === "walkable" || zone.zoneType === "caution") && pointInZone(x, y, zone));
+}
+
+function directZoneSegmentAllowed(from, to, zones) {
+  const distance = Math.hypot(to.x - from.x, to.y - from.y);
+  const checks = Math.max(2, Math.ceil(distance / 12));
+  for (let index = 0; index <= checks; index += 1) {
+    const ratio = index / checks;
+    const x = from.x + (to.x - from.x) * ratio;
+    const y = from.y + (to.y - from.y) * ratio;
+    if (!isPointPassable(x, y, zones)) return false;
+  }
+  return true;
+}
+
+function zoneCostAt(x, y, zones) {
+  if (zones.some((zone) => zone.zoneType === "caution" && pointInZone(x, y, zone))) return 2.5;
+  return 1;
+}
+
+function zoneTypeAt(x, y, zones) {
+  const zone = zones.find((item) => pointInZone(x, y, item));
+  return zone?.zoneType || "";
+}
+
+function pointInZone(x, y, zone) {
+  return x >= zone.x && x <= zone.x + zone.width && y >= zone.y && y <= zone.y + zone.height;
+}
+
+function zoneBounds(zones) {
+  const relevant = zones.filter((zone) => zone.zoneType === "walkable" || zone.zoneType === "caution");
+  return {
+    left: Math.floor(Math.min(...relevant.map((zone) => zone.x))),
+    top: Math.floor(Math.min(...relevant.map((zone) => zone.y))),
+    right: Math.ceil(Math.max(...relevant.map((zone) => zone.x + zone.width))),
+    bottom: Math.ceil(Math.max(...relevant.map((zone) => zone.y + zone.height))),
+  };
+}
+
+function routeGridStep(bounds) {
+  const span = Math.max(bounds.right - bounds.left, bounds.bottom - bounds.top);
+  return Math.max(10, Math.min(35, Math.ceil(span / 90)));
+}
+
+function nearestGridKey(point, points) {
+  let best = null;
+  for (const [key, value] of points.entries()) {
+    const score = Math.hypot(value.x - point.x, value.y - point.y);
+    if (!best || score < best.score) best = { key, score };
+  }
+  return best?.key || null;
+}
+
+function gridNeighbors(point, step, points) {
+  const candidates = [];
+  for (const dx of [-step, 0, step]) {
+    for (const dy of [-step, 0, step]) {
+      if (dx === 0 && dy === 0) continue;
+      const key = gridKey(point.x + dx, point.y + dy);
+      if (points.has(key)) candidates.push(points.get(key));
+    }
+  }
+  return candidates;
+}
+
+function gridKey(x, y) {
+  return `${Math.round(x)}:${Math.round(y)}`;
+}
+
+function heuristicGrid(a, b) {
+  return Math.hypot(a.x - b.x, a.y - b.y);
+}
+
+function reconstructGridRoute(cameFrom, current, points) {
+  const keys = [current];
+  while (cameFrom.has(current)) {
+    current = cameFrom.get(current);
+    keys.push(current);
+  }
+  return keys.reverse().map((key) => points.get(key)).filter(Boolean);
+}
+
+function simplifyGridRoute(points) {
+  if (points.length <= 2) return points;
+  const simplified = [points[0]];
+  let previousDirection = null;
+  for (let index = 1; index < points.length; index += 1) {
+    const prev = points[index - 1];
+    const current = points[index];
+    const direction = `${Math.sign(current.x - prev.x)}:${Math.sign(current.y - prev.y)}`;
+    if (previousDirection && direction !== previousDirection) simplified.push(prev);
+    previousDirection = direction;
+  }
+  simplified.push(points[points.length - 1]);
+  return simplified;
 }
 
 function nodeById(id) {
