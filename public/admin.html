@@ -1113,7 +1113,7 @@
         }
         selectedRouteZone = zone;
         renderMapEditor();
-        setEditorInfo("已選取框框，請拖四角或邊線的小方塊拉伸。");
+        setEditorInfo("已選取框框，請拖框線附近任一位置拉伸。");
         return;
       }
       if (editorMode === "transition") {
@@ -1234,7 +1234,7 @@
       const handle = nearestZoneResizeHandle(point, zone);
       if (!handle) {
         renderMapEditor();
-        setEditorInfo("已選取框框，請拖四角或邊線的小方塊拉伸。");
+        setEditorInfo("已選取框框，請拖框線附近任一位置拉伸。");
         return;
       }
       zoneResizeState = {
@@ -1293,6 +1293,8 @@
     }
 
     function nearestZoneResizeHandle(point, zone) {
+      const edgeHandle = zoneResizeHandleFromEdges(point, zone);
+      if (edgeHandle) return edgeHandle;
       const handles = zoneResizeHandles(zone)
         .map(handle => ({ ...handle, hitDistance: distance(point.x, point.y, handle.x, handle.y) }))
         .filter(handle => handle.hitDistance <= zoneHandleHitRadius())
@@ -1300,10 +1302,32 @@
       return handles[0] || null;
     }
 
+    function zoneResizeHandleFromEdges(point, zone) {
+      const left = Number(zone.x);
+      const top = Number(zone.y);
+      const right = left + Number(zone.width);
+      const bottom = top + Number(zone.height);
+      const tolerance = zoneEdgeHitTolerance();
+      const nearLeft = Math.abs(point.x - left) <= tolerance && point.y >= top - tolerance && point.y <= bottom + tolerance;
+      const nearRight = Math.abs(point.x - right) <= tolerance && point.y >= top - tolerance && point.y <= bottom + tolerance;
+      const nearTop = Math.abs(point.y - top) <= tolerance && point.x >= left - tolerance && point.x <= right + tolerance;
+      const nearBottom = Math.abs(point.y - bottom) <= tolerance && point.x >= left - tolerance && point.x <= right + tolerance;
+      const horizontal = nearLeft ? "w" : nearRight ? "e" : "";
+      const vertical = nearTop ? "n" : nearBottom ? "s" : "";
+      if (!horizontal && !vertical) return null;
+      return { name: `${vertical}${horizontal}` || horizontal || vertical, x: point.x, y: point.y, hitDistance: 0 };
+    }
+
     function zoneHandleHitRadius() {
       const floor = currentFloors.find(item => item.id === floorSelect.value) || {};
       const width = Number(floor.width || floor.imageNaturalWidth || mapEditorImage?.naturalWidth || 1);
-      return Math.max(8, width / 120);
+      return Math.max(12, width / 85);
+    }
+
+    function zoneEdgeHitTolerance() {
+      const floor = currentFloors.find(item => item.id === floorSelect.value) || {};
+      const width = Number(floor.width || floor.imageNaturalWidth || mapEditorImage?.naturalWidth || 1);
+      return Math.max(14, width / 70);
     }
 
     async function createSelectedTransition() {
@@ -1372,7 +1396,7 @@
         walkableZone: "拖拉建立淺綠色可走區；不畫綠框時，整張地圖會預設為可走區。",
         blockedZone: "拖拉建立紅色不可進入區，導航會避開。",
         cautionZone: "拖拉建立橘色待確認區，導航可走但會提高成本。",
-        resizeZone: "點框框後，拖四角或邊線的小方塊拉伸。",
+        resizeZone: "點框框後，拖框線附近任一位置拉伸。",
         deleteZone: "點框框後會先選取，確認後刪除。",
       };
       setEditorInfo(messages[mode] || "");
