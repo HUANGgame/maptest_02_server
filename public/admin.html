@@ -216,9 +216,11 @@
               <button id="deleteEdgeModeButton" class="secondary">刪路線</button>
               <button id="transitionModeButton" class="secondary">連樓層</button>
               <button id="walkableZoneModeButton" class="secondary">綠框可走</button>
+              <button id="colorWalkableZoneModeButton" class="secondary">色階可走</button>
               <button id="blockedZoneModeButton" class="secondary">紅框禁入</button>
               <button id="colorBlockedZoneModeButton" class="secondary">色階禁入</button>
               <button id="cautionZoneModeButton" class="secondary">橘框待確認</button>
+              <button id="colorCautionZoneModeButton" class="secondary">色階待確認</button>
               <button id="resizeZoneModeButton" class="secondary">調整框框</button>
               <button id="deleteZoneModeButton" class="secondary">刪框框</button>
             </div>
@@ -423,9 +425,11 @@
     document.querySelector("#deleteEdgeModeButton").addEventListener("click", () => setEditorMode("deleteEdge"));
     document.querySelector("#transitionModeButton").addEventListener("click", () => setEditorMode("transition"));
     document.querySelector("#walkableZoneModeButton").addEventListener("click", () => setEditorMode("walkableZone"));
+    document.querySelector("#colorWalkableZoneModeButton").addEventListener("click", () => setEditorMode("colorWalkableZone"));
     document.querySelector("#blockedZoneModeButton").addEventListener("click", () => setEditorMode("blockedZone"));
     document.querySelector("#colorBlockedZoneModeButton").addEventListener("click", () => setEditorMode("colorBlockedZone"));
     document.querySelector("#cautionZoneModeButton").addEventListener("click", () => setEditorMode("cautionZone"));
+    document.querySelector("#colorCautionZoneModeButton").addEventListener("click", () => setEditorMode("colorCautionZone"));
     document.querySelector("#resizeZoneModeButton").addEventListener("click", () => setEditorMode("resizeZone"));
     document.querySelector("#deleteZoneModeButton").addEventListener("click", () => setEditorMode("deleteZone"));
     document.querySelector("#createTransitionButton").addEventListener("click", createSelectedTransition);
@@ -1042,23 +1046,23 @@
       mapEditorCtx.stroke();
     }
 
-    async function createBlockedZonesFromColor(point) {
+    async function createZonesFromColor(point, zoneType) {
       const zones = detectColorConnectedZones(point);
       if (zones.length === 0) {
         setEditorInfo("沒有找到足夠大的同色相連區塊，請點紅色或灰色區域中間再試一次。");
         return;
       }
-      await runAdminAction(`已依色階新增 ${zones.length} 個紅框`, async () => {
+      await runAdminAction(`已依色階新增 ${zones.length} 個${zoneTypeText(zoneType)}`, async () => {
         for (const zone of zones) {
           await postJson("/api/route-zones", {
             mapId: mapSelect.value,
             floorId: floorSelect.value,
-            zoneType: "blocked",
+            zoneType,
             x: zone.x,
             y: zone.y,
             width: zone.width,
             height: zone.height,
-            label: "色階禁入區",
+            label: `色階${zoneTypeText(zoneType)}`,
           });
         }
         await loadDashboard();
@@ -1164,8 +1168,9 @@
       if (!point) return;
       document.querySelector("#newPlaceX").value = point.x.toFixed(1);
       document.querySelector("#newPlaceY").value = point.y.toFixed(1);
-      if (editorMode === "colorBlockedZone") {
-        await createBlockedZonesFromColor(point);
+      if (editorMode === "colorWalkableZone" || editorMode === "colorBlockedZone" || editorMode === "colorCautionZone") {
+        const zoneType = editorMode === "colorWalkableZone" ? "walkable" : editorMode === "colorCautionZone" ? "caution" : "blocked";
+        await createZonesFromColor(point, zoneType);
         return;
       }
       if (editorMode === "place") {
@@ -1572,9 +1577,11 @@
         ["deleteEdgeModeButton", "deleteEdge"],
         ["transitionModeButton", "transition"],
         ["walkableZoneModeButton", "walkableZone"],
+        ["colorWalkableZoneModeButton", "colorWalkableZone"],
         ["blockedZoneModeButton", "blockedZone"],
         ["colorBlockedZoneModeButton", "colorBlockedZone"],
         ["cautionZoneModeButton", "cautionZone"],
+        ["colorCautionZoneModeButton", "colorCautionZone"],
         ["resizeZoneModeButton", "resizeZone"],
         ["deleteZoneModeButton", "deleteZone"],
       ].forEach(([id, value]) => {
@@ -1590,9 +1597,11 @@
         deleteEdge: "點路線後會先框起來，確認後刪除。",
         transition: "點本樓層的手扶梯、樓梯或電梯節點，再選另一層對應節點。",
         walkableZone: "拖拉建立淺綠色可走區；不畫綠框時，整張地圖會預設為可走區。",
+        colorWalkableZone: "點地圖色階，自動把同色且相連的區塊分別建立為綠色可走框。",
         blockedZone: "拖拉建立紅色不可進入區，導航會避開。",
         colorBlockedZone: "點地圖色階，自動把同色且相連的區塊分別建立為紅色禁入框。",
         cautionZone: "拖拉建立橘色待確認區，導航可走但會提高成本。",
+        colorCautionZone: "點地圖色階，自動把同色且相連的區塊分別建立為橘色待確認框。",
         resizeZone: "拖框框節點可變形；拖節點之間的框線會新增節點並拉出去。",
         deleteZone: "點框框後會先選取，確認後刪除。",
       };
