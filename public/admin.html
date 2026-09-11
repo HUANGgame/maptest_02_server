@@ -224,6 +224,7 @@
             <button id="restoreLastButton" class="secondary">回復上一個</button>
             <button id="clearRouteDraftButton" class="secondary">清除路線暫選</button>
             <button id="clearFloorRouteGraphButton" class="danger">清空本樓層點線</button>
+            <button id="togglePlaceMarkersButton" class="secondary">顯示地點標記</button>
             <button id="toggleWifiPointsButton" class="secondary">顯示採樣點</button>
             <div id="mapEditorInfo" class="muted" style="margin-top:12px">點地圖後會帶入座標。</div>
             <div id="transitionEditorForm" class="editor-form hidden">
@@ -409,6 +410,7 @@
     let zoneDraft = null;
     let isDrawingZone = false;
     let zoneResizeState = null;
+    let showPlaceMarkersOnMap = false;
     let showWifiPointsOnMap = false;
 
     reloadButton.addEventListener("click", loadDashboard);
@@ -443,6 +445,14 @@
       setEditorInfo("已清除路線暫選。");
     });
     document.querySelector("#clearFloorRouteGraphButton").addEventListener("click", clearCurrentFloorRouteGraph);
+    document.querySelector("#togglePlaceMarkersButton").addEventListener("click", () => {
+      showPlaceMarkersOnMap = !showPlaceMarkersOnMap;
+      document.querySelector("#togglePlaceMarkersButton").textContent = showPlaceMarkersOnMap ? "隱藏地點標記" : "顯示地點標記";
+      document.querySelector("#togglePlaceMarkersButton").classList.toggle("active", showPlaceMarkersOnMap);
+      document.querySelector("#togglePlaceMarkersButton").classList.toggle("secondary", !showPlaceMarkersOnMap);
+      renderMapEditor();
+      setEditorInfo(showPlaceMarkersOnMap ? "已顯示地點標記。" : "已隱藏地點標記。");
+    });
     document.querySelector("#toggleWifiPointsButton").addEventListener("click", () => {
       showWifiPointsOnMap = !showWifiPointsOnMap;
       document.querySelector("#toggleWifiPointsButton").textContent = showWifiPointsOnMap ? "隱藏採樣點" : "顯示採樣點";
@@ -971,6 +981,7 @@
     }
 
     function drawPlaces(bounds) {
+      if (!showPlaceMarkersOnMap) return;
       mapEditorCtx.font = "13px Microsoft JhengHei, sans-serif";
       currentPlaces.forEach(place => {
         const x = mapToCanvasX(place.x, bounds);

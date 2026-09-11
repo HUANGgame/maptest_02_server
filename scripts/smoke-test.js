@@ -288,7 +288,7 @@ function startManagedServer() {
   return new Promise((resolve, reject) => {
     const child = spawn(process.execPath, ["server.js"], {
       cwd: process.cwd(),
-      env: { ...process.env, NAV_DATA_DIR: smokeDataDir, PORT: String(smokePort) },
+      env: { ...process.env, ENABLE_DEMO_ROUTE_GRAPH: "true", NAV_DATA_DIR: smokeDataDir, PORT: String(smokePort) },
       stdio: ["ignore", "pipe", "pipe"],
     });
     const timer = setTimeout(() => {
