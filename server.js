@@ -11,6 +11,7 @@ const { appendReport, readReports } = require("./lib/reportStore");
 const { createFloorTransition, createRouteNode, createRouteSegment, deleteFloorTransition, deleteRouteEdge, deleteRouteNode, readFloorTransitions, readRouteEdges, readRouteNodes, restoreLastDeleted, setRouteEdgeBlocked } = require("./lib/routeEdgeStore");
 const { createTrainingJob, readTrainingJobs } = require("./lib/trainingJobStore");
 const { appendScans, readScans } = require("./lib/jsonStore");
+const firebaseMirror = require("./lib/firebaseMirror");
 const mysqlMirror = require("./lib/mysqlMirror");
 
 const port = Number(process.env.PORT || 3015);
@@ -189,6 +190,7 @@ const server = http.createServer(async (request, response) => {
       }
       const saved = appendScans(records);
       mysqlMirror.mirrorWifiScans(saved).catch((error) => console.error("MySQL Wi-Fi mirror failed:", error.message));
+      firebaseMirror.mirrorWifiScans(saved).catch((error) => console.error("Firebase Wi-Fi mirror failed:", error.message));
       sendJson(response, 201, {
         success: true,
         accepted: true,
@@ -319,6 +321,7 @@ const server = http.createServer(async (request, response) => {
         versionName: algorithm === "randomForest" ? `RF-comparison-${new Date().toISOString()}` : undefined,
       });
       mysqlMirror.mirrorModels([model]).catch((error) => console.error("MySQL model mirror failed:", error.message));
+      firebaseMirror.mirrorJsonFiles(["model_versions.json", "model_training_jobs.json"]).catch((error) => console.error("Firebase model mirror failed:", error.message));
       sendJson(response, 201, { success: true, model });
     } catch (error) {
       sendJson(response, 400, { success: false, message: error.message });
@@ -356,6 +359,7 @@ const server = http.createServer(async (request, response) => {
       }
       const model = activateModel(modelId);
       if (model) mysqlMirror.mirrorModels(readModels()).catch((error) => console.error("MySQL model mirror failed:", error.message));
+      if (model) firebaseMirror.mirrorJsonFiles(["model_versions.json"]).catch((error) => console.error("Firebase model mirror failed:", error.message));
       sendJson(response, model ? 200 : 404, model ? { success: true, model } : { success: false, message: "找不到模型版本。" });
     } catch (error) {
       sendJson(response, 400, { success: false, message: error.message });
@@ -409,11 +413,19 @@ const server = http.createServer(async (request, response) => {
 
   if (request.method === "GET" && url.pathname === "/api/storage/status") {
     try {
-      const summary = await mysqlMirror.statusSummary();
+      const mysql = await mysqlMirror.statusSummary();
+      const firebase = await firebaseMirror.statusSummary();
       sendJson(response, 200, {
-        ...summary,
+        enabled: mysql.enabled || firebase.enabled,
+        storage: firebase.enabled ? "firebase-rtdb" : mysql.enabled ? "mysql" : "json",
+        mysql,
+        firebase,
         jsonFallback: true,
-        note: summary.enabled ? "MySQL mirror is active." : "MYSQL_URL/DATABASE_URL is not configured; JSON files are the active store.",
+        note: firebase.enabled
+          ? "Firebase mirror is active; JSON files are local cache."
+          : mysql.enabled
+            ? "MySQL mirror is active; JSON files are local cache."
+            : "No external database is configured; JSON files are the active store.",
       });
     } catch (error) {
       sendJson(response, 500, { enabled: false, storage: "error", message: error.message });
@@ -424,7 +436,16 @@ const server = http.createServer(async (request, response) => {
   if (request.method === "POST" && url.pathname === "/api/storage/sync") {
     try {
       const mysqlEnabled = await mirrorFullAdminSnapshot();
-      sendJson(response, 200, { success: true, mysqlEnabled, status: await mysqlMirror.statusSummary() });
+      const firebaseEnabled = await firebaseMirror.mirrorJsonFiles();
+      sendJson(response, 200, {
+        success: true,
+        mysqlEnabled,
+        firebaseEnabled,
+        status: {
+          mysql: await mysqlMirror.statusSummary(),
+          firebase: await firebaseMirror.statusSummary(),
+        },
+      });
     } catch (error) {
       sendJson(response, 500, { success: false, message: error.message });
     }
@@ -531,6 +552,7 @@ const server = http.createServer(async (request, response) => {
         return;
       }
       appendFeedback(normalized);
+      firebaseMirror.mirrorJsonFiles(["navigation_feedback.json"]).catch((error) => console.error("Firebase feedback mirror failed:", error.message));
       sendJson(response, 201, { success: true, accepted: true, reason: "已匿名接收，等待品質篩選。" });
     } catch (error) {
       sendJson(response, 400, { success: false, accepted: false, reason: error.message });
@@ -554,6 +576,7 @@ const server = http.createServer(async (request, response) => {
     const records = readFeedback();
     const evaluated = records.map((record) => record.qualityStatus === "pending" ? { ...record, qualityStatus: evaluateFeedbackQuality(record) } : record);
     writeFeedback(evaluated);
+    firebaseMirror.mirrorJsonFiles(["navigation_feedback.json"]).catch((error) => console.error("Firebase feedback mirror failed:", error.message));
     sendJson(response, 200, {
       evaluatedCount: evaluated.length,
       ...feedbackQualitySummary(evaluated),
@@ -619,6 +642,7 @@ const server = http.createServer(async (request, response) => {
         status: "completed",
         resultSummary: `使用人工指紋 ${manualRecords.length} 筆與高可信匿名回饋 ${highConfidence.length} 筆建立模型版本。`,
       });
+      firebaseMirror.mirrorJsonFiles(["navigation_feedback.json", "model_versions.json", "model_training_jobs.json"]).catch((error) => console.error("Firebase model mirror failed:", error.message));
       sendJson(response, 201, { success: true, model, job });
     } catch (error) {
       sendJson(response, 400, { success: false, message: error.message });
@@ -734,6 +758,7 @@ const server = http.createServer(async (request, response) => {
         startY: Number(body.startY || 0),
         startFloorId: String(body.startFloorId || body.floorId || ""),
       });
+      firebaseMirror.mirrorJsonFiles(["navigation_history.json"]).catch((error) => console.error("Firebase history mirror failed:", error.message));
       sendJson(response, 201, { success: true, record });
     } catch (error) {
       sendJson(response, 400, { success: false, message: error.message });
@@ -746,6 +771,7 @@ const server = http.createServer(async (request, response) => {
     sendJson(response, userId ? 200 : 400, userId
       ? { success: true, deletedCount: clearHistory(userId) }
       : { success: false, message: "userId 不可空白。" });
+    if (userId) firebaseMirror.mirrorJsonFiles(["navigation_history.json"]).catch((error) => console.error("Firebase history mirror failed:", error.message));
     return;
   }
 
@@ -766,6 +792,7 @@ const server = http.createServer(async (request, response) => {
         y: Number(body.y || 0),
         type: String(body.type || "custom"),
       });
+      firebaseMirror.mirrorJsonFiles(["saved_locations.json"]).catch((error) => console.error("Firebase saved-location mirror failed:", error.message));
       sendJson(response, 201, { success: true, record });
     } catch (error) {
       sendJson(response, 400, { success: false, message: error.message });
@@ -778,6 +805,7 @@ const server = http.createServer(async (request, response) => {
     sendJson(response, userId ? 200 : 400, userId
       ? { success: true, deletedCount: clearSavedLocations(userId) }
       : { success: false, message: "userId 不可空白。" });
+    if (userId) firebaseMirror.mirrorJsonFiles(["saved_locations.json"]).catch((error) => console.error("Firebase saved-location mirror failed:", error.message));
     return;
   }
 
@@ -798,6 +826,7 @@ const server = http.createServer(async (request, response) => {
         reportType,
         description: String(body.description || ""),
       });
+      firebaseMirror.mirrorJsonFiles(["user_reports.json"]).catch((error) => console.error("Firebase report mirror failed:", error.message));
       sendJson(response, 201, { success: true, report });
     } catch (error) {
       sendJson(response, 400, { success: false, message: error.message });
@@ -819,21 +848,28 @@ const server = http.createServer(async (request, response) => {
   });
 });
 
-mysqlMirror.startMirror()
-  .then((enabled) => {
+Promise.allSettled([mysqlMirror.startMirror(), firebaseMirror.startMirror()])
+  .then((results) => {
+    const mysqlEnabled = results[0].status === "fulfilled" && results[0].value === true;
+    const firebaseEnabled = results[1].status === "fulfilled" && results[1].value === true;
+    results.forEach((result, index) => {
+      if (result.status === "rejected") {
+        console.error(`${index === 0 ? "MySQL" : "Firebase"} startup failed:`, result.reason.message);
+      }
+    });
     server.listen(port, () => {
-      console.log(`Navigation backend listening on http://localhost:${port} (${enabled ? "mysql" : "json"} storage)`);
+      console.log(`Navigation backend listening on http://localhost:${port} (${firebaseEnabled ? "firebase-rtdb" : mysqlEnabled ? "mysql" : "json"} storage)`);
     });
   })
   .catch((error) => {
-    console.error("MySQL startup failed, falling back to JSON storage:", error.message);
+    console.error("External database startup failed, falling back to JSON storage:", error.message);
     server.listen(port, () => {
       console.log(`Navigation backend listening on http://localhost:${port} (json storage)`);
     });
   });
 
 function mirrorFullAdminSnapshot() {
-  return mysqlMirror.mirrorAdminData({
+  const snapshot = {
     maps: readMaps(),
     floors: readFloors(),
     places: readPlaces(),
@@ -842,7 +878,10 @@ function mirrorFullAdminSnapshot() {
     floorTransitions: readFloorTransitions(),
     dqnRuns: readDqnRuns(),
     policyLogs: readPolicyLogs(),
-  });
+  };
+  firebaseMirror.mirrorJsonFiles(["catalog_records.json", "route_graph_records.json", "route_edge_overrides.json", "dqn_training_runs.json", "navigation_policy_logs.json"])
+    .catch((error) => console.error("Firebase admin mirror failed:", error.message));
+  return mysqlMirror.mirrorAdminData(snapshot);
 }
 
 function sendJson(response, statusCode, body) {

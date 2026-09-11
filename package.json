@@ -10,6 +10,7 @@
     "predict:dev": "node scripts/test-devtunnel-predict.js"
   },
   "dependencies": {
+    "firebase-admin": "^12.7.0",
     "mysql2": "^3.11.5"
   }
 }
