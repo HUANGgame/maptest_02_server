@@ -448,7 +448,10 @@
     document.querySelector("#resizeZoneModeButton").addEventListener("click", () => setEditorMode("resizeZone"));
     document.querySelector("#deleteZoneModeButton").addEventListener("click", () => setEditorMode("deleteZone"));
     document.querySelector("#createTransitionButton").addEventListener("click", createSelectedTransition);
-    document.querySelector("#cancelPlaceButton").addEventListener("click", () => document.querySelector("#placeEditorForm").close());
+    document.querySelector("#cancelPlaceButton").addEventListener("click", () => {
+      document.querySelector("#placeEditorForm").close();
+      resetPlaceEditorForm();
+    });
     document.querySelector("#cancelDeleteButton").addEventListener("click", () => {
       selectedDeleteTarget = null;
       document.querySelector("#deleteConfirmDialog").close();
@@ -613,11 +616,7 @@
         await createTransitionFromPlaceForm(routeNodeId, name, category);
         selectedPlaceNode = null;
         document.querySelector("#placeEditorForm").close();
-        document.querySelector("#newPlaceName").value = "";
-        document.querySelector("#newPlaceCategory").value = "";
-        document.querySelector("#newPlaceKeywords").value = "";
-        document.querySelector("#newPlaceDescription").value = "";
-        document.querySelector("#newPlaceIsTransition").checked = false;
+        resetPlaceEditorForm();
         await loadDashboard();
       });
     });
@@ -1262,11 +1261,13 @@
         return;
       }
       if (editorMode === "place") {
-        selectedPlaceNode = { x: point.x, y: point.y };
-        document.querySelector("#newPlaceX").value = Number(point.x).toFixed(1);
-        document.querySelector("#newPlaceY").value = Number(point.y).toFixed(1);
-        preparePlaceEditorTransitionTargets();
-        document.querySelector("#placeEditorForm").showModal();
+        const place = nearestPlace(point);
+        if (place) {
+          openPlaceEditorForPlace(place);
+          setEditorInfo("已載入既有點位資料，可直接修改後儲存。");
+          return;
+        }
+        openPlaceEditorForPoint(point);
         setEditorInfo("請輸入名稱、關鍵詞、分類設施、備註；儲存後會同時建立標記與導航節點。");
         return;
       }
@@ -1276,11 +1277,13 @@
           setEditorInfo("請先按標點建立節點，再用標記填資料。");
           return;
         }
-        selectedPlaceNode = node;
-        document.querySelector("#newPlaceX").value = Number(node.x).toFixed(1);
-        document.querySelector("#newPlaceY").value = Number(node.y).toFixed(1);
-        preparePlaceEditorTransitionTargets();
-        document.querySelector("#placeEditorForm").showModal();
+        const linkedPlace = currentPlaces.find(place => place.routeNodeId === node.id)
+          || nearestPlace({ x: node.x, y: node.y });
+        if (linkedPlace) {
+          openPlaceEditorForPlace(linkedPlace, node);
+        } else {
+          openPlaceEditorForNode(node);
+        }
         setEditorInfo("已選節點，請在彈框輸入名稱、關鍵詞、分類設施、備註。");
         return;
       }
@@ -1638,6 +1641,75 @@
       return Math.max(14, width / 70);
     }
 
+    function resetPlaceEditorForm() {
+      selectedPlaceNode = null;
+      document.querySelector("#newPlaceName").value = "";
+      document.querySelector("#newPlaceCategory").value = "";
+      document.querySelector("#newPlaceKeywords").value = "";
+      document.querySelector("#newPlaceDescription").value = "";
+      document.querySelector("#newPlaceIsTransition").checked = false;
+      document.querySelector("#newPlaceTransitionTarget").innerHTML = "";
+      document.querySelector("#newPlaceTransitionType").value = "escalator";
+      document.querySelector("#newPlaceX").value = "";
+      document.querySelector("#newPlaceY").value = "";
+    }
+
+    function openPlaceEditorForPoint(point) {
+      resetPlaceEditorForm();
+      selectedPlaceNode = { x: point.x, y: point.y };
+      document.querySelector("#newPlaceX").value = Number(point.x).toFixed(1);
+      document.querySelector("#newPlaceY").value = Number(point.y).toFixed(1);
+      preparePlaceEditorTransitionTargets();
+      document.querySelector("#placeEditorForm").showModal();
+    }
+
+    function openPlaceEditorForNode(node) {
+      resetPlaceEditorForm();
+      selectedPlaceNode = node;
+      document.querySelector("#newPlaceName").value = node.label || "";
+      document.querySelector("#newPlaceCategory").value = node.nodeType || "";
+      document.querySelector("#newPlaceX").value = Number(node.x).toFixed(1);
+      document.querySelector("#newPlaceY").value = Number(node.y).toFixed(1);
+      preparePlaceEditorTransitionTargets();
+      applyExistingTransitionToPlaceEditor(node.id);
+      document.querySelector("#placeEditorForm").showModal();
+    }
+
+    function openPlaceEditorForPlace(place, routeNode = null) {
+      resetPlaceEditorForm();
+      const node = routeNode || allRouteNodes.find(item => item.id === place.routeNodeId) || null;
+      selectedPlaceNode = {
+        ...(node || {}),
+        x: Number(place.x),
+        y: Number(place.y),
+        id: place.routeNodeId || node?.id || adminPointId("node", place.x, place.y),
+        placeId: place.id,
+      };
+      document.querySelector("#newPlaceName").value = place.name || "";
+      document.querySelector("#newPlaceCategory").value = place.category || "";
+      document.querySelector("#newPlaceKeywords").value = place.keywords || "";
+      document.querySelector("#newPlaceDescription").value = place.description || "";
+      document.querySelector("#newPlaceX").value = Number(place.x).toFixed(1);
+      document.querySelector("#newPlaceY").value = Number(place.y).toFixed(1);
+      preparePlaceEditorTransitionTargets();
+      applyExistingTransitionToPlaceEditor(place.routeNodeId || node?.id || "");
+      document.querySelector("#placeEditorForm").showModal();
+    }
+
+    function applyExistingTransitionToPlaceEditor(routeNodeId) {
+      if (!routeNodeId) return;
+      const transition = currentTransitions.find(item => item.fromNodeId === routeNodeId || item.toNodeId === routeNodeId);
+      if (!transition) return;
+      const targetNodeId = transition.fromNodeId === routeNodeId ? transition.toNodeId : transition.fromNodeId;
+      document.querySelector("#newPlaceIsTransition").checked = true;
+      document.querySelector("#newPlaceTransitionType").value = transition.transitionType || "escalator";
+      const select = document.querySelector("#newPlaceTransitionTarget");
+      const targetValue = `node:${targetNodeId}`;
+      if ([...select.options].some(option => option.value === targetValue)) {
+        select.value = targetValue;
+      }
+    }
+
     function preparePlaceEditorTransitionTargets() {
       const targets = transitionTargetOptions(floorSelect.value);
       document.querySelector("#newPlaceTransitionTarget").innerHTML = targets
@@ -1646,6 +1718,7 @@
     }
 
     async function createTransitionFromPlaceForm(routeNodeId, name, category) {
+      await deleteExistingTransitionsForNode(routeNodeId);
       if (!document.querySelector("#newPlaceIsTransition").checked) return;
       const targetValue = document.querySelector("#newPlaceTransitionTarget").value;
       const toNodeId = await resolveTransitionTargetNodeId(targetValue);
@@ -1657,6 +1730,17 @@
         transitionType: document.querySelector("#newPlaceTransitionType").value || categoryToNodeType(category),
         name: name ? `${floorName(floorSelect.value)} ${name}` : "樓層連接點",
       });
+    }
+
+    async function deleteExistingTransitionsForNode(routeNodeId) {
+      if (!routeNodeId) return;
+      const transitionIds = Array.from(new Set(currentTransitions
+        .filter(item => item.fromNodeId === routeNodeId || item.toNodeId === routeNodeId)
+        .map(item => item.id)
+        .filter(Boolean)));
+      for (const transitionId of transitionIds) {
+        await deleteJsonIfExists(`/api/floor-transitions?transitionId=${encodeURIComponent(transitionId)}`);
+      }
     }
 
     async function resolveTransitionTargetNodeId(value) {
