@@ -154,7 +154,11 @@ const server = http.createServer(async (request, response) => {
   if (request.method === "POST" && url.pathname === "/api/places") {
     try {
       const body = await readJsonBody(request);
-      const place = createPlace(body);
+      let place = createPlace(body);
+      if (body.openingHours !== undefined || body.businessStatus !== undefined) {
+        const current = readPlaces().find(item => item.id === place.id);
+        place = updatePlaceStatus(place.id, body.businessStatus ?? current.businessStatus ?? "unset", body.openingHours) || place;
+      }
       await mirrorFullAdminSnapshot();
       sendJson(response, 201, { success: true, place });
     } catch (error) {
