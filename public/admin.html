@@ -304,7 +304,7 @@
       <section>
         <h2>正式資料庫狀態</h2>
         <div id="storageInfo" class="muted">檢查中</div>
-        <button id="syncStorageButton">同步到 MySQL</button>
+        <button id="syncStorageButton">同步正式資料庫</button>
       </section>
       <section>
         <h2>匿名回饋</h2>
@@ -642,15 +642,22 @@
 
     async function loadStorageStatus() {
       const info = await getJson("/api/storage/status");
-      const counts = info.counts || {};
-      const scopes = Array.isArray(info.fingerprintScopes) ? info.fingerprintScopes : [];
+      const firebaseCounts = info.firebase?.counts || {};
+      const mysqlCounts = info.mysql?.counts || {};
+      const counts = info.storage === "firebase-rtdb" ? firebaseCounts : mysqlCounts;
+      const catalog = counts.catalog_records || {};
+      const graph = counts.route_graph_records || {};
+      const mysqlText = info.mysql?.enabled ? "MySQL 已啟用" : "MySQL 未啟用";
+      const firebaseText = info.firebase?.enabled ? "Firebase RTDB 已啟用" : "Firebase RTDB 未啟用";
+      const scopes = Array.isArray(info.mysql?.fingerprintScopes) ? info.mysql.fingerprintScopes : [];
       document.querySelector("#storageInfo").innerHTML = [
-        `儲存模式：${info.storage || "json"}${info.enabled ? "，MySQL 已啟用" : "，MySQL 未設定"}`,
-        `地圖 ${counts.maps ?? "-"}，樓層 ${counts.floors ?? "-"}，地點 ${counts.places ?? "-"}，節點 ${counts.route_nodes ?? "-"}，路線 ${counts.route_edges ?? "-"}，跨樓層 ${counts.floor_transitions ?? "-"}`,
-        `指紋 ${counts.wifi_scan_records ?? "-"}，模型 ${counts.model_versions ?? "-"}，DQN ${counts.dqn_training_runs ?? "-"}，策略紀錄 ${counts.navigation_policy_logs ?? "-"}`,
+        `儲存模式：${info.storage || "json"}，${firebaseText}，${mysqlText}`,
+        `地圖 ${catalog.maps ?? "-"}，樓層 ${catalog.floors ?? "-"}，地點 ${catalog.places ?? "-"}`,
+        `節點 ${graph.routeNodes ?? "-"}，路線 ${graph.routeEdges ?? "-"}，跨樓層 ${graph.floorTransitions ?? "-"}`,
+        `指紋 ${counts.wifi_scans ?? counts.wifi_scan_records ?? "-"}，模型 ${counts.model_versions ?? "-"}，DQN ${counts.dqn_training_runs ?? "-"}，策略紀錄 ${counts.navigation_policy_logs ?? "-"}`,
         scopes.length
           ? scopes.map(scope => `${escapeHtml(scope.mapId)} / ${escapeHtml(scope.floorId)}：${scope.records} 筆，${scope.points} 點，${scope.aps} AP`).join("<br>")
-          : "尚無 MySQL 指紋 scope 統計",
+          : "MySQL 未啟用時不顯示 MySQL scope 統計",
       ].join("<br>");
     }
 
