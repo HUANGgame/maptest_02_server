@@ -177,7 +177,7 @@ const server = http.createServer(async (request, response) => {
         y: url.searchParams.get("y") || "",
         tolerance: url.searchParams.get("tolerance") || "",
       });
-      if (place) mirrorFullAdminSnapshot().catch((error) => console.error("MySQL admin mirror failed:", error.message));
+      if (place) await mirrorFullAdminSnapshot();
       sendJson(response, place ? 200 : 404, place ? { success: true, place } : { success: false, message: "place not found" });
     } catch (error) {
       sendJson(response, 400, { success: false, message: error.message });

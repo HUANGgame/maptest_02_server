@@ -8,7 +8,7 @@ const { searchPlaces } = require("../lib/placeSearch");
 const directory = fs.mkdtempSync(path.join(os.tmpdir(), "navigation-place-test-"));
 process.env.NAV_DATA_DIR = directory;
 const { createPlace } = require("../lib/catalogStore");
-const { updatePlaceStatus, readPlaces } = require("../lib/placeStore");
+const { updatePlaceStatus, readPlaces, deletePlaceRecord } = require("../lib/placeStore");
 try {
   const place = { id: "test-shop", mapId: "test-map", floorId: "f1", name: "Tea House", x: 87, y: 43, keywords: "milk tea", description: "near elevator" };
   createPlace(place);
@@ -18,6 +18,13 @@ try {
   assert.equal(saved.businessStatus, "closed");
   assert.equal(saved.openingHours, "Mon-Fri 10:00-22:00");
   assert.equal(saved.x, 87);
+  const builtin = readPlaces().find(item => item.id === "k-area-k11");
+  assert.ok(builtin);
+  createPlace({ ...builtin, name: "Edited built-in" });
+  deletePlaceRecord({ placeId: builtin.id });
+  assert.ok(!readPlaces().some(item => item.id === builtin.id), "Deleted override must not reveal built-in");
+  const tombstones = JSON.parse(fs.readFileSync(path.join(directory, "place_overrides.json"), "utf8"));
+  assert.equal(tombstones[builtin.id].deleted, true);
   const other = { id: "other", name: "Tea", keywords: "", description: "" };
   assert.equal(searchPlaces([other, saved], "milk tea")[0].id, place.id);
   assert.equal(searchPlaces([saved], "elevator").length, 1);
