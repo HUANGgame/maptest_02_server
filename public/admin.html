@@ -146,6 +146,18 @@
     .inline-buttons button {
       margin-top: 0;
     }
+    .category-editor {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 8px;
+      align-items: end;
+    }
+    .category-editor button {
+      width: auto;
+      min-width: 96px;
+      margin-top: 4px;
+      white-space: nowrap;
+    }
     button.secondary {
       background: #fff;
       color: var(--accent);
@@ -366,7 +378,11 @@
     <label for="newPlaceName">名稱</label>
     <input id="newPlaceName" placeholder="例如 K12、電梯、店名">
     <label for="newPlaceCategory">分類設施</label>
-    <input id="newPlaceCategory" placeholder="例如 店家、樓梯、電梯、出口">
+    <select id="newPlaceCategory"></select>
+    <div class="category-editor">
+      <input id="newPlaceCategoryAdd" placeholder="新增分類，例如 ATM、售票機">
+      <button id="addPlaceCategoryButton" type="button" class="secondary">新增分類</button>
+    </div>
     <label for="newPlaceKeywords">關鍵詞</label>
     <input id="newPlaceKeywords" placeholder="例如 東森 K12 出口">
     <label for="newPlaceDescription">備註</label>
@@ -431,6 +447,7 @@
     let zoneResizeState = null;
     let showPlaceMarkersOnMap = false;
     let showWifiPointsOnMap = false;
+    const defaultPlaceCategories = ["店家", "手扶梯", "樓梯", "電梯", "出口", "廁所", "服務台", "廣場", "停車場", "售票機", "ATM", "重要設施", "未分類"];
     clearRouteZoneBackups();
     reloadButton.addEventListener("click", loadDashboard);
     document.querySelector("#placeModeButton").addEventListener("click", () => setEditorMode("place"));
@@ -448,6 +465,7 @@
     document.querySelector("#resizeZoneModeButton").addEventListener("click", () => setEditorMode("resizeZone"));
     document.querySelector("#deleteZoneModeButton").addEventListener("click", () => setEditorMode("deleteZone"));
     document.querySelector("#createTransitionButton").addEventListener("click", createSelectedTransition);
+    document.querySelector("#addPlaceCategoryButton").addEventListener("click", addPlaceCategoryFromInput);
     document.querySelector("#cancelPlaceButton").addEventListener("click", () => {
       document.querySelector("#placeEditorForm").close();
       resetPlaceEditorForm();
@@ -720,6 +738,7 @@
       ]);
       currentPlaces = places;
       allPlaces = allMapPlaces;
+      renderPlaceCategoryOptions();
       currentPoints = Array.isArray(points.points) ? points.points : [];
       currentRouteEdges = routeEdges;
       currentRouteNodes = routeNodes;
@@ -1644,7 +1663,8 @@
     function resetPlaceEditorForm() {
       selectedPlaceNode = null;
       document.querySelector("#newPlaceName").value = "";
-      document.querySelector("#newPlaceCategory").value = "";
+      renderPlaceCategoryOptions("未分類");
+      document.querySelector("#newPlaceCategoryAdd").value = "";
       document.querySelector("#newPlaceKeywords").value = "";
       document.querySelector("#newPlaceDescription").value = "";
       document.querySelector("#newPlaceIsTransition").checked = false;
@@ -1652,6 +1672,44 @@
       document.querySelector("#newPlaceTransitionType").value = "escalator";
       document.querySelector("#newPlaceX").value = "";
       document.querySelector("#newPlaceY").value = "";
+    }
+
+    function placeCategoryValues() {
+      const saved = allPlaces
+        .map(place => String(place.category || "").trim())
+        .filter(Boolean);
+      return Array.from(new Set(defaultPlaceCategories.concat(saved)))
+        .sort((left, right) => {
+          const leftIndex = defaultPlaceCategories.indexOf(left);
+          const rightIndex = defaultPlaceCategories.indexOf(right);
+          if (leftIndex >= 0 && rightIndex >= 0) return leftIndex - rightIndex;
+          if (leftIndex >= 0) return -1;
+          if (rightIndex >= 0) return 1;
+          return left.localeCompare(right);
+        });
+    }
+
+    function renderPlaceCategoryOptions(selectedValue = document.querySelector("#newPlaceCategory")?.value || "未分類") {
+      const select = document.querySelector("#newPlaceCategory");
+      const values = placeCategoryValues();
+      const selected = String(selectedValue || "未分類").trim();
+      if (selected && !values.includes(selected)) values.push(selected);
+      select.innerHTML = values
+        .map(value => `<option value="${escapeHtml(value)}">${escapeHtml(value)}</option>`)
+        .join("");
+      select.value = values.includes(selected) ? selected : "未分類";
+    }
+
+    function setPlaceCategoryValue(value) {
+      renderPlaceCategoryOptions(String(value || "未分類").trim());
+    }
+
+    function addPlaceCategoryFromInput() {
+      const input = document.querySelector("#newPlaceCategoryAdd");
+      const value = input.value.trim();
+      if (!value) return;
+      setPlaceCategoryValue(value);
+      input.value = "";
     }
 
     function openPlaceEditorForPoint(point) {
@@ -1667,7 +1725,7 @@
       resetPlaceEditorForm();
       selectedPlaceNode = node;
       document.querySelector("#newPlaceName").value = node.label || "";
-      document.querySelector("#newPlaceCategory").value = node.nodeType || "";
+      setPlaceCategoryValue(node.nodeType || "未分類");
       document.querySelector("#newPlaceX").value = Number(node.x).toFixed(1);
       document.querySelector("#newPlaceY").value = Number(node.y).toFixed(1);
       preparePlaceEditorTransitionTargets();
@@ -1686,7 +1744,7 @@
         placeId: place.id,
       };
       document.querySelector("#newPlaceName").value = place.name || "";
-      document.querySelector("#newPlaceCategory").value = place.category || "";
+      setPlaceCategoryValue(place.category || "未分類");
       document.querySelector("#newPlaceKeywords").value = place.keywords || "";
       document.querySelector("#newPlaceDescription").value = place.description || "";
       document.querySelector("#newPlaceX").value = Number(place.x).toFixed(1);
