@@ -212,7 +212,7 @@
               <button id="placeModeButton" class="active">標點</button>
               <button id="markModeButton" class="secondary">標記</button>
               <button id="deletePlaceModeButton" class="secondary">刪標記</button>
-              <button id="routeModeButton" class="secondary">新增導航路線</button>
+              <button id="routeModeButton" class="secondary">測試導航路線</button>
               <button id="deleteNodeModeButton" class="secondary">刪節點</button>
               <button id="deleteEdgeModeButton" class="secondary">刪路線</button>
               <button id="transitionModeButton" class="secondary">連樓層</button>
@@ -411,6 +411,8 @@
     let selectedPlaceNode = null;
     let selectedDeleteTarget = null;
     let selectedRouteZone = null;
+    let routeTestStart = null;
+    let routeTestRoute = [];
     let zoneDraft = null;
     let isDrawingZone = false;
     let zoneResizeState = null;
@@ -421,7 +423,7 @@
     document.querySelector("#placeModeButton").addEventListener("click", () => setEditorMode("place"));
     document.querySelector("#markModeButton").addEventListener("click", () => setEditorMode("mark"));
     document.querySelector("#deletePlaceModeButton").addEventListener("click", () => setEditorMode("deletePlace"));
-    document.querySelector("#routeModeButton").addEventListener("click", () => setEditorMode("route"));
+    document.querySelector("#routeModeButton").addEventListener("click", () => setEditorMode("routeTest"));
     document.querySelector("#deleteNodeModeButton").addEventListener("click", () => setEditorMode("deleteNode"));
     document.querySelector("#deleteEdgeModeButton").addEventListener("click", () => setEditorMode("deleteEdge"));
     document.querySelector("#transitionModeButton").addEventListener("click", () => setEditorMode("transition"));
@@ -888,6 +890,7 @@
       drawWifiPoints(bounds);
       drawPlaces(bounds);
       drawRouteDraft(bounds);
+      drawRouteTest(bounds);
       drawZoneDraft(bounds);
       drawSelectedRouteZone(bounds);
       drawSelectedDeleteTarget(bounds);
@@ -1030,6 +1033,31 @@
       });
     }
 
+    function drawRouteTest(bounds) {
+      if (routeTestRoute.length >= 2) {
+        mapEditorCtx.strokeStyle = "#0891b2";
+        mapEditorCtx.lineWidth = 2;
+        mapEditorCtx.lineCap = "round";
+        mapEditorCtx.beginPath();
+        routeTestRoute.forEach((point, index) => {
+          const x = mapToCanvasX(point.x, bounds);
+          const y = mapToCanvasY(point.y, bounds);
+          if (index === 0) mapEditorCtx.moveTo(x, y);
+          else mapEditorCtx.lineTo(x, y);
+        });
+        mapEditorCtx.stroke();
+      }
+      if (!routeTestStart) return;
+      const x = mapToCanvasX(routeTestStart.x, bounds);
+      const y = mapToCanvasY(routeTestStart.y, bounds);
+      mapEditorCtx.fillStyle = "#0891b2";
+      mapEditorCtx.beginPath();
+      mapEditorCtx.arc(x, y, 5, 0, Math.PI * 2);
+      mapEditorCtx.fill();
+      mapEditorCtx.fillStyle = "#111827";
+      mapEditorCtx.fillText("起點", x + 8, y - 8);
+    }
+
     function drawSelectedDeleteTarget(bounds) {
       if (!selectedDeleteTarget) return;
       mapEditorCtx.strokeStyle = "#dc2626";
@@ -1037,6 +1065,11 @@
       if (selectedDeleteTarget.type === "node") {
         const node = selectedDeleteTarget.value;
         mapEditorCtx.strokeRect(mapToCanvasX(node.x, bounds) - 7, mapToCanvasY(node.y, bounds) - 7, 14, 14);
+        return;
+      }
+      if (selectedDeleteTarget.type === "place") {
+        const place = selectedDeleteTarget.value;
+        mapEditorCtx.strokeRect(mapToCanvasX(place.x, bounds) - 9, mapToCanvasY(place.y, bounds) - 9, 18, 18);
         return;
       }
       if (selectedDeleteTarget.type === "zone") {
@@ -1227,6 +1260,10 @@
         showDeleteDialog("刪除地點標記", `${place.name}，座標 ${Number(place.x).toFixed(1)}, ${Number(place.y).toFixed(1)}`);
         return;
       }
+      if (editorMode === "routeTest") {
+        await handleRouteTestClick(point);
+        return;
+      }
       if (editorMode === "deleteNode") {
         const node = nearestAnyRouteNode(point);
         if (!node) {
@@ -1286,6 +1323,7 @@
         setEditorInfo("已選本樓層節點，請選另一張地圖上的對應節點後儲存。");
         return;
       }
+      if (editorMode !== "route") return;
       routeDraft.push(point);
       if (routeDraft.length < 2) {
         renderMapEditor();
@@ -1593,15 +1631,23 @@
     function setEditorMode(mode) {
       editorMode = mode;
       routeDraft = [];
+      routeTestStart = null;
+      routeTestRoute = [];
       selectedTransitionFromNode = null;
       selectedDeleteTarget = null;
       if (document.querySelector("#placeEditorForm").open) document.querySelector("#placeEditorForm").close();
       document.querySelector("#transitionEditorForm").classList.add("hidden");
+      if (mode === "routeTest") {
+        showPlaceMarkersOnMap = true;
+        document.querySelector("#togglePlaceMarkersButton").textContent = "隱藏地點標記";
+        document.querySelector("#togglePlaceMarkersButton").classList.add("active");
+        document.querySelector("#togglePlaceMarkersButton").classList.remove("secondary");
+      }
       [
         ["placeModeButton", "place"],
         ["markModeButton", "mark"],
         ["deletePlaceModeButton", "deletePlace"],
-        ["routeModeButton", "route"],
+        ["routeModeButton", "routeTest"],
         ["deleteNodeModeButton", "deleteNode"],
         ["deleteEdgeModeButton", "deleteEdge"],
         ["transitionModeButton", "transition"],
@@ -1622,7 +1668,7 @@
         place: "點地圖新增最小節點。",
         mark: "點節點後輸入名稱、關鍵詞、分類設施、備註。",
         deletePlace: "點紅色地點標記後會先確認，再刪除後台地點標記。",
-        route: "新增導航路線：依序點起點與終點，建立一段正式導航可走路線。",
+        routeTest: "測試導航路線：先點地圖當目前位置，再點紅色地點標記當目的地；只測試，不新增路線資料。",
         deleteNode: "點節點後會先框起來，確認後刪除。",
         deleteEdge: "點路線後會先框起來，確認後刪除。",
         transition: "點本樓層的手扶梯、樓梯或電梯節點，再選另一層對應節點。",
@@ -1642,6 +1688,40 @@
       document.querySelector("#deleteConfirmTitle").textContent = title;
       document.querySelector("#deleteConfirmText").textContent = text;
       document.querySelector("#deleteConfirmDialog").showModal();
+    }
+
+    async function handleRouteTestClick(point) {
+      if (!routeTestStart) {
+        routeTestStart = point;
+        routeTestRoute = [];
+        renderMapEditor();
+        document.querySelector("#routeTestResult").textContent = `測試起點：${Number(point.x).toFixed(1)}, ${Number(point.y).toFixed(1)}。請再點紅色地點標記當目的地。`;
+        setEditorInfo("已設定測試起點，請點紅色地點標記作為目的地。");
+        return;
+      }
+      const destination = nearestPlace(point);
+      if (!destination) {
+        setEditorInfo("請點紅色地點標記作為目的地；如果看不到紅點，先按「顯示地點標記」。");
+        return;
+      }
+      await runAdminAction("測試導航路線完成", async () => {
+        const result = await retryAdminRequest(() => postJson("/api/routes", {
+          mapId: mapSelect.value,
+          startFloorId: floorSelect.value,
+          targetFloorId: destination.floorId,
+          startX: routeTestStart.x,
+          startY: routeTestStart.y,
+          destinationPlaceId: destination.id,
+        }));
+        routeTestRoute = Array.isArray(result.routePoints) ? result.routePoints : [];
+        const transitionText = result.floorTransitions?.length
+          ? `，換樓層：${result.floorTransitions.map(item => item.name).join("、")}`
+          : "";
+        document.querySelector("#routeTestResult").textContent = `目的地 ${destination.name}，距離 ${result.distance}，預估 ${result.estimatedTime} 分鐘${transitionText}`;
+        setEditorInfo("已顯示正式 API 回傳的測試路線；這不會新增路線資料。重新點地圖可設定新的起點。");
+        routeTestStart = null;
+        renderMapEditor();
+      });
     }
 
     async function confirmDeleteTarget() {
