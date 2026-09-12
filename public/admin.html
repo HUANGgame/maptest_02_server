@@ -371,6 +371,19 @@
     <input id="newPlaceKeywords" placeholder="例如 東森 K12 出口">
     <label for="newPlaceDescription">備註</label>
     <textarea id="newPlaceDescription" placeholder="例如 靠近樓梯，往機捷方向"></textarea>
+    <label>
+      <input id="newPlaceIsTransition" type="checkbox">
+      這是跨樓層連結點
+    </label>
+    <label for="newPlaceTransitionTarget">連到另一層點位</label>
+    <select id="newPlaceTransitionTarget"></select>
+    <label for="newPlaceTransitionType">連接類型</label>
+    <select id="newPlaceTransitionType">
+      <option value="escalator">手扶梯</option>
+      <option value="stairs">樓梯</option>
+      <option value="elevator">電梯</option>
+      <option value="corridor">通道</option>
+    </select>
     <label for="newPlaceX">座標 X</label>
     <input id="newPlaceX" type="number" placeholder="0" readonly>
     <label for="newPlaceY">座標 Y</label>
@@ -395,6 +408,7 @@
     const mapEditorCanvas = document.querySelector("#mapEditorCanvas");
     const mapEditorCtx = mapEditorCanvas.getContext("2d");
     let currentPlaces = [];
+    let allPlaces = [];
     let currentFloors = [];
     let currentPoints = [];
     let currentRouteEdges = [];
@@ -596,12 +610,14 @@
           isNavigationNode: true,
           searchable: true,
         });
+        await createTransitionFromPlaceForm(routeNodeId, name, category);
         selectedPlaceNode = null;
         document.querySelector("#placeEditorForm").close();
         document.querySelector("#newPlaceName").value = "";
         document.querySelector("#newPlaceCategory").value = "";
         document.querySelector("#newPlaceKeywords").value = "";
         document.querySelector("#newPlaceDescription").value = "";
+        document.querySelector("#newPlaceIsTransition").checked = false;
         await loadDashboard();
       });
     });
@@ -685,8 +701,9 @@
       const mapId = mapSelect.value;
       const floorId = floorSelect.value;
       loadStorageStatus().catch(() => {});
-      const [places, summary, points, quality, routeEdges, routeNodes, routeZones, allNodes, transitions, feedback, models, jobs, policyRuns, policyLogs, reports] = await Promise.all([
+      const [places, allMapPlaces, summary, points, quality, routeEdges, routeNodes, routeZones, allNodes, transitions, feedback, models, jobs, policyRuns, policyLogs, reports] = await Promise.all([
         getJson(`/api/places?mapId=${encodeURIComponent(mapId)}&floorId=${encodeURIComponent(floorId)}`),
+        getJson(`/api/places?mapId=${encodeURIComponent(mapId)}`),
         getJson(`/api/wifi-scans/summary?mapId=${encodeURIComponent(mapId)}&floorId=${encodeURIComponent(floorId)}`),
         getJson(`/api/wifi-scans/points?mapId=${encodeURIComponent(mapId)}&floorId=${encodeURIComponent(floorId)}`),
         getJson(`/api/wifi-scans/quality?mapId=${encodeURIComponent(mapId)}&floorId=${encodeURIComponent(floorId)}`),
@@ -703,6 +720,7 @@
         getJson(`/api/user-reports?mapId=${encodeURIComponent(mapId)}&floorId=${encodeURIComponent(floorId)}`),
       ]);
       currentPlaces = places;
+      allPlaces = allMapPlaces;
       currentPoints = Array.isArray(points.points) ? points.points : [];
       currentRouteEdges = routeEdges;
       currentRouteNodes = routeNodes;
@@ -1247,6 +1265,7 @@
         selectedPlaceNode = { x: point.x, y: point.y };
         document.querySelector("#newPlaceX").value = Number(point.x).toFixed(1);
         document.querySelector("#newPlaceY").value = Number(point.y).toFixed(1);
+        preparePlaceEditorTransitionTargets();
         document.querySelector("#placeEditorForm").showModal();
         setEditorInfo("請輸入名稱、關鍵詞、分類設施、備註；儲存後會同時建立標記與導航節點。");
         return;
@@ -1260,6 +1279,7 @@
         selectedPlaceNode = node;
         document.querySelector("#newPlaceX").value = Number(node.x).toFixed(1);
         document.querySelector("#newPlaceY").value = Number(node.y).toFixed(1);
+        preparePlaceEditorTransitionTargets();
         document.querySelector("#placeEditorForm").showModal();
         setEditorInfo("已選節點，請在彈框輸入名稱、關鍵詞、分類設施、備註。");
         return;
@@ -1618,12 +1638,53 @@
       return Math.max(14, width / 70);
     }
 
+    function preparePlaceEditorTransitionTargets() {
+      const targets = transitionTargetOptions(floorSelect.value);
+      document.querySelector("#newPlaceTransitionTarget").innerHTML = targets
+        .map(target => `<option value="${escapeHtml(target.value)}">${escapeHtml(target.label)}</option>`)
+        .join("") || `<option value="">沒有其他樓層點位，請先切到 F2 建立手扶梯/樓梯點</option>`;
+    }
+
+    async function createTransitionFromPlaceForm(routeNodeId, name, category) {
+      if (!document.querySelector("#newPlaceIsTransition").checked) return;
+      const targetValue = document.querySelector("#newPlaceTransitionTarget").value;
+      const toNodeId = await resolveTransitionTargetNodeId(targetValue);
+      if (!toNodeId) throw new Error("沒有可連結的另一層點位，請先在 F2 建立對應手扶梯/樓梯點。");
+      await postJson("/api/floor-transitions", {
+        mapId: mapSelect.value,
+        fromNodeId: routeNodeId,
+        toNodeId,
+        transitionType: document.querySelector("#newPlaceTransitionType").value || categoryToNodeType(category),
+        name: name ? `${floorName(floorSelect.value)} ${name}` : "樓層連接點",
+      });
+    }
+
+    async function resolveTransitionTargetNodeId(value) {
+      const [kind, id] = String(value || "").split(":");
+      if (kind === "node" && id) return id;
+      if (kind !== "place" || !id) return "";
+      const place = allPlaces.find(item => item.id === id);
+      if (!place) return "";
+      if (place.routeNodeId) return place.routeNodeId;
+      const nodeId = adminPointId("node", place.x, place.y);
+      await postJson("/api/route-nodes", {
+        id: nodeId,
+        mapId: place.mapId,
+        floorId: place.floorId,
+        x: Number(place.x),
+        y: Number(place.y),
+        nodeType: categoryToNodeType(place.category),
+        label: place.name || place.category || "樓層連接點",
+      });
+      return nodeId;
+    }
+
     async function createSelectedTransition() {
       if (!selectedTransitionFromNode) {
         setEditorInfo("請先在地圖上點一個本樓層節點。");
         return;
       }
-      const toNodeId = document.querySelector("#transitionToNode").value;
+      const toNodeId = await resolveTransitionTargetNodeId(document.querySelector("#transitionToNode").value);
       if (!toNodeId) {
         setEditorInfo("請選擇另一層的對應節點。");
         return;
@@ -1643,11 +1704,31 @@
     }
 
     function renderTransitionTargets(fromNode) {
-      const options = allRouteNodes
-        .filter(node => node.floorId !== fromNode.floorId)
-        .map(node => `<option value="${escapeHtml(node.id)}">${escapeHtml(floorName(node.floorId))} / ${escapeHtml(node.label || node.nodeType || node.id)} / ${Number(node.x).toFixed(0)},${Number(node.y).toFixed(0)}</option>`)
+      const options = transitionTargetOptions(fromNode.floorId)
+        .map(target => `<option value="${escapeHtml(target.value)}">${escapeHtml(target.label)}</option>`)
         .join("");
       document.querySelector("#transitionToNode").innerHTML = options || `<option value="">沒有其他樓層節點</option>`;
+    }
+
+    function transitionTargetOptions(fromFloorId) {
+      const routeNodeTargets = allRouteNodes
+        .filter(node => node.floorId !== fromFloorId)
+        .map(node => ({
+          value: `node:${node.id}`,
+          floorId: node.floorId,
+          label: `${floorName(node.floorId)} / ${node.label || node.nodeType || node.id} / ${Number(node.x).toFixed(0)},${Number(node.y).toFixed(0)}`,
+        }));
+      const routeNodeIds = new Set(allRouteNodes.map(node => node.id));
+      const placeTargets = allPlaces
+        .filter(place => place.floorId !== fromFloorId)
+        .filter(place => !place.routeNodeId || !routeNodeIds.has(place.routeNodeId))
+        .map(place => ({
+          value: `place:${place.id}`,
+          floorId: place.floorId,
+          label: `${floorName(place.floorId)} / ${place.name || place.category || place.id} / ${Number(place.x).toFixed(0)},${Number(place.y).toFixed(0)}`,
+        }));
+      return routeNodeTargets.concat(placeTargets)
+        .sort((left, right) => left.floorId.localeCompare(right.floorId) || left.label.localeCompare(right.label));
     }
 
     function setEditorMode(mode) {
