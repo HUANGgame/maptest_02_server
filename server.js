@@ -6,6 +6,7 @@ const { appendFeedback, readFeedback, writeFeedback } = require("./lib/feedbackS
 const { appendHistory, appendSavedLocation, clearHistory, clearSavedLocations, readHistory, readSavedLocations } = require("./lib/historyStore");
 const { activateModel, activeModel, createModelVersion, readModels } = require("./lib/modelStore");
 const { deletePlaceRecord, readPlaces, updatePlaceStatus } = require("./lib/placeStore");
+const { searchPlaces } = require("./lib/placeSearch");
 const { appendPolicyLog, createDqnRun, readDqnRuns, readPolicyLogs } = require("./lib/policyStore");
 const { appendReport, readReports } = require("./lib/reportStore");
 const { clearRouteGraphForFloor, createFloorTransition, createRouteNode, createRouteSegment, createRouteZone, deleteFloorTransition, deleteRouteEdge, deleteRouteNode, deleteRouteZone, readFloorTransitions, readRouteEdges, readRouteNodes, readRouteZones, restoreLastDeleted, setRouteEdgeBlocked, updateRouteZone } = require("./lib/routeEdgeStore");
@@ -142,12 +143,11 @@ const server = http.createServer(async (request, response) => {
     const mapId = url.searchParams.get("mapId") || "";
     const floorId = url.searchParams.get("floorId") || "";
     const keyword = (url.searchParams.get("keyword") || "").trim().toLowerCase();
-    sendJson(response, 200, readPlaces().filter((place) => {
+    sendJson(response, 200, searchPlaces(readPlaces().filter((place) => {
       if (mapId && place.mapId !== mapId) return false;
       if (floorId && place.floorId !== floorId) return false;
-      if (!keyword) return true;
-      return [place.name, place.category, place.description, place.keywords].some((value) => String(value || "").toLowerCase().includes(keyword));
-    }));
+      return place.searchable !== false;
+    }), keyword));
     return;
   }
 
@@ -155,7 +155,7 @@ const server = http.createServer(async (request, response) => {
     try {
       const body = await readJsonBody(request);
       const place = createPlace(body);
-      mirrorFullAdminSnapshot().catch((error) => console.error("MySQL admin mirror failed:", error.message));
+      await mirrorFullAdminSnapshot();
       sendJson(response, 201, { success: true, place });
     } catch (error) {
       sendJson(response, 400, { success: false, message: error.message });
@@ -184,8 +184,8 @@ const server = http.createServer(async (request, response) => {
   if (request.method === "POST" && url.pathname === "/api/places/status") {
     try {
       const body = await readJsonBody(request);
-      const place = updatePlaceStatus(String(body.placeId || "").trim(), String(body.businessStatus || "unset").trim());
-      if (place) mirrorFullAdminSnapshot().catch((error) => console.error("MySQL admin mirror failed:", error.message));
+      const place = updatePlaceStatus(String(body.placeId || "").trim(), String(body.businessStatus || "unset").trim(), body.openingHours);
+      if (place) await mirrorFullAdminSnapshot();
       sendJson(response, place ? 200 : 400, place ? { success: true, place } : { success: false, message: "找不到地點或狀態不合法。" });
     } catch (error) {
       sendJson(response, 400, { success: false, message: error.message });
@@ -923,6 +923,11 @@ Promise.allSettled([mysqlMirror.startMirror(), firebaseMirror.startMirror()])
   .then((results) => {
     const mysqlEnabled = results[0].status === "fulfilled" && results[0].value === true;
     const firebaseEnabled = results[1].status === "fulfilled" && results[1].value === true;
+    if (results[1].status === "rejected" && (process.env.FIREBASE_DATABASE_URL || process.env.FIREBASE_RTDB_URL)) {
+      console.error("Firebase restore failed; refusing to serve stale writable data.");
+      process.exitCode = 1;
+      return;
+    }
     results.forEach((result, index) => {
       if (result.status === "rejected") {
         console.error(`${index === 0 ? "MySQL" : "Firebase"} startup failed:`, result.reason.message);
@@ -950,9 +955,10 @@ function mirrorFullAdminSnapshot() {
     dqnRuns: readDqnRuns(),
     policyLogs: readPolicyLogs(),
   };
-  firebaseMirror.mirrorJsonFiles(["catalog_records.json", "route_graph_records.json", "route_edge_overrides.json", "dqn_training_runs.json", "navigation_policy_logs.json"])
-    .catch((error) => console.error("Firebase admin mirror failed:", error.message));
-  return mysqlMirror.mirrorAdminData(snapshot);
+  return Promise.all([
+    firebaseMirror.mirrorJsonFiles(["catalog_records.json", "place_overrides.json", "route_graph_records.json", "route_edge_overrides.json", "dqn_training_runs.json", "navigation_policy_logs.json"]),
+    mysqlMirror.mirrorAdminData(snapshot),
+  ]);
 }
 
 function sendJson(response, statusCode, body) {
@@ -1462,7 +1468,10 @@ function buildPointProfiles(records) {
           const stddev = standardDeviation(values);
           if (values.length < 2 && sampleCount >= 6) return null;
           if (stddev > 16 && apRows.length < 8) return null;
-          const meanRssi = average(values);
+          const validRows = apRows.filter(row => Number.isFinite(Number(row.rssi)));
+          const weights = validRows.map(row => fingerprintRecencyWeight(row));
+          const totalWeight = weights.reduce((sum, weight) => sum + weight, 0);
+          const meanRssi = totalWeight ? validRows.reduce((sum, row, index) => sum + Number(row.rssi) * weights[index], 0) / totalWeight : null;
           return meanRssi == null ? null : [bssid, meanRssi];
         })
         .filter(Boolean);
@@ -1486,6 +1495,7 @@ function buildPointProfiles(records) {
         stabilityScore,
         repeatBoost,
         priorityWeight,
+        recencyWeight: Math.max(...prioritizedRows.map(fingerprintRecencyWeight)),
       };
     })
     .filter((profile) => Number.isFinite(profile.x) && Number.isFinite(profile.y) && profile.vector.size >= 2);
@@ -1505,6 +1515,13 @@ function fingerprintPriorityWeight(record) {
   return 0.15;
 }
 
+function fingerprintRecencyWeight(record) {
+  const sampledAt = Date.parse(record.scannedAt || "");
+  if (!Number.isFinite(sampledAt)) return 0.25;
+  const ageDays = Math.max(0, (Date.now() - sampledAt) / 86400000);
+  return 0.25 + 0.75 * Math.pow(0.5, ageDays / 30);
+}
+
 function rankKnnProfiles(profiles, currentVector, excludedPointId = "") {
   if (!profiles.length || currentVector.size === 0) return [];
   const currentBssids = new Set(currentVector.keys());
@@ -1519,6 +1536,7 @@ function rankKnnProfiles(profiles, currentVector, excludedPointId = "") {
         distance
           + (1 - coverage) * 22
           + (1 - (profile.priorityWeight || 0.15)) * 18
+          + (1 - (profile.recencyWeight || 0.25)) * 4
           - Math.min(commonApCount, 10) * 0.9
           - (profile.stabilityScore || 0) * 8
           - (profile.repeatBoost || 0) * 0.7

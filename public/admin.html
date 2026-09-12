@@ -387,6 +387,8 @@
     <input id="newPlaceKeywords" placeholder="例如 東森 K12 出口">
     <label for="newPlaceDescription">備註</label>
     <textarea id="newPlaceDescription" placeholder="例如 靠近樓梯，往機捷方向"></textarea>
+    <label for="newPlaceOpeningHours">營業時間</label>
+    <input id="newPlaceOpeningHours" placeholder="例如 週一至週日 10:00-22:00">
     <label>
       <input id="newPlaceIsTransition" type="checkbox">
       這是跨樓層連結點
@@ -636,6 +638,7 @@
           y,
           description,
           keywords,
+          openingHours: document.querySelector("#newPlaceOpeningHours").value.trim(),
           routeNodeId,
           nodeType: categoryToNodeType(category),
           isTransitionConnector,
@@ -770,18 +773,35 @@
             <select data-place-status="${escapeHtml(place.id)}">
               ${["open", "closed", "suspended", "unset"].map(status => `<option value="${status}" ${place.businessStatus === status ? "selected" : ""}>${statusText(status)}</option>`).join("")}
             </select>
+            <details><summary>營業時間</summary>
+              <input data-place-hours="${escapeHtml(place.id)}" value="${escapeHtml(place.openingHours || "")}" placeholder="例如 每日 10:00-22:00">
+              <button data-place-save-hours="${escapeHtml(place.id)}">儲存營業時間</button>
+            </details>
           </td>
           <td><button data-place-delete="${escapeHtml(place.id)}">刪除</button></td>
         </tr>
       `).join("") || `<tr><td colspan="5" class="muted">目前沒有地點資料</td></tr>`;
       document.querySelectorAll("[data-place-status]").forEach(select => {
         select.addEventListener("change", async () => {
+          await runAdminAction("狀態已儲存", async () => {
           await postJson("/api/places/status", {
             placeId: select.getAttribute("data-place-status"),
             businessStatus: select.value,
           });
           await loadDashboard();
+          });
         });
+      });
+      document.querySelectorAll("[data-place-save-hours]").forEach(button => {
+        button.addEventListener("click", () => runAdminAction("營業時間已儲存", async () => {
+          const row = button.closest("tr");
+          await postJson("/api/places/status", {
+            placeId: button.getAttribute("data-place-save-hours"),
+            businessStatus: row.querySelector("[data-place-status]").value,
+            openingHours: row.querySelector("[data-place-hours]").value.trim(),
+          });
+          await loadDashboard();
+        }));
       });
       document.querySelectorAll("[data-place-delete]").forEach(button => {
         button.addEventListener("click", () => {
@@ -1710,6 +1730,7 @@
       document.querySelector("#newPlaceCategoryAdd").value = "";
       document.querySelector("#newPlaceKeywords").value = "";
       document.querySelector("#newPlaceDescription").value = "";
+      document.querySelector("#newPlaceOpeningHours").value = "";
       document.querySelector("#newPlaceIsTransition").checked = false;
       document.querySelector("#newPlaceTransitionTarget").innerHTML = "";
       document.querySelector("#newPlaceTransitionType").value = "escalator";
@@ -1798,6 +1819,7 @@
       setPlaceCategoryValue(place.category || "未分類");
       document.querySelector("#newPlaceKeywords").value = place.keywords || "";
       document.querySelector("#newPlaceDescription").value = place.description || "";
+      document.querySelector("#newPlaceOpeningHours").value = place.openingHours || "";
       document.querySelector("#newPlaceX").value = Number(place.x).toFixed(1);
       document.querySelector("#newPlaceY").value = Number(place.y).toFixed(1);
       preparePlaceEditorTransitionTargets();
