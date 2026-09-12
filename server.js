@@ -210,20 +210,25 @@ const server = http.createServer(async (request, response) => {
         });
         return;
       }
-      const saved = appendScans(records);
+      if (!firebaseMirror.isEnabled()) throw new Error("Firebase storage unavailable; retain scans for retry");
+      // Include locally cached duplicates: a previous attempt may have failed in Firebase.
+      const saved = appendScans(records, true);
+      await firebaseMirror.mirrorWifiScans(saved);
       mysqlMirror.mirrorWifiScans(saved).catch((error) => console.error("MySQL Wi-Fi mirror failed:", error.message));
-      firebaseMirror.mirrorWifiScans(saved).catch((error) => console.error("Firebase Wi-Fi mirror failed:", error.message));
       sendJson(response, 201, {
         success: true,
         accepted: true,
         savedCount: saved.length,
+        persisted: true,
+        persistedCount: records.length,
+        storage: "firebase-rtdb",
         uploadedAt: saved[0]?.uploadedAt || new Date().toISOString(),
       });
     } catch (error) {
       sendJson(response, 400, {
         success: false,
         accepted: false,
-        error: "invalidJson",
+        error: "uploadFailed",
         message: error.message,
       });
     }
