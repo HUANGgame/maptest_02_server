@@ -1,11 +1,11 @@
 const http = require("http");
 const fs = require("fs");
 const path = require("path");
-const { createFloor, createMap, createPlace, deletePlace, readFloors, readMaps } = require("./lib/catalogStore");
+const { createFloor, createMap, createPlace, readFloors, readMaps } = require("./lib/catalogStore");
 const { appendFeedback, readFeedback, writeFeedback } = require("./lib/feedbackStore");
 const { appendHistory, appendSavedLocation, clearHistory, clearSavedLocations, readHistory, readSavedLocations } = require("./lib/historyStore");
 const { activateModel, activeModel, createModelVersion, readModels } = require("./lib/modelStore");
-const { readPlaces, updatePlaceStatus } = require("./lib/placeStore");
+const { deletePlaceRecord, readPlaces, updatePlaceStatus } = require("./lib/placeStore");
 const { appendPolicyLog, createDqnRun, readDqnRuns, readPolicyLogs } = require("./lib/policyStore");
 const { appendReport, readReports } = require("./lib/reportStore");
 const { clearRouteGraphForFloor, createFloorTransition, createRouteNode, createRouteSegment, createRouteZone, deleteFloorTransition, deleteRouteEdge, deleteRouteNode, deleteRouteZone, readFloorTransitions, readRouteEdges, readRouteNodes, readRouteZones, restoreLastDeleted, setRouteEdgeBlocked, updateRouteZone } = require("./lib/routeEdgeStore");
@@ -165,8 +165,14 @@ const server = http.createServer(async (request, response) => {
 
   if (request.method === "DELETE" && url.pathname === "/api/places") {
     try {
-      const placeId = url.searchParams.get("placeId") || "";
-      const place = deletePlace(placeId);
+      const place = deletePlaceRecord({
+        placeId: url.searchParams.get("placeId") || "",
+        mapId: url.searchParams.get("mapId") || "",
+        floorId: url.searchParams.get("floorId") || "",
+        x: url.searchParams.get("x") || "",
+        y: url.searchParams.get("y") || "",
+        tolerance: url.searchParams.get("tolerance") || "",
+      });
       if (place) mirrorFullAdminSnapshot().catch((error) => console.error("MySQL admin mirror failed:", error.message));
       sendJson(response, place ? 200 : 404, place ? { success: true, place } : { success: false, message: "place not found" });
     } catch (error) {

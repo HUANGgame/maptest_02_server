@@ -1757,7 +1757,7 @@
         } else if (target.type === "edge") {
           await deleteJson(`/api/route-edges?edgeId=${encodeURIComponent(target.value.id)}`);
         } else if (target.type === "place") {
-          await deleteJson(`/api/places?placeId=${encodeURIComponent(target.value.id)}`);
+          await deleteJson(placeDeletePath(target.value));
           if (target.value.routeNodeId) await deleteJsonIfExists(`/api/route-nodes?nodeId=${encodeURIComponent(target.value.routeNodeId)}`);
         } else {
           await deleteJson(`/api/route-zones?zoneId=${encodeURIComponent(target.value.id)}`);
@@ -1765,6 +1765,18 @@
         selectedDeleteTarget = null;
         await loadDashboard();
       });
+    }
+
+    function placeDeletePath(place) {
+      const params = new URLSearchParams({
+        placeId: place.id || "",
+        mapId: place.mapId || mapSelect.value || "",
+        floorId: place.floorId || floorSelect.value || "",
+        x: String(place.x ?? ""),
+        y: String(place.y ?? ""),
+        tolerance: "8",
+      });
+      return `/api/places?${params.toString()}`;
     }
 
     function setEditorInfo(message) {
