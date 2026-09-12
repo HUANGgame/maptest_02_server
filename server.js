@@ -1151,6 +1151,7 @@ function normalizeWifiScanPayload(body) {
 
 function normalizeFlatRecord(record) {
   return {
+    sampleId: String(record.sampleId || "").trim(),
     pointId: String(record.pointId || "").trim(),
     mapId: String(record.mapId || "").trim(),
     floorId: String(record.floorId || "").trim(),
@@ -1161,6 +1162,8 @@ function normalizeFlatRecord(record) {
     bssid: String(record.bssid || "").trim(),
     rssi: record.rssi,
     deviceInfo: record.deviceInfo == null ? "" : String(record.deviceInfo),
+    sourceMode: record.sourceMode == null ? "" : String(record.sourceMode),
+    dataPriority: record.dataPriority == null ? "" : String(record.dataPriority),
     scannedAt: record.scannedAt,
   };
 }
@@ -1442,10 +1445,11 @@ function rankKnnCandidates(records, currentVector) {
 function buildPointProfiles(records) {
   return Array.from(groupBy(records, (record) => record.pointId).entries())
     .map(([pointId, rows]) => {
-      const first = rows[0];
-      const location = dominantPointLocation(rows);
-      const sampleCount = new Set(rows.map((row) => row.sampleId).filter(Boolean)).size;
-      const groupedByBssid = groupBy(rows, (record) => String(record.bssid || "").toLowerCase());
+      const prioritizedRows = prioritizeFingerprintRows(rows);
+      const first = prioritizedRows[0] || rows[0];
+      const location = dominantPointLocation(prioritizedRows.length ? prioritizedRows : rows);
+      const sampleCount = new Set(prioritizedRows.map((row) => row.sampleId).filter(Boolean)).size;
+      const groupedByBssid = groupBy(prioritizedRows, (record) => String(record.bssid || "").toLowerCase());
       const stableEntries = Array.from(groupedByBssid.entries())
         .map(([bssid, apRows]) => {
           const values = apRows.map((row) => Number(row.rssi)).filter(Number.isFinite);
@@ -1463,6 +1467,7 @@ function buildPointProfiles(records) {
       }).length;
       const stabilityScore = groupedByBssid.size ? clamp(stableApCount / groupedByBssid.size, 0, 1) : 0;
       const repeatBoost = clamp(Math.log(Math.max(1, sampleCount)), 0, 3.2);
+      const priorityWeight = fingerprintPriorityWeight(first);
       return {
         pointId,
         mapId: first.mapId,
@@ -1474,9 +1479,24 @@ function buildPointProfiles(records) {
         stableApCount,
         stabilityScore,
         repeatBoost,
+        priorityWeight,
       };
     })
     .filter((profile) => Number.isFinite(profile.x) && Number.isFinite(profile.y) && profile.vector.size >= 2);
+}
+
+function prioritizeFingerprintRows(rows) {
+  const highPriorityRows = rows.filter((row) => fingerprintPriorityWeight(row) >= 1);
+  return highPriorityRows.length > 0 ? highPriorityRows : rows;
+}
+
+function fingerprintPriorityWeight(record) {
+  const priority = String(record.dataPriority || "").toLowerCase();
+  if (priority === "field_verified" || priority === "verified" || priority === "high") return 1;
+  if (priority === "legacy_low" || priority === "low") return 0.15;
+  const source = String(record.sourceMode || "").toUpperCase();
+  if (source.includes("KEY_POINT") || source.includes("BACKEND_PLACE") || source.includes("MANUAL")) return 1;
+  return 0.15;
 }
 
 function rankKnnProfiles(profiles, currentVector, excludedPointId = "") {
@@ -1492,6 +1512,7 @@ function rankKnnProfiles(profiles, currentVector, excludedPointId = "") {
         0.1,
         distance
           + (1 - coverage) * 22
+          + (1 - (profile.priorityWeight || 0.15)) * 18
           - Math.min(commonApCount, 10) * 0.9
           - (profile.stabilityScore || 0) * 8
           - (profile.repeatBoost || 0) * 0.7
