@@ -226,7 +226,7 @@
               <button id="deletePlaceModeButton" class="secondary">刪點位</button>
               <button id="routeModeButton" class="secondary">測試導航路線</button>
               <button id="deleteEdgeModeButton" class="secondary">刪路線</button>
-              <button id="transitionModeButton" class="secondary">連樓層</button>
+              <button id="movePlaceModeButton" class="secondary">移動點位</button>
               <button id="walkableZoneModeButton" class="secondary">綠框可走</button>
               <button id="colorWalkableZoneModeButton" class="secondary">色階可走</button>
               <button id="blockedZoneModeButton" class="secondary">紅框禁入</button>
@@ -439,6 +439,7 @@
     let mapEditorBounds = null;
     let selectedPlaceNode = null;
     let selectedDeleteTarget = null;
+    let selectedMoveTarget = null;
     let selectedRouteZone = null;
     let routeTestStart = null;
     let routeTestRoute = [];
@@ -455,7 +456,7 @@
     document.querySelector("#deletePlaceModeButton").addEventListener("click", () => setEditorMode("deletePlace"));
     document.querySelector("#routeModeButton").addEventListener("click", () => setEditorMode("routeTest"));
     document.querySelector("#deleteEdgeModeButton").addEventListener("click", () => setEditorMode("deleteEdge"));
-    document.querySelector("#transitionModeButton").addEventListener("click", () => setEditorMode("transition"));
+    document.querySelector("#movePlaceModeButton").addEventListener("click", () => setEditorMode("movePlace"));
     document.querySelector("#walkableZoneModeButton").addEventListener("click", () => setEditorMode("walkableZone"));
     document.querySelector("#colorWalkableZoneModeButton").addEventListener("click", () => setEditorMode("colorWalkableZone"));
     document.querySelector("#blockedZoneModeButton").addEventListener("click", () => setEditorMode("blockedZone"));
@@ -950,6 +951,7 @@
       drawZoneDraft(bounds);
       drawSelectedRouteZone(bounds);
       drawSelectedDeleteTarget(bounds);
+      drawSelectedMoveTarget(bounds);
     }
 
     function drawRouteZones(bounds) {
@@ -1145,6 +1147,18 @@
       mapEditorCtx.stroke();
     }
 
+    function drawSelectedMoveTarget(bounds) {
+      if (!selectedMoveTarget) return;
+      const item = selectedMoveTarget.value;
+      if (!item) return;
+      mapEditorCtx.save();
+      mapEditorCtx.strokeStyle = "#2563eb";
+      mapEditorCtx.lineWidth = 3;
+      mapEditorCtx.setLineDash([6, 4]);
+      mapEditorCtx.strokeRect(mapToCanvasX(item.x, bounds) - 10, mapToCanvasY(item.y, bounds) - 10, 20, 20);
+      mapEditorCtx.restore();
+    }
+
     async function createZonesFromColor(point, zoneType) {
       const zones = detectColorConnectedZones(point);
       if (zones.length === 0) {
@@ -1322,6 +1336,22 @@
           return;
         }
         setEditorInfo("附近沒有點位可刪除。");
+        return;
+      }
+      if (editorMode === "movePlace") {
+        if (!selectedMoveTarget) {
+          const place = nearestPlace(point);
+          const node = place ? null : nearestAnyRouteNode(point);
+          if (!place && !node) {
+            setEditorInfo("附近沒有點位可移動。");
+            return;
+          }
+          selectedMoveTarget = place ? { type: "place", value: place } : { type: "node", value: node };
+          renderMapEditor();
+          setEditorInfo(`已選 ${place?.name || node?.label || node?.nodeType || node?.id}，請點新位置儲存座標。`);
+          return;
+        }
+        await moveSelectedPointTo(point);
         return;
       }
       if (editorMode === "routeTest") {
@@ -1801,6 +1831,79 @@
       }
     }
 
+    async function moveSelectedPointTo(point) {
+      const target = selectedMoveTarget;
+      if (!target) return;
+      await runAdminAction("已移動點位", async () => {
+        if (target.type === "place") {
+          await movePlaceTo(target.value, point);
+        } else {
+          await moveRouteNodeTo(target.value, point);
+          const linkedPlace = currentPlaces.find(place => place.routeNodeId === target.value.id)
+            || nearestPlace({ x: target.value.x, y: target.value.y });
+          if (linkedPlace) await movePlaceTo({ ...linkedPlace, routeNodeId: target.value.id }, point, false);
+        }
+        selectedMoveTarget = null;
+        await loadDashboard();
+      });
+    }
+
+    async function movePlaceTo(place, point, updateNode = true) {
+      const routeNode = routeNodeForPlace(place);
+      const routeNodeId = place.routeNodeId || routeNode?.id || adminPointId("node", point.x, point.y);
+      if (updateNode) {
+        await moveRouteNodeTo({
+          ...(routeNode || {}),
+          id: routeNodeId,
+          mapId: place.mapId || mapSelect.value,
+          floorId: place.floorId || floorSelect.value,
+          nodeType: place.nodeType || categoryToNodeType(place.category),
+          label: place.name || "點位",
+        }, point);
+      }
+      await postJson("/api/places", {
+        ...place,
+        id: place.id,
+        mapId: place.mapId || mapSelect.value,
+        floorId: place.floorId || floorSelect.value,
+        name: place.name || "點位",
+        category: place.category || "未分類",
+        description: place.description || "",
+        keywords: place.keywords || "",
+        x: point.x,
+        y: point.y,
+        routeNodeId,
+        nodeType: place.nodeType || categoryToNodeType(place.category),
+        isNavigationNode: place.isNavigationNode !== false,
+        searchable: place.searchable !== false,
+        businessStatus: place.businessStatus || "unset",
+      });
+    }
+
+    async function moveRouteNodeTo(node, point) {
+      await postJson("/api/route-nodes", {
+        id: node.id,
+        mapId: node.mapId || mapSelect.value,
+        floorId: node.floorId || floorSelect.value,
+        x: point.x,
+        y: point.y,
+        nodeType: node.nodeType || "poi",
+        label: node.label || node.name || "點位",
+      });
+    }
+
+    function routeNodeForPlace(place) {
+      if (place.routeNodeId) {
+        const exact = allRouteNodes.find(node => node.id === place.routeNodeId);
+        if (exact) return exact;
+      }
+      return allRouteNodes
+        .filter(node => node.mapId === place.mapId && node.floorId === place.floorId)
+        .map(node => ({ ...node, hitDistance: distance(Number(place.x), Number(place.y), Number(node.x), Number(node.y)) }))
+        .filter(node => node.hitDistance <= 24)
+        .sort((left, right) => left.hitDistance - right.hitDistance)[0] || null;
+    }
+
     async function resolveTransitionTargetNodeId(value) {
       const [kind, id] = String(value || "").split(":");
       if (kind === "node" && id) return id;
@@ -1880,6 +1983,7 @@
       routeTestRoute = [];
       selectedTransitionFromNode = null;
       selectedDeleteTarget = null;
+      selectedMoveTarget = null;
       if (document.querySelector("#placeEditorForm").open) document.querySelector("#placeEditorForm").close();
       document.querySelector("#transitionEditorForm").classList.add("hidden");
       if (mode === "routeTest") {
@@ -1894,7 +1998,7 @@
         ["deletePlaceModeButton", "deletePlace"],
         ["routeModeButton", "routeTest"],
         ["deleteEdgeModeButton", "deleteEdge"],
-        ["transitionModeButton", "transition"],
+        ["movePlaceModeButton", "movePlace"],
         ["walkableZoneModeButton", "walkableZone"],
         ["colorWalkableZoneModeButton", "colorWalkableZone"],
         ["blockedZoneModeButton", "blockedZone"],
@@ -1912,6 +2016,7 @@
         place: "點地圖新增標記節點：同時可搜尋、可導航、可跨樓層連接。",
         mark: "點舊節點後補名稱、關鍵詞、分類設施、備註；儲存後會與標記合併。",
         deletePlace: "點標記節點或舊節點後會先框起來，確認後刪除該點位。",
+        movePlace: "先點要移動的點位，藍框出現後再點新位置，座標會立即儲存。",
         routeTest: "測試導航路線：先點地圖當目前位置，再點紅色地點標記當目的地；只測試，不新增路線資料。",
         deleteNode: "點節點後會先框起來，確認後刪除。",
         deleteEdge: "點路線後會先框起來，確認後刪除。",
