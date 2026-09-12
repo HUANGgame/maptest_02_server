@@ -610,6 +610,9 @@
       const y = Number(selectedPlaceNode?.y ?? document.querySelector("#newPlaceY").value);
       const placeId = selectedPlaceNode?.placeId || adminPointId("place", x, y);
       const routeNodeId = selectedPlaceNode?.id || adminPointId("node", x, y);
+      const isTransitionConnector = document.querySelector("#newPlaceIsTransition").checked;
+      const transitionTargetValue = isTransitionConnector ? document.querySelector("#newPlaceTransitionTarget").value : "";
+      const transitionType = isTransitionConnector ? document.querySelector("#newPlaceTransitionType").value : "";
       await runAdminAction("已儲存標記節點", async () => {
         await postJson("/api/route-nodes", {
           id: routeNodeId,
@@ -620,6 +623,9 @@
           nodeType: categoryToNodeType(category),
           label: name,
         });
+        const transitionTargetNodeId = isTransitionConnector
+          ? await resolveTransitionTargetNodeId(transitionTargetValue)
+          : "";
         await postJson("/api/places", {
           id: placeId,
           mapId: mapSelect.value,
@@ -632,10 +638,14 @@
           keywords,
           routeNodeId,
           nodeType: categoryToNodeType(category),
+          isTransitionConnector,
+          transitionTargetValue,
+          transitionTargetNodeId,
+          transitionType,
           isNavigationNode: true,
           searchable: true,
         });
-        await createTransitionFromPlaceForm(routeNodeId, name, category);
+        await createTransitionFromPlaceForm(routeNodeId, name, category, transitionTargetNodeId);
         selectedPlaceNode = null;
         document.querySelector("#placeEditorForm").close();
         resetPlaceEditorForm();
@@ -1791,22 +1801,32 @@
       document.querySelector("#newPlaceX").value = Number(place.x).toFixed(1);
       document.querySelector("#newPlaceY").value = Number(place.y).toFixed(1);
       preparePlaceEditorTransitionTargets();
-      applyExistingTransitionToPlaceEditor(place.routeNodeId || node?.id || "");
+      applyExistingTransitionToPlaceEditor(place.routeNodeId || node?.id || "", place);
       document.querySelector("#placeEditorForm").showModal();
     }
 
-    function applyExistingTransitionToPlaceEditor(routeNodeId) {
-      if (!routeNodeId) return;
-      const transition = currentTransitions.find(item => item.fromNodeId === routeNodeId || item.toNodeId === routeNodeId);
-      if (!transition) return;
-      const targetNodeId = transition.fromNodeId === routeNodeId ? transition.toNodeId : transition.fromNodeId;
+    function applyExistingTransitionToPlaceEditor(routeNodeId, place = null) {
+      const transition = routeNodeId
+        ? currentTransitions.find(item => item.fromNodeId === routeNodeId || item.toNodeId === routeNodeId)
+        : null;
+      if (!transition && !place?.isTransitionConnector) return;
       document.querySelector("#newPlaceIsTransition").checked = true;
       syncPlaceTransitionFieldsVisibility();
+      if (!transition) {
+        document.querySelector("#newPlaceTransitionType").value = place.transitionType || "escalator";
+        setTransitionSelectValue(place.transitionTargetValue || (place.transitionTargetNodeId ? `node:${place.transitionTargetNodeId}` : ""));
+        return;
+      }
+      const targetNodeId = transition.fromNodeId === routeNodeId ? transition.toNodeId : transition.fromNodeId;
       document.querySelector("#newPlaceTransitionType").value = transition.transitionType || "escalator";
+      setTransitionSelectValue(`node:${targetNodeId}`);
+    }
+
+    function setTransitionSelectValue(value) {
+      if (!value) return;
       const select = document.querySelector("#newPlaceTransitionTarget");
-      const targetValue = `node:${targetNodeId}`;
-      if ([...select.options].some(option => option.value === targetValue)) {
-        select.value = targetValue;
+      if ([...select.options].some(option => option.value === value)) {
+        select.value = value;
       }
     }
 
@@ -1817,11 +1837,11 @@
         .join("") || `<option value="">沒有其他樓層點位，請先切到 F2 建立手扶梯/樓梯點</option>`;
     }
 
-    async function createTransitionFromPlaceForm(routeNodeId, name, category) {
+    async function createTransitionFromPlaceForm(routeNodeId, name, category, resolvedTargetNodeId = "") {
       await deleteExistingTransitionsForNode(routeNodeId);
       if (!document.querySelector("#newPlaceIsTransition").checked) return;
       const targetValue = document.querySelector("#newPlaceTransitionTarget").value;
-      const toNodeId = await resolveTransitionTargetNodeId(targetValue);
+      const toNodeId = resolvedTargetNodeId || await resolveTransitionTargetNodeId(targetValue);
       if (!toNodeId) throw new Error("沒有可連結的另一層點位，請先在 F2 建立對應手扶梯/樓梯點。");
       await postJson("/api/floor-transitions", {
         mapId: mapSelect.value,
