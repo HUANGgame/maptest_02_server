@@ -211,6 +211,7 @@
             <div class="inline-buttons">
               <button id="placeModeButton" class="active">標點</button>
               <button id="markModeButton" class="secondary">標記</button>
+              <button id="deletePlaceModeButton" class="secondary">刪標記</button>
               <button id="routeModeButton" class="secondary">新增導航路線</button>
               <button id="deleteNodeModeButton" class="secondary">刪節點</button>
               <button id="deleteEdgeModeButton" class="secondary">刪路線</button>
@@ -252,7 +253,7 @@
       <section>
         <h2>地點資料</h2>
         <table>
-          <thead><tr><th>名稱</th><th>分類</th><th>座標</th><th>狀態</th></tr></thead>
+          <thead><tr><th>名稱</th><th>分類</th><th>座標</th><th>狀態</th><th>操作</th></tr></thead>
           <tbody id="placesBody"></tbody>
         </table>
       </section>
@@ -419,6 +420,7 @@
     reloadButton.addEventListener("click", loadDashboard);
     document.querySelector("#placeModeButton").addEventListener("click", () => setEditorMode("place"));
     document.querySelector("#markModeButton").addEventListener("click", () => setEditorMode("mark"));
+    document.querySelector("#deletePlaceModeButton").addEventListener("click", () => setEditorMode("deletePlace"));
     document.querySelector("#routeModeButton").addEventListener("click", () => setEditorMode("route"));
     document.querySelector("#deleteNodeModeButton").addEventListener("click", () => setEditorMode("deleteNode"));
     document.querySelector("#deleteEdgeModeButton").addEventListener("click", () => setEditorMode("deleteEdge"));
@@ -697,8 +699,9 @@
               ${["open", "closed", "suspended", "unset"].map(status => `<option value="${status}" ${place.businessStatus === status ? "selected" : ""}>${statusText(status)}</option>`).join("")}
             </select>
           </td>
+          <td><button data-place-delete="${escapeHtml(place.id)}">刪除</button></td>
         </tr>
-      `).join("") || `<tr><td colspan="4" class="muted">目前沒有地點資料</td></tr>`;
+      `).join("") || `<tr><td colspan="5" class="muted">目前沒有地點資料</td></tr>`;
       document.querySelectorAll("[data-place-status]").forEach(select => {
         select.addEventListener("change", async () => {
           await postJson("/api/places/status", {
@@ -706,6 +709,15 @@
             businessStatus: select.value,
           });
           await loadDashboard();
+        });
+      });
+      document.querySelectorAll("[data-place-delete]").forEach(button => {
+        button.addEventListener("click", () => {
+          const place = currentPlaces.find(item => item.id === button.getAttribute("data-place-delete"));
+          if (!place) return;
+          selectedDeleteTarget = { type: "place", value: place };
+          renderMapEditor();
+          showDeleteDialog("刪除地點標記", `${place.name}，座標 ${Number(place.x).toFixed(1)}, ${Number(place.y).toFixed(1)}`);
         });
       });
 
@@ -1204,6 +1216,17 @@
         setEditorInfo("已選節點，請在彈框輸入名稱、關鍵詞、分類設施、備註。");
         return;
       }
+      if (editorMode === "deletePlace") {
+        const place = nearestPlace(point);
+        if (!place) {
+          setEditorInfo("附近沒有地點標記可刪除。紅色地點標記請用「刪標記」，節點請用「刪節點」。");
+          return;
+        }
+        selectedDeleteTarget = { type: "place", value: place };
+        renderMapEditor();
+        showDeleteDialog("刪除地點標記", `${place.name}，座標 ${Number(place.x).toFixed(1)}, ${Number(place.y).toFixed(1)}`);
+        return;
+      }
       if (editorMode === "deleteNode") {
         const node = nearestAnyRouteNode(point);
         if (!node) {
@@ -1577,6 +1600,7 @@
       [
         ["placeModeButton", "place"],
         ["markModeButton", "mark"],
+        ["deletePlaceModeButton", "deletePlace"],
         ["routeModeButton", "route"],
         ["deleteNodeModeButton", "deleteNode"],
         ["deleteEdgeModeButton", "deleteEdge"],
@@ -1597,6 +1621,7 @@
       const messages = {
         place: "點地圖新增最小節點。",
         mark: "點節點後輸入名稱、關鍵詞、分類設施、備註。",
+        deletePlace: "點紅色地點標記後會先確認，再刪除後台地點標記。",
         route: "新增導航路線：依序點起點與終點，建立一段正式導航可走路線。",
         deleteNode: "點節點後會先框起來，確認後刪除。",
         deleteEdge: "點路線後會先框起來，確認後刪除。",
@@ -1623,11 +1648,13 @@
       if (!selectedDeleteTarget) return;
       const target = selectedDeleteTarget;
       document.querySelector("#deleteConfirmDialog").close();
-      await runAdminAction(target.type === "node" ? "已刪除節點" : target.type === "edge" ? "已刪除路線" : "已刪除框框", async () => {
+      await runAdminAction(target.type === "node" ? "已刪除節點" : target.type === "edge" ? "已刪除路線" : target.type === "place" ? "已刪除地點標記" : "已刪除框框", async () => {
         if (target.type === "node") {
           await deleteJson(`/api/route-nodes?nodeId=${encodeURIComponent(target.value.id)}`);
         } else if (target.type === "edge") {
           await deleteJson(`/api/route-edges?edgeId=${encodeURIComponent(target.value.id)}`);
+        } else if (target.type === "place") {
+          await deleteJson(`/api/places?placeId=${encodeURIComponent(target.value.id)}`);
         } else {
           await deleteJson(`/api/route-zones?zoneId=${encodeURIComponent(target.value.id)}`);
         }
@@ -1722,6 +1749,13 @@
       return currentRouteNodes
         .map(node => ({ ...node, hitDistance: distance(point.x, point.y, node.x, node.y) }))
         .filter(node => node.hitDistance <= 24)
+        .sort((left, right) => left.hitDistance - right.hitDistance)[0] || null;
+    }
+
+    function nearestPlace(point) {
+      return currentPlaces
+        .map(place => ({ ...place, hitDistance: distance(point.x, point.y, place.x, place.y) }))
+        .filter(place => place.hitDistance <= 24)
         .sort((left, right) => left.hitDistance - right.hitDistance)[0] || null;
     }
 
