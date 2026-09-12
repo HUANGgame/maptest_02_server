@@ -191,6 +191,7 @@
     <h1>地下街室內導航系統後台</h1>
     <div id="healthInfo" class="muted">後端：檢查中</div>
     <div id="adminNotice" class="muted">待命</div>
+    <a href="#userReports" id="reportsLink">使用者回報</a>
   </header>
   <main>
     <aside>
@@ -358,10 +359,12 @@
           <tbody id="policyLogsBody"></tbody>
         </table>
       </section>
-      <section>
-        <h2>使用者回報</h2>
+      <section id="userReports">
+        <h2>使用者回報（全部地圖與樓層）</h2>
+        <button type="button" id="refreshReportsButton">重新整理回報</button>
+        <div id="reportsNotice" role="status"></div>
         <table>
-          <thead><tr><th>類型</th><th>狀態</th><th>說明</th></tr></thead>
+          <thead><tr><th>時間</th><th>地圖／樓層／座標</th><th>類型</th><th>狀態</th><th>說明</th></tr></thead>
           <tbody id="reportsBody"></tbody>
         </table>
       </section>
@@ -751,7 +754,7 @@
         getJson(`/api/model-training-jobs?mapId=${encodeURIComponent(mapId)}&floorId=${encodeURIComponent(floorId)}`),
         getJson(`/api/navigation-policy/runs?mapId=${encodeURIComponent(mapId)}&floorId=${encodeURIComponent(floorId)}`),
         getJson(`/api/navigation-policy/logs?mapId=${encodeURIComponent(mapId)}&floorId=${encodeURIComponent(floorId)}`),
-        getJson(`/api/user-reports?mapId=${encodeURIComponent(mapId)}&floorId=${encodeURIComponent(floorId)}`),
+        getJson(`/api/user-reports`),
       ]);
       currentPlaces = places;
       allPlaces = allMapPlaces;
@@ -924,14 +927,34 @@
           <td>${log.isOffRoute ? "偏離路線" : log.obstacleNearby ? "有障礙" : "一般"}</td>
         </tr>
       `).join("") || `<tr><td colspan="3" class="muted">目前沒有策略決策紀錄</td></tr>`;
-      document.querySelector("#reportsBody").innerHTML = reports.map(report => `
+      renderReports(reports);
+    }
+
+    function renderReports(reports) {
+      document.querySelector("#reportsLink").textContent = `使用者回報（${reports.length}）`;
+      document.querySelector("#reportsBody").innerHTML = [...reports].sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt))).map(report => `
         <tr>
-          <td>${reportTypeText(report.reportType)}</td>
+          <td>${escapeHtml(report.createdAt ? new Date(report.createdAt).toLocaleString("zh-TW") : "-")}</td>
+          <td>${escapeHtml(report.mapId)} / ${escapeHtml(report.floorId)} / ${escapeHtml(String(report.x))}, ${escapeHtml(String(report.y))}</td>
+          <td>${escapeHtml(reportTypeText(report.reportType))}</td>
           <td>${escapeHtml(report.status)}</td>
           <td>${escapeHtml(report.description || "-")}</td>
         </tr>
-      `).join("") || `<tr><td colspan="3" class="muted">目前沒有使用者回報</td></tr>`;
+      `).join("") || `<tr><td colspan="5" class="muted">目前沒有使用者回報</td></tr>`;
     }
+
+    async function refreshReports() {
+      try {
+        renderReports(await getJson(`/api/user-reports?t=${Date.now()}`));
+        document.querySelector("#reportsNotice").textContent = "已更新回報";
+      } catch (error) {
+        document.querySelector("#reportsNotice").textContent = `回報讀取失敗：${error.message}`;
+      }
+    }
+    document.querySelector("#refreshReportsButton").addEventListener("click", refreshReports);
+    document.querySelector("#reportsLink").addEventListener("click", refreshReports);
+    refreshReports();
+    setInterval(() => { if (!document.hidden) refreshReports(); }, 30000);
 
     async function loadMapEditorImage() {
       const floor = currentFloors.find(item => item.id === floorSelect.value);

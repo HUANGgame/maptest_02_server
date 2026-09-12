@@ -893,6 +893,7 @@ const server = http.createServer(async (request, response) => {
         return;
       }
       const report = appendReport({
+        clientReportId: String(body.clientReportId || "").slice(0, 100),
         userId: String(body.userId || body.anonymousUserId || "anonymous"),
         mapId: String(body.mapId || ""),
         floorId: String(body.floorId || ""),
@@ -901,8 +902,9 @@ const server = http.createServer(async (request, response) => {
         reportType,
         description: String(body.description || ""),
       });
-      firebaseMirror.mirrorJsonFiles(["user_reports.json"]).catch((error) => console.error("Firebase report mirror failed:", error.message));
-      sendJson(response, 201, { success: true, report });
+      if (!firebaseMirror.isEnabled()) throw new Error("Firebase report storage is unavailable");
+      await firebaseMirror.mirrorJsonFiles(["user_reports.json"]);
+      sendJson(response, 201, { success: true, storage: "firebase-rtdb", persisted: true, report });
     } catch (error) {
       sendJson(response, 400, { success: false, message: error.message });
     }
