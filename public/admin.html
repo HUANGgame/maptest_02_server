@@ -209,9 +209,9 @@
           </div>
           <div>
             <div class="inline-buttons">
-              <button id="placeModeButton" class="active">標點</button>
+              <button id="placeModeButton" class="active">新增標記節點</button>
               <button id="markModeButton" class="secondary">標記</button>
-              <button id="deletePlaceModeButton" class="secondary">刪標記</button>
+              <button id="deletePlaceModeButton" class="secondary">刪標記節點</button>
               <button id="routeModeButton" class="secondary">測試導航路線</button>
               <button id="deleteNodeModeButton" class="secondary">刪節點</button>
               <button id="deleteEdgeModeButton" class="secondary">刪路線</button>
@@ -571,8 +571,20 @@
       const description = document.querySelector("#newPlaceDescription").value.trim();
       const x = Number(selectedPlaceNode?.x ?? document.querySelector("#newPlaceX").value);
       const y = Number(selectedPlaceNode?.y ?? document.querySelector("#newPlaceY").value);
-      await runAdminAction("已新增地點", async () => {
+      const placeId = selectedPlaceNode?.placeId || adminPointId("place", x, y);
+      const routeNodeId = selectedPlaceNode?.id || adminPointId("node", x, y);
+      await runAdminAction("已儲存標記節點", async () => {
+        await postJson("/api/route-nodes", {
+          id: routeNodeId,
+          mapId: mapSelect.value,
+          floorId: floorSelect.value,
+          x,
+          y,
+          nodeType: categoryToNodeType(category),
+          label: name,
+        });
         await postJson("/api/places", {
+          id: placeId,
           mapId: mapSelect.value,
           floorId: floorSelect.value,
           name,
@@ -581,6 +593,9 @@
           y,
           description,
           keywords,
+          routeNodeId,
+          nodeType: categoryToNodeType(category),
+          isNavigationNode: true,
           searchable: true,
         });
         selectedPlaceNode = null;
@@ -1231,16 +1246,11 @@
         return;
       }
       if (editorMode === "place") {
-        await runAdminAction("已新增節點", async () => {
-          await postJson("/api/route-nodes", {
-            mapId: mapSelect.value,
-            floorId: floorSelect.value,
-            x: point.x,
-            y: point.y,
-            label: "路線點",
-          });
-          await loadDashboard();
-        });
+        selectedPlaceNode = { x: point.x, y: point.y };
+        document.querySelector("#newPlaceX").value = Number(point.x).toFixed(1);
+        document.querySelector("#newPlaceY").value = Number(point.y).toFixed(1);
+        document.querySelector("#placeEditorForm").showModal();
+        setEditorInfo("請輸入名稱、關鍵詞、分類設施、備註；儲存後會同時建立標記與導航節點。");
         return;
       }
       if (editorMode === "mark") {
@@ -1672,8 +1682,8 @@
       });
       renderMapEditor();
       const messages = {
-        place: "點地圖新增最小節點。",
-        mark: "點節點後輸入名稱、關鍵詞、分類設施、備註。",
+        place: "點地圖新增標記節點：同時可搜尋、可導航、可跨樓層連接。",
+        mark: "點舊節點後補名稱、關鍵詞、分類設施、備註；儲存後會與標記合併。",
         deletePlace: "點紅色地點標記後會先確認，再刪除後台地點標記。",
         routeTest: "測試導航路線：先點地圖當目前位置，再點紅色地點標記當目的地；只測試，不新增路線資料。",
         deleteNode: "點節點後會先框起來，確認後刪除。",
@@ -1738,10 +1748,13 @@
       await runAdminAction(target.type === "node" ? "已刪除節點" : target.type === "edge" ? "已刪除路線" : target.type === "place" ? "已刪除地點標記" : "已刪除框框", async () => {
         if (target.type === "node") {
           await deleteJson(`/api/route-nodes?nodeId=${encodeURIComponent(target.value.id)}`);
+          const linkedPlace = currentPlaces.find(place => place.routeNodeId === target.value.id);
+          if (linkedPlace) await deleteJsonIfExists(`/api/places?placeId=${encodeURIComponent(linkedPlace.id)}`);
         } else if (target.type === "edge") {
           await deleteJson(`/api/route-edges?edgeId=${encodeURIComponent(target.value.id)}`);
         } else if (target.type === "place") {
           await deleteJson(`/api/places?placeId=${encodeURIComponent(target.value.id)}`);
+          if (target.value.routeNodeId) await deleteJsonIfExists(`/api/route-nodes?nodeId=${encodeURIComponent(target.value.routeNodeId)}`);
         } else {
           await deleteJson(`/api/route-zones?zoneId=${encodeURIComponent(target.value.id)}`);
         }
@@ -1950,6 +1963,16 @@
       return response.json();
     }
 
+    async function deleteJsonIfExists(path) {
+      const response = await fetch(path, { method: "DELETE" });
+      if (response.status === 404) return null;
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}));
+        throw new Error(body.message || `HTTP ${response.status}`);
+      }
+      return response.json();
+    }
+
     async function runAdminAction(successMessage, action) {
       const notice = document.querySelector("#adminNotice");
       notice.textContent = "處理中";
@@ -2008,6 +2031,23 @@
 
     function statusText(value) {
       return { open: "營業中", closed: "休息中", suspended: "暫停服務", unset: "未設定" }[value] || "未設定";
+    }
+
+    function adminPointId(prefix, x, y) {
+      return `${prefix}-${mapSelect.value}-${floorSelect.value}-${Date.now()}-${Math.round(x)}-${Math.round(y)}`
+        .replace(/[^a-zA-Z0-9_-]/g, "-")
+        .replace(/-+/g, "-")
+        .replace(/^-|-$/g, "");
+    }
+
+    function categoryToNodeType(category) {
+      const text = String(category || "").toLowerCase();
+      if (text.includes("電梯") || text.includes("elevator")) return "elevator";
+      if (text.includes("手扶梯") || text.includes("樓梯") || text.includes("stairs") || text.includes("escalator")) return "stair";
+      if (text.includes("出口") || text.includes("exit")) return "exit";
+      if (text.includes("店") || text.includes("商") || text.includes("store")) return "store";
+      if (text.includes("廁") || text.includes("toilet") || text.includes("restroom")) return "restroom";
+      return "poi";
     }
 
     function escapeHtml(value) {
