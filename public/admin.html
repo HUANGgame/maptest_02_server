@@ -391,15 +391,17 @@
       <input id="newPlaceIsTransition" type="checkbox">
       這是跨樓層連結點
     </label>
-    <label for="newPlaceTransitionTarget">連到另一層點位</label>
-    <select id="newPlaceTransitionTarget"></select>
-    <label for="newPlaceTransitionType">連接類型</label>
-    <select id="newPlaceTransitionType">
-      <option value="escalator">手扶梯</option>
-      <option value="stairs">樓梯</option>
-      <option value="elevator">電梯</option>
-      <option value="corridor">通道</option>
-    </select>
+    <div id="newPlaceTransitionFields" class="transition-fields hidden">
+      <label for="newPlaceTransitionTarget">連到另一層點位</label>
+      <select id="newPlaceTransitionTarget"></select>
+      <label for="newPlaceTransitionType">連接類型</label>
+      <select id="newPlaceTransitionType">
+        <option value="escalator">手扶梯</option>
+        <option value="stairs">樓梯</option>
+        <option value="elevator">電梯</option>
+        <option value="corridor">通道</option>
+      </select>
+    </div>
     <label for="newPlaceX">座標 X</label>
     <input id="newPlaceX" type="number" placeholder="0" readonly>
     <label for="newPlaceY">座標 Y</label>
@@ -467,6 +469,7 @@
     document.querySelector("#deleteZoneModeButton").addEventListener("click", () => setEditorMode("deleteZone"));
     document.querySelector("#createTransitionButton").addEventListener("click", createSelectedTransition);
     document.querySelector("#addPlaceCategoryButton").addEventListener("click", addPlaceCategoryFromInput);
+    document.querySelector("#newPlaceIsTransition").addEventListener("change", syncPlaceTransitionFieldsVisibility);
     document.querySelector("#cancelPlaceButton").addEventListener("click", () => {
       document.querySelector("#placeEditorForm").close();
       resetPlaceEditorForm();
@@ -1700,8 +1703,16 @@
       document.querySelector("#newPlaceIsTransition").checked = false;
       document.querySelector("#newPlaceTransitionTarget").innerHTML = "";
       document.querySelector("#newPlaceTransitionType").value = "escalator";
+      syncPlaceTransitionFieldsVisibility();
       document.querySelector("#newPlaceX").value = "";
       document.querySelector("#newPlaceY").value = "";
+    }
+
+    function syncPlaceTransitionFieldsVisibility() {
+      document.querySelector("#newPlaceTransitionFields").classList.toggle(
+        "hidden",
+        !document.querySelector("#newPlaceIsTransition").checked,
+      );
     }
 
     function placeCategoryValues() {
@@ -1790,6 +1801,7 @@
       if (!transition) return;
       const targetNodeId = transition.fromNodeId === routeNodeId ? transition.toNodeId : transition.fromNodeId;
       document.querySelector("#newPlaceIsTransition").checked = true;
+      syncPlaceTransitionFieldsVisibility();
       document.querySelector("#newPlaceTransitionType").value = transition.transitionType || "escalator";
       const select = document.querySelector("#newPlaceTransitionTarget");
       const targetValue = `node:${targetNodeId}`;
