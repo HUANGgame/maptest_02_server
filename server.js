@@ -1216,10 +1216,11 @@ function filterByScope(records, mapId, floorId) {
 }
 
 async function wifiScansForScope(mapId, floorId) {
-  if (mapId && floorId && firebaseMirror.isEnabled()) {
-    const remoteRecords = await firebaseMirror.readWifiScansByScope(mapId, floorId);
-    if (Array.isArray(remoteRecords)) return remoteRecords;
-  }
+  // Do not pull scoped raw fingerprints from Firebase on Render Free.
+  // A single floor can exceed 90k rows; Firebase snapshots can exhaust the
+  // 256MB Node heap. Raw scans remain persisted in Firebase on upload, while
+  // read paths use the local runtime cache until a compact fingerprint index is
+  // available.
   return filterByScope(readScans(), mapId, floorId);
 }
 
