@@ -935,9 +935,7 @@ Promise.allSettled([mysqlMirror.startMirror(), firebaseMirror.startMirror()])
     const mysqlEnabled = results[0].status === "fulfilled" && results[0].value === true;
     const firebaseEnabled = results[1].status === "fulfilled" && results[1].value === true;
     if (results[1].status === "rejected" && (process.env.FIREBASE_DATABASE_URL || process.env.FIREBASE_RTDB_URL)) {
-      console.error("Firebase restore failed; refusing to serve stale writable data.");
-      process.exitCode = 1;
-      return;
+      console.error("Firebase restore failed; admin remains online, writable Firebase-only endpoints will reject writes.");
     }
     results.forEach((result, index) => {
       if (result.status === "rejected") {
