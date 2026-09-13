@@ -969,7 +969,7 @@ const server = http.createServer(async (request, response) => {
     try {
       const body = await readJsonBody(request);
       const reportType = String(body.reportType || "").trim();
-      if (!["blockedRoute", "closedPlace", "obstacle", "wrongPlace"].includes(reportType)) {
+      if (!["blockedRoute", "closedPlace", "obstacle", "wrongPlace", "sos"].includes(reportType)) {
         sendJson(response, 400, { success: false, message: "回報類型不合法。" });
         return;
       }
@@ -982,6 +982,15 @@ const server = http.createServer(async (request, response) => {
         y: Number(body.y || 0),
         reportType,
         description: String(body.description || ""),
+        priority: String(body.priority || (reportType === "sos" ? "critical" : "normal")),
+        destinationName: String(body.destinationName || ""),
+        destinationFloorId: String(body.destinationFloorId || ""),
+        destinationX: Number(body.destinationX || 0),
+        destinationY: Number(body.destinationY || 0),
+        mapImageUrl: String(body.mapImageUrl || ""),
+        notificationEmails: Array.isArray(body.notificationEmails)
+          ? body.notificationEmails.map((item) => String(item)).filter(Boolean).slice(0, 10)
+          : [],
       });
       if (!firebaseMirror.isEnabled()) throw new Error("Firebase report storage is unavailable");
       await firebaseMirror.mirrorJsonFiles(["user_reports.json"]);

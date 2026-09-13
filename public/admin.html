@@ -938,7 +938,7 @@
           <td>${escapeHtml(report.mapId)} / ${escapeHtml(report.floorId)} / ${escapeHtml(String(report.x))}, ${escapeHtml(String(report.y))}</td>
           <td>${escapeHtml(reportTypeText(report.reportType))}</td>
           <td>${escapeHtml(report.status)}</td>
-          <td>${escapeHtml(report.description || "-")}</td>
+          <td>${escapeHtml(report.description || "-")}${report.mapImageUrl ? `<br><a href="${escapeHtml(report.mapImageUrl)}" target="_blank" rel="noopener">地圖圖片</a>` : ""}</td>
         </tr>
       `).join("") || `<tr><td colspan="5" class="muted">目前沒有使用者回報</td></tr>`;
     }
@@ -2506,6 +2506,7 @@
         closedPlace: "地點關閉",
         obstacle: "障礙物",
         wrongPlace: "地點錯誤",
+        sos: "SOS求助",
       }[value] || value;
     }
   </script>
