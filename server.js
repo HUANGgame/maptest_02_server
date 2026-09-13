@@ -11,7 +11,7 @@ const { appendPolicyLog, createDqnRun, readDqnRuns, readPolicyLogs } = require("
 const { appendReport, readReports } = require("./lib/reportStore");
 const { clearRouteGraphForFloor, createFloorTransition, createRouteNode, createRouteSegment, createRouteZone, deleteFloorTransition, deleteRouteEdge, deleteRouteNode, deleteRouteZone, readFloorTransitions, readRouteEdges, readRouteNodes, readRouteZones, restoreLastDeleted, setRouteEdgeBlocked, updateRouteZone } = require("./lib/routeEdgeStore");
 const { createTrainingJob, readTrainingJobs } = require("./lib/trainingJobStore");
-const { appendScans, readScans } = require("./lib/jsonStore");
+const { appendScans, deleteScansByPredicate, readScans } = require("./lib/jsonStore");
 const firebaseMirror = require("./lib/firebaseMirror");
 const mysqlMirror = require("./lib/mysqlMirror");
 
@@ -435,6 +435,38 @@ const server = http.createServer(async (request, response) => {
       if (floorId && node.floorId !== floorId) return false;
       return true;
     }));
+    return;
+  }
+
+  if (request.method === "POST" && url.pathname === "/api/wifi-scans/cleanup-legacy-first-floor") {
+    try {
+      const body = await readJsonBody(request);
+      if (body.confirm !== "DELETE_K_AREA_1F_LEGACY_P_POINTS") {
+        sendJson(response, 400, { success: false, message: "confirmation text is required" });
+        return;
+      }
+      const mapId = "k-area-airport";
+      const floorId = "k-area-airport-1f";
+      const legacyPointIds = Array.from({ length: 99 }, (_, index) => `P${String(index + 1).padStart(3, "0")}`);
+      const legacyPointIdSet = new Set(legacyPointIds);
+      const localResult = deleteScansByPredicate((record) =>
+        record.mapId === mapId &&
+        record.floorId === floorId &&
+        legacyPointIdSet.has(record.pointId)
+      );
+      const firebaseResult = await firebaseMirror.deleteWifiScansByPointIds(mapId, floorId, legacyPointIds);
+      mysqlMirror.mirrorWifiScans(readScans()).catch((error) => console.error("MySQL Wi-Fi mirror failed:", error.message));
+      sendJson(response, 200, {
+        success: true,
+        mapId,
+        floorId,
+        deletedPointIds: legacyPointIds,
+        localDeletedCount: localResult.deletedCount,
+        firebaseDeletedCount: firebaseResult.deletedCount,
+      });
+    } catch (error) {
+      sendJson(response, 400, { success: false, message: error.message });
+    }
     return;
   }
 
