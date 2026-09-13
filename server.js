@@ -238,6 +238,11 @@ const server = http.createServer(async (request, response) => {
   if (request.method === "GET" && url.pathname === "/api/wifi-scans/summary") {
     const mapId = url.searchParams.get("mapId") || "";
     const floorId = url.searchParams.get("floorId") || "";
+    const indexedSummary = await firebaseMirror.readWifiScanIndexSummary(mapId, floorId);
+    if (indexedSummary) {
+      sendJson(response, 200, indexedSummary);
+      return;
+    }
     const records = await wifiScansForScope(mapId, floorId);
     const pointIds = new Set(records.map((record) => record.pointId));
     const bssids = new Set(records.map((record) => record.bssid));
@@ -257,6 +262,28 @@ const server = http.createServer(async (request, response) => {
       bssidCount: bssids.size,
       points,
     });
+    return;
+  }
+
+  if (request.method === "POST" && url.pathname === "/api/wifi-scans/rebuild-index") {
+    try {
+      const body = await readJsonBody(request);
+      const mapId = String(body.mapId || "").trim();
+      const floorId = String(body.floorId || "").trim();
+      if (!mapId || !floorId) {
+        sendJson(response, 400, { success: false, message: "mapId 與 floorId 不可空白。" });
+        return;
+      }
+      const result = await firebaseMirror.rebuildWifiScanIndex(mapId, floorId, {
+        cursor: body.cursor || "",
+        reset: body.reset === true,
+        batchSize: body.batchSize || 700,
+        maxMillis: body.maxMillis || 18000,
+      });
+      sendJson(response, 200, { success: true, ...result });
+    } catch (error) {
+      sendJson(response, 400, { success: false, message: error.message });
+    }
     return;
   }
 
