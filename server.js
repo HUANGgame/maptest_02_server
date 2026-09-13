@@ -1402,10 +1402,13 @@ async function estimateLocation(body) {
   if (!mapId || wifiList.length < 1) return null;
   const model = floorId ? activeModel(mapId, floorId) : readModels().find((item) => item.mapId === mapId && item.isActive);
   if (!model) return null;
-  const records = await wifiScansForScope(model.mapId, model.floorId);
   const currentVector = wifiVector(wifiList);
   if (currentVector.size < 1) return null;
-  const candidates = rankKnnCandidates(records, currentVector).slice(0, 5);
+  const indexedProfiles = await firebaseMirror.readWifiFingerprintProfiles(model.mapId, model.floorId);
+  const profiles = Array.isArray(indexedProfiles) && indexedProfiles.length > 0
+    ? indexedProfiles.map((profile) => ({ ...profile, vector: new Map(profile.vectorEntries || []) }))
+    : buildPointProfiles(await wifiScansForScope(model.mapId, model.floorId));
+  const candidates = rankKnnProfiles(profiles, currentVector).slice(0, 5);
   if (candidates.length === 0) return null;
 
   const weights = candidates.map((candidate) => 1 / Math.max(candidate.score, 0.001) ** 2);
@@ -1427,11 +1430,10 @@ async function estimateLocation(body) {
     - Math.min(best.distance, 45) * 0.8
   ), 5, 95);
   const neighborSpreadMeters = weightedNeighborSpreadMeters(candidates, x, y, model.mapId, model.floorId);
-  const validation = validateKnnPositioning(records, model.mapId, model.floorId, { maxSamples: 80 });
-  const validationError = Number(validation.averageErrorMeters);
-  const estimatedError = [neighborSpreadMeters, validationError]
+  const signalError = Math.max(1, best.distance / 6);
+  const estimatedError = [neighborSpreadMeters, signalError]
     .filter(Number.isFinite)
-    .reduce((max, value) => Math.max(max, value), 0);
+    .reduce((max, value) => Math.max(max, value), 1);
 
   return {
     mapId: model.mapId,
