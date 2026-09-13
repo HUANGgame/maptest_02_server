@@ -8,7 +8,7 @@ const { activateModel, activeModel, createModelVersion, readModels } = require("
 const { deletePlaceRecord, readPlaces, updatePlaceStatus } = require("./lib/placeStore");
 const { searchPlaces } = require("./lib/placeSearch");
 const { appendPolicyLog, createDqnRun, readDqnRuns, readPolicyLogs } = require("./lib/policyStore");
-const { appendReport, readReports } = require("./lib/reportStore");
+const { appendReport, deleteReports, readReports } = require("./lib/reportStore");
 const { clearRouteGraphForFloor, createFloorTransition, createRouteNode, createRouteSegment, createRouteZone, deleteFloorTransition, deleteRouteEdge, deleteRouteNode, deleteRouteZone, readFloorTransitions, readRouteEdges, readRouteNodes, readRouteZones, restoreLastDeleted, setRouteEdgeBlocked, updateRouteZone } = require("./lib/routeEdgeStore");
 const { createTrainingJob, readTrainingJobs } = require("./lib/trainingJobStore");
 const { appendScans, readScans } = require("./lib/jsonStore");
@@ -1006,6 +1006,18 @@ const server = http.createServer(async (request, response) => {
       mapId: url.searchParams.get("mapId") || "",
       floorId: url.searchParams.get("floorId") || "",
     }));
+    return;
+  }
+
+  if (request.method === "DELETE" && url.pathname === "/api/user-reports") {
+    const deletedCount = deleteReports({
+      id: url.searchParams.get("id") || "",
+      clientReportId: url.searchParams.get("clientReportId") || "",
+    });
+    if (deletedCount > 0) {
+      firebaseMirror.mirrorJsonFiles(["user_reports.json"]).catch((error) => console.error("Firebase report mirror failed:", error.message));
+    }
+    sendJson(response, deletedCount > 0 ? 200 : 404, { success: deletedCount > 0, deletedCount });
     return;
   }
 
