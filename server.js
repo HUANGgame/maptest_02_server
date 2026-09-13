@@ -287,6 +287,28 @@ const server = http.createServer(async (request, response) => {
     return;
   }
 
+  if (request.method === "POST" && url.pathname === "/api/wifi-scans/cleanup-legacy") {
+    try {
+      const body = await readJsonBody(request);
+      if (body.confirm !== "DELETE_LEGACY_P_POINTS") {
+        sendJson(response, 400, { success: false, message: "confirm must be DELETE_LEGACY_P_POINTS" });
+        return;
+      }
+      const result = await firebaseMirror.cleanupLegacyWifiScans({
+        mapId: String(body.mapId || "k-area-airport"),
+        floorId: String(body.floorId || "k-area-airport-1f"),
+        before: String(body.before || "2026-09-01T00:00:00.000Z"),
+        cursor: body.cursor || "",
+        batchSize: body.batchSize || 700,
+        maxMillis: body.maxMillis || 18000,
+      });
+      sendJson(response, 200, { success: true, ...result });
+    } catch (error) {
+      sendJson(response, 400, { success: false, message: error.message });
+    }
+    return;
+  }
+
   if (request.method === "GET" && url.pathname === "/api/wifi-scans/points") {
     const mapId = url.searchParams.get("mapId") || "";
     const floorId = url.searchParams.get("floorId") || "";
@@ -356,6 +378,23 @@ const server = http.createServer(async (request, response) => {
       }
       if (!["knn", "randomForest"].includes(algorithm)) {
         sendJson(response, 400, { success: false, message: "第一版只允許 KNN 主模型與 Random Forest 比較模型。" });
+        return;
+      }
+      const indexedSummary = await firebaseMirror.readWifiScanIndexSummary(mapId, floorId);
+      if (indexedSummary && algorithm === "knn") {
+        const model = createModelVersion({
+          mapId,
+          floorId,
+          algorithm,
+          trainingDataCount: indexedSummary.totalRecords,
+          averageError: null,
+          isActive: body.activate !== false,
+          isComparisonOnly: false,
+          notes: "Live positioning uses Firebase fingerprint profile index.",
+        });
+        mysqlMirror.mirrorModels([model]).catch((error) => console.error("MySQL model mirror failed:", error.message));
+        firebaseMirror.mirrorJsonFiles(["model_versions.json", "model_training_jobs.json"]).catch((error) => console.error("Firebase model mirror failed:", error.message));
+        sendJson(response, 201, { success: true, model, source: indexedSummary.source });
         return;
       }
       const records = await wifiScansForScope(mapId, floorId);
