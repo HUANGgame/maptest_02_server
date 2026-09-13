@@ -290,6 +290,16 @@ const server = http.createServer(async (request, response) => {
   if (request.method === "GET" && url.pathname === "/api/wifi-scans/points") {
     const mapId = url.searchParams.get("mapId") || "";
     const floorId = url.searchParams.get("floorId") || "";
+    const indexedPoints = await firebaseMirror.readWifiScanIndexPoints(mapId, floorId);
+    if (Array.isArray(indexedPoints)) {
+      sendJson(response, 200, {
+        mapId: mapId || null,
+        floorId: floorId || null,
+        points: indexedPoints,
+        source: "firebase-rtdb-index",
+      });
+      return;
+    }
     const records = await wifiScansForScope(mapId, floorId);
     const recordsByPoint = groupBy(records, (record) => record.pointId);
     const points = Array.from(recordsByPoint.entries()).map(([pointId, items]) => {
