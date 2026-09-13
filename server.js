@@ -238,7 +238,7 @@ const server = http.createServer(async (request, response) => {
   if (request.method === "GET" && url.pathname === "/api/wifi-scans/summary") {
     const mapId = url.searchParams.get("mapId") || "";
     const floorId = url.searchParams.get("floorId") || "";
-    const records = filterByScope(readScans(), mapId, floorId);
+    const records = await wifiScansForScope(mapId, floorId);
     const pointIds = new Set(records.map((record) => record.pointId));
     const bssids = new Set(records.map((record) => record.bssid));
     const recordsByPoint = groupBy(records, (record) => record.pointId);
@@ -263,7 +263,7 @@ const server = http.createServer(async (request, response) => {
   if (request.method === "GET" && url.pathname === "/api/wifi-scans/points") {
     const mapId = url.searchParams.get("mapId") || "";
     const floorId = url.searchParams.get("floorId") || "";
-    const records = filterByScope(readScans(), mapId, floorId);
+    const records = await wifiScansForScope(mapId, floorId);
     const recordsByPoint = groupBy(records, (record) => record.pointId);
     const points = Array.from(recordsByPoint.entries()).map(([pointId, items]) => {
       const first = items[0];
@@ -290,7 +290,7 @@ const server = http.createServer(async (request, response) => {
   if (request.method === "GET" && url.pathname === "/api/wifi-scans/quality") {
     const mapId = url.searchParams.get("mapId") || "";
     const floorId = url.searchParams.get("floorId") || "";
-    const records = filterByScope(readScans(), mapId, floorId);
+    const records = await wifiScansForScope(mapId, floorId);
     sendJson(response, 200, buildWifiQuality(records));
     return;
   }
@@ -302,7 +302,7 @@ const server = http.createServer(async (request, response) => {
       sendJson(response, 400, { success: false, message: "mapId 與 floorId 不可空白。" });
       return;
     }
-    const records = filterByScope(readScans(), mapId, floorId);
+    const records = await wifiScansForScope(mapId, floorId);
     sendJson(response, 200, validateKnnPositioning(records, mapId, floorId));
     return;
   }
@@ -321,7 +321,7 @@ const server = http.createServer(async (request, response) => {
         sendJson(response, 400, { success: false, message: "第一版只允許 KNN 主模型與 Random Forest 比較模型。" });
         return;
       }
-      const records = filterByScope(readScans(), mapId, floorId);
+      const records = await wifiScansForScope(mapId, floorId);
       const sampleCount = new Set(records.map((record) => record.pointId)).size;
       if (records.length < 3 || sampleCount < 2) {
         sendJson(response, 400, {
@@ -397,7 +397,7 @@ const server = http.createServer(async (request, response) => {
   if (request.method === "POST" && url.pathname === "/api/location/estimate") {
     try {
       const body = await readJsonBody(request);
-      const result = estimateLocation(body);
+      const result = await estimateLocation(body);
       sendJson(response, result ? 200 : 400, result || { message: "定位失敗，請確認已有啟用模型與足夠 Wi-Fi 訊號。" });
     } catch (error) {
       sendJson(response, 400, { message: error.message });
@@ -682,7 +682,7 @@ const server = http.createServer(async (request, response) => {
       });
       writeFeedback(evaluated);
 
-      const manualRecords = filterByScope(readScans(), mapId, floorId);
+      const manualRecords = await wifiScansForScope(mapId, floorId);
       const highConfidence = evaluated.filter((record) =>
         record.mapId === mapId &&
         record.floorId === floorId &&
@@ -1215,6 +1215,14 @@ function filterByScope(records, mapId, floorId) {
   });
 }
 
+async function wifiScansForScope(mapId, floorId) {
+  if (mapId && floorId && firebaseMirror.isEnabled()) {
+    const remoteRecords = await firebaseMirror.readWifiScansByScope(mapId, floorId);
+    if (Array.isArray(remoteRecords)) return remoteRecords;
+  }
+  return filterByScope(readScans(), mapId, floorId);
+}
+
 function groupBy(items, keyFn) {
   const grouped = new Map();
   for (const item of items) {
@@ -1359,14 +1367,14 @@ function buildWifiQuality(records) {
   };
 }
 
-function estimateLocation(body) {
+async function estimateLocation(body) {
   const mapId = String(body.mapId || "").trim();
   const floorId = String(body.floorId || "").trim();
   const wifiList = normalizeCurrentWifiList(body);
   if (!mapId || wifiList.length < 1) return null;
   const model = floorId ? activeModel(mapId, floorId) : readModels().find((item) => item.mapId === mapId && item.isActive);
   if (!model) return null;
-  const records = filterByScope(readScans(), model.mapId, model.floorId);
+  const records = await wifiScansForScope(model.mapId, model.floorId);
   const currentVector = wifiVector(wifiList);
   if (currentVector.size < 1) return null;
   const candidates = rankKnnCandidates(records, currentVector).slice(0, 5);
