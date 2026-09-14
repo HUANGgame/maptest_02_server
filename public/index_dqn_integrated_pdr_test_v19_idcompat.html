@@ -2038,7 +2038,26 @@ drawCurrent();
           ctx.arc(point.x, point.y, 8, 0, Math.PI * 2);
           ctx.fill();
         } else {
-          const rad = state.viewFollow ? 0 : ((-state.heading - 90) * Math.PI) / 180;
+          const targetDisplayHeading = normalizeDegrees(-state.heading - 90);
+
+          if (!Number.isFinite(Number(state.displayHeading))) {
+            state.displayHeading = targetDisplayHeading;
+          } else {
+            let displayDelta =
+              ((targetDisplayHeading - Number(state.displayHeading) + 540) % 360) - 180;
+
+            if (Math.abs(displayDelta) < 3) {
+              displayDelta = 0;
+            }
+
+            state.displayHeading = normalizeDegrees(
+              Number(state.displayHeading) + displayDelta * 0.18
+            );
+          }
+
+          const rad = state.viewFollow
+            ? 0
+            : (Number(state.displayHeading) * Math.PI) / 180;
           const tip = {
             x: point.x + Math.sin(rad) * 20,
             y: point.y - Math.cos(rad) * 20,
