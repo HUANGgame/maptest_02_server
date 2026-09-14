@@ -988,6 +988,9 @@ const server = http.createServer(async (request, response) => {
         destinationX: Number(body.destinationX || 0),
         destinationY: Number(body.destinationY || 0),
         mapImageUrl: String(body.mapImageUrl || ""),
+        mapSnapshotBase64: String(body.mapSnapshotBase64 || ""),
+        mapSnapshotMimeType: String(body.mapSnapshotMimeType || ""),
+        mapSnapshotFileName: String(body.mapSnapshotFileName || ""),
         notificationEmails: Array.isArray(body.notificationEmails)
           ? body.notificationEmails.map((item) => String(item)).filter(Boolean).slice(0, 10)
           : [],
