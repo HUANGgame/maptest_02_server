@@ -17,6 +17,7 @@ const mysqlMirror = require("./lib/mysqlMirror");
 
 const port = Number(process.env.PORT || 3015);
 const publicMapsDir = path.resolve(__dirname, "public", "maps");
+const DEFAULT_PIXELS_PER_METER = 8;
 
 const server = http.createServer(async (request, response) => {
   const url = new URL(request.url, `http://${request.headers.host || "localhost"}`);
@@ -1482,7 +1483,7 @@ async function estimateLocation(body) {
   const profiles = Array.isArray(indexedProfiles) && indexedProfiles.length > 0
     ? indexedProfiles.map((profile) => ({ ...profile, vector: new Map(profile.vectorEntries || []) }))
     : buildPointProfiles(await wifiScansForScope(model.mapId, model.floorId));
-  const candidates = rankKnnProfiles(profiles, currentVector).slice(0, 5);
+  const candidates = rankKnnProfiles(profiles, currentVector, "", motionContextFromBody(body, model)).slice(0, 5);
   if (candidates.length === 0) return null;
 
   const weights = candidates.map((candidate) => 1 / Math.max(candidate.score, 0.001) ** 2);
@@ -1643,10 +1644,10 @@ function fingerprintRecencyWeight(record) {
   return 0.25 + 0.75 * Math.pow(0.5, ageDays / 30);
 }
 
-function rankKnnProfiles(profiles, currentVector, excludedPointId = "") {
+function rankKnnProfiles(profiles, currentVector, excludedPointId = "", motionContext = null) {
   if (!profiles.length || currentVector.size === 0) return [];
   const currentBssids = new Set(currentVector.keys());
-  return profiles
+  const ranked = profiles
     .filter((profile) => profile.pointId !== excludedPointId)
     .map((profile) => {
       const commonApCount = Array.from(currentBssids).filter((bssid) => profile.vector.has(bssid)).length;
@@ -1666,12 +1667,72 @@ function rankKnnProfiles(profiles, currentVector, excludedPointId = "") {
         ...profile,
         distance,
         score,
+        wifiScore: score,
         commonApCount,
         coverage,
       };
     })
     .filter((candidate) => candidate.commonApCount >= 2 || candidate.coverage >= 0.18)
     .sort((left, right) => left.score - right.score);
+  return applyMotionReasoningToCloseCandidates(ranked, motionContext);
+}
+
+function motionContextFromBody(body, model) {
+  const currentX = Number(body.currentX);
+  const currentY = Number(body.currentY);
+  const stepDelta = Number(body.stepDelta);
+  const heading = normalizeHeading(body.heading);
+  if (!body.hasCurrentPosition || !Number.isFinite(currentX) || !Number.isFinite(currentY)) return null;
+  return {
+    currentX,
+    currentY,
+    stepDelta: Number.isFinite(stepDelta) ? clamp(stepDelta, 0, 30) : 0,
+    heading,
+    pixelsPerMeter: routePixelsPerMeter(model.mapId, model.floorId),
+  };
+}
+
+function normalizeHeading(value) {
+  if (value && typeof value === "object") {
+    return normalizeHeading(value.azimuth ?? value.degrees ?? value.heading);
+  }
+  const heading = Number(value);
+  if (!Number.isFinite(heading)) return null;
+  return ((heading % 360) + 360) % 360;
+}
+
+function applyMotionReasoningToCloseCandidates(candidates, motionContext) {
+  if (!motionContext || candidates.length < 2) return candidates;
+  const bestWifiScore = candidates[0].score;
+  const closeLimit = Math.max(2.5, bestWifiScore * 0.18);
+  return candidates
+    .map((candidate, index) => {
+      if (candidate.score - bestWifiScore > closeLimit) return { ...candidate, motionPenalty: 0, score: candidate.score };
+      const motionPenalty = motionReasoningPenalty(candidate, motionContext);
+      return {
+        ...candidate,
+        motionPenalty,
+        score: candidate.score + motionPenalty - Math.max(0, 4 - index) * 0.05,
+      };
+    })
+    .sort((left, right) => left.score - right.score);
+}
+
+function motionReasoningPenalty(candidate, context) {
+  const dx = Number(candidate.x) - context.currentX;
+  const dy = Number(candidate.y) - context.currentY;
+  const pixelDistance = Math.hypot(dx, dy);
+  const meters = pixelDistance / Math.max(1, context.pixelsPerMeter || DEFAULT_PIXELS_PER_METER);
+  let penalty = 0;
+  if (context.heading != null && meters >= 0.8) {
+    const targetHeading = ((Math.atan2(dx, -dy) * 180 / Math.PI) + 360) % 360;
+    const diff = Math.abs((((targetHeading - context.heading + 540) % 360) - 180));
+    penalty += Math.min(10, diff / 18);
+  }
+  if (context.stepDelta > 0.2) {
+    penalty += Math.min(8, Math.abs(meters - context.stepDelta) * 0.7);
+  }
+  return penalty;
 }
 
 function weightedNeighborSpreadMeters(candidates, x, y, mapId, floorId) {
@@ -1804,6 +1865,16 @@ function coordinateDistanceMeters(x1, y1, x2, y2, mapId, floorId) {
     return rawDistance * scale;
   }
   return rawDistance;
+}
+
+function routePixelsPerMeter(mapId, floorId) {
+  const floor = readFloors().find((item) => item.mapId === mapId && item.id === floorId);
+  const unit = String(floor?.coordinateUnit || "").toLowerCase();
+  const scale = Number(floor?.scaleValue || floor?.scale || 0);
+  if ((unit === "pixel" || unit === "image_pixel") && Number.isFinite(scale) && scale > 0) {
+    return clamp(1 / scale, 2, 20);
+  }
+  return DEFAULT_PIXELS_PER_METER;
 }
 
 function roundNumber(value, digits = 2) {
