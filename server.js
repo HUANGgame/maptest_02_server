@@ -310,6 +310,30 @@ const server = http.createServer(async (request, response) => {
     return;
   }
 
+  if (request.method === "POST" && url.pathname === "/api/wifi-scans/delete-point-date-range") {
+    try {
+      const body = await readJsonBody(request);
+      if (body.confirm !== "DELETE_WIFI_POINT_DATE_RANGE") {
+        sendJson(response, 400, { success: false, message: "confirm must be DELETE_WIFI_POINT_DATE_RANGE" });
+        return;
+      }
+      const result = await firebaseMirror.deleteWifiScansByPointAndDate({
+        mapId: String(body.mapId || ""),
+        floorId: String(body.floorId || ""),
+        pointId: String(body.pointId || ""),
+        since: String(body.since || ""),
+        before: String(body.before || ""),
+        cursor: body.cursor || "",
+        batchSize: body.batchSize || 700,
+        maxMillis: body.maxMillis || 18000,
+      });
+      sendJson(response, 200, { success: true, ...result });
+    } catch (error) {
+      sendJson(response, 400, { success: false, message: error.message });
+    }
+    return;
+  }
+
   if (request.method === "GET" && url.pathname === "/api/wifi-scans/points") {
     const mapId = url.searchParams.get("mapId") || "";
     const floorId = url.searchParams.get("floorId") || "";
