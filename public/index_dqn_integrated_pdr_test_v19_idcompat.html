@@ -2038,7 +2038,7 @@ drawCurrent();
           ctx.arc(point.x, point.y, 8, 0, Math.PI * 2);
           ctx.fill();
         } else {
-          const rad = state.viewFollow ? 0 : (-state.heading * Math.PI) / 180;
+          const rad = state.viewFollow ? 0 : ((-state.heading - 90) * Math.PI) / 180;
           const tip = {
             x: point.x + Math.sin(rad) * 20,
             y: point.y - Math.cos(rad) * 20,
