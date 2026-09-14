@@ -1704,7 +1704,7 @@ function normalizeHeading(value) {
 function applyMotionReasoningToCloseCandidates(candidates, motionContext) {
   if (!motionContext || candidates.length < 2) return candidates;
   const bestWifiScore = candidates[0].score;
-  const closeLimit = Math.max(2.5, bestWifiScore * 0.18);
+  const closeLimit = Math.max(1.8, bestWifiScore * 0.12);
   return candidates
     .map((candidate, index) => {
       if (candidate.score - bestWifiScore > closeLimit) return { ...candidate, motionPenalty: 0, score: candidate.score };
@@ -1727,10 +1727,13 @@ function motionReasoningPenalty(candidate, context) {
   if (context.heading != null && meters >= 0.8) {
     const targetHeading = ((Math.atan2(dx, -dy) * 180 / Math.PI) + 360) % 360;
     const diff = Math.abs((((targetHeading - context.heading + 540) % 360) - 180));
-    penalty += Math.min(10, diff / 18);
+    penalty += Math.min(6, diff / 24);
   }
-  if (context.stepDelta > 0.2) {
-    penalty += Math.min(8, Math.abs(meters - context.stepDelta) * 0.7);
+  if (context.stepDelta > 0.8) {
+    const reasonableDistance = context.stepDelta + 8;
+    if (meters > reasonableDistance) {
+      penalty += Math.min(7, (meters - reasonableDistance) * 0.6);
+    }
   }
   return penalty;
 }
