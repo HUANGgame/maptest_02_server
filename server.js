@@ -2027,8 +2027,15 @@ function planRoute(body) {
 }
 
 function planCrossFloorRoute(mapId, startFloorId, startX, startY, destination) {
-  const transition = readFloorTransitions().find((item) => item.mapId === mapId && item.fromFloorId === startFloorId && item.toFloorId === destination.floorId);
-  if (!transition) return null;
+  const candidates = readFloorTransitions()
+    .filter((item) => item.mapId === mapId && item.fromFloorId === startFloorId && item.toFloorId === destination.floorId)
+    .map((transition) => buildCrossFloorCandidate(mapId, startFloorId, startX, startY, destination, transition))
+    .filter(Boolean)
+    .sort((a, b) => a.distance - b.distance);
+  return candidates[0] || null;
+}
+
+function buildCrossFloorCandidate(mapId, startFloorId, startX, startY, destination, transition) {
   const transitionFrom = nodeById(transition.fromNodeId);
   const firstLegDestination = { id: "transition-destination", x: transitionFrom?.x, y: transitionFrom?.y, floorId: startFloorId };
   if (firstLegDestination.x == null || firstLegDestination.y == null) return null;
