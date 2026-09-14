@@ -976,6 +976,7 @@ const server = http.createServer(async (request, response) => {
       const report = appendReport({
         clientReportId: String(body.clientReportId || "").slice(0, 100),
         userId: String(body.userId || body.anonymousUserId || "anonymous"),
+        requesterName: String(body.requesterName || "").slice(0, 100),
         mapId: String(body.mapId || ""),
         floorId: String(body.floorId || ""),
         x: Number(body.x || 0),
