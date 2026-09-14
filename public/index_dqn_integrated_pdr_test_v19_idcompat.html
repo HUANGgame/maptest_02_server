@@ -1151,7 +1151,12 @@ function drawPdrCalStop() {
             {
               id: FLOOR2_ID,
               floorName: "2F 機捷層連通道",
-              schematic2F: true,
+              imageUrl: "/maps/k_area_to_airport_2f.jpg",
+              imageLeft: 0,
+              imageTop: 0,
+              imageWidth: 2000,
+              imageHeight: 861.08,
+              schematic2F: false,
             },
           ];
         } else {
@@ -1396,6 +1401,105 @@ function drawPdrCalStop() {
         }
 
         try {
+          // 2F：使用實測 Anchor 串成持續導航綠線。
+          if (
+            state.current.floorId === FLOOR2_ID &&
+            state.destination.floorId === FLOOR2_ID
+          ) {
+            const anchorOrder = [
+              "ESCALATOR_END",
+              "MRT_P25",
+              "MRT_P50",
+              "MRT_P75",
+              "END_MRT",
+            ];
+
+            let startIndex = anchorOrder.indexOf(
+              String(state.current.anchorId || "")
+            );
+
+            // Anchor 名稱若暫時無法直接取得，
+            // 就用目前藍點找最近的 2F Anchor。
+            if (startIndex < 0) {
+              let bestDistance = Infinity;
+
+              anchorOrder.forEach((id, index) => {
+                const p = FLOOR2_ANCHOR_PIXELS[id];
+                if (!p) return;
+
+                const d = Math.hypot(
+                  Number(state.current.x) - Number(p.x),
+                  Number(state.current.y) - Number(p.y)
+                );
+
+                if (d < bestDistance) {
+                  bestDistance = d;
+                  startIndex = index;
+                }
+              });
+            }
+
+            if (startIndex < 0) startIndex = 0;
+
+            let endIndex = anchorOrder.indexOf(
+              String(state.destination.id || "")
+            );
+
+            // 「機捷」目的地若不是直接使用 END_MRT id，
+            // 跨樓層進入 2F 時仍以機捷端作為終點。
+            if (endIndex < 0) {
+              endIndex = anchorOrder.indexOf("END_MRT");
+            }
+
+            const direction =
+              startIndex <= endIndex ? 1 : -1;
+
+            const nextRoute = [
+              {
+                x: Number(state.current.x),
+                y: Number(state.current.y),
+                floorId: FLOOR2_ID,
+              },
+            ];
+
+            for (
+              let i = startIndex;
+              direction > 0 ? i <= endIndex : i >= endIndex;
+              i += direction
+            ) {
+              const id = anchorOrder[i];
+              const p = FLOOR2_ANCHOR_PIXELS[id];
+
+              if (!p) continue;
+
+              nextRoute.push({
+                x: Number(p.x),
+                y: Number(p.y),
+                floorId: FLOOR2_ID,
+                anchorId: id,
+              });
+            }
+
+            state.currentFloorId = FLOOR2_ID;
+            state.route = nextRoute;
+
+            state.routeDistance = 0;
+            state.routeTime = 0;
+
+            distanceText.textContent = t("distanceNone");
+            timeText.textContent = t("timeNone");
+
+            nextStep.textContent =
+              "請沿綠線繼續前往機捷端。";
+
+            renderFloorButtons();
+            updateWorldFromData();
+
+            if (state.viewFollow) centerOnCurrent();
+
+            renderAll();
+            return;
+          }
           // 跨樓層第一階段：
           // 使用者 REAL 在 2F、目的地在 1F 時，先沿 2F 示意通道導到 ESCALATOR_END。
           // 等 Wi-Fi 真正判定已到 1F 後，submitRealWifiScan() 會再次呼叫 showRoute()，
@@ -1404,21 +1508,62 @@ function drawPdrCalStop() {
             state.current.floorId === FLOOR2_ID &&
             state.destination.floorId === FLOOR1_ID
           ) {
-            const transfer = FLOOR2_ANCHOR_PIXELS.ESCALATOR_END;
+            const anchorOrderToEscalator = [
+              "ESCALATOR_END",
+              "MRT_P25",
+              "MRT_P50",
+              "MRT_P75",
+              "END_MRT",
+            ];
+
+            let startIndex = anchorOrderToEscalator.indexOf(
+              String(state.current.anchorId || "")
+            );
+
+            if (startIndex < 0) {
+              let bestDistance = Infinity;
+
+              anchorOrderToEscalator.forEach((id, index) => {
+                const p = FLOOR2_ANCHOR_PIXELS[id];
+                if (!p) return;
+
+                const d = Math.hypot(
+                  Number(state.current.x) - Number(p.x),
+                  Number(state.current.y) - Number(p.y)
+                );
+
+                if (d < bestDistance) {
+                  bestDistance = d;
+                  startIndex = index;
+                }
+              });
+            }
+
+            if (startIndex < 0) startIndex = 0;
 
             state.currentFloorId = FLOOR2_ID;
+
             state.route = [
               {
                 x: Number(state.current.x),
                 y: Number(state.current.y),
                 floorId: FLOOR2_ID,
               },
-              {
-                x: Number(transfer.x),
-                y: Number(transfer.y),
-                floorId: FLOOR2_ID,
-              },
             ];
+
+            for (let i = startIndex; i >= 0; i -= 1) {
+              const id = anchorOrderToEscalator[i];
+              const p = FLOOR2_ANCHOR_PIXELS[id];
+
+              if (!p) continue;
+
+              state.route.push({
+                x: Number(p.x),
+                y: Number(p.y),
+                floorId: FLOOR2_ID,
+                anchorId: id,
+              });
+            }
 
             // 2F 目前只有 Anchor 示意通道，沒有經實測的公尺比例，
             // 所以不顯示虛假的距離 / 時間數字。
@@ -1436,6 +1581,107 @@ function drawPdrCalStop() {
             return;
           }
 
+          // 1F -> 2F：先使用正式 1F DQN 導到 K12 樓梯。
+          // Wi-Fi 真正判定進入 2F 後，再接續 2F Anchor 綠線。
+          if (
+            state.current.floorId === FLOOR1_ID &&
+            state.destination.floorId === FLOOR2_ID
+          ) {
+            const floor =
+              state.floors.find((f) => f.id === FLOOR1_ID) || currentFloor();
+
+            const ox = Number(floor?.imageLeft ?? -4.63);
+            const oy = Number(floor?.imageTop ?? -16.36);
+            const imgW = Number(floor?.imageWidth ?? 379.06);
+            const imgH = Number(floor?.imageHeight ?? 122.73);
+
+            function transferGridToPixel(gx, gy) {
+              return {
+                x: ox + (Number(gx) + 0.5) * (imgW / 75),
+                y: oy + (Number(gy) + 0.5) * (imgH / 25),
+              };
+            }
+
+            const body = {
+              mapId: "map_visual_3",
+              startFloorId: FLOOR1_ID,
+              targetFloorId: FLOOR1_ID,
+              startAnchorId: state.current.anchorId || null,
+              startDqnX: Number(state.current.gridX),
+              startDqnY: Number(state.current.gridY),
+              startX: Number(state.current.x),
+              startY: Number(state.current.y),
+              destinationPlaceId: "K12 樓梯",
+            };
+
+            const response = await fetch(`${API_BASE}/api/routes`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(body),
+            });
+
+            if (!response.ok) {
+              const err = await response.json().catch(() => ({}));
+              throw new Error(err.detail || `HTTP ${response.status}`);
+            }
+
+            const routeData = await response.json();
+
+            state.currentFloorId = FLOOR1_ID;
+
+            state.route = (
+              routeData.path ||
+              routeData.routePoints ||
+              []
+            ).map((coord) => {
+              const gx = Number(coord.x);
+              const gy = Number(coord.y);
+              const p = transferGridToPixel(gx, gy);
+
+              return {
+                x: p.x,
+                y: p.y,
+                gridX: gx,
+                gridY: gy,
+                floorId: FLOOR1_ID,
+              };
+            });
+
+            if (state.route.length > 0) {
+              state.route.unshift({
+                x: Number(state.current.x),
+                y: Number(state.current.y),
+                gridX: Number(state.current.gridX),
+                gridY: Number(state.current.gridY),
+                floorId: FLOOR1_ID,
+              });
+            }
+
+            state.routeDistance =
+              Number(routeData.distance || routeData.distance_m || 0);
+
+            state.routeTime =
+              Math.max(1, Number(routeData.estimatedTime || 1));
+
+            distanceText.textContent =
+              t("distanceApprox", {
+                value: Math.round(state.routeDistance),
+              });
+
+            timeText.textContent =
+              t("timeApprox", { value: state.routeTime });
+
+            nextStep.textContent =
+              "請沿綠線前往 K12 樓梯；上樓後路線會自動接續至機捷。";
+
+            renderFloorButtons();
+            updateWorldFromData();
+
+            if (state.viewFollow) centerOnCurrent();
+
+            renderAll();
+            return;
+          }
           // 若 REAL 樓層與目的地仍不同，而且不是目前支援的 2F -> 1F 情境，
           // 不送進 1F DQN，避免產生假的跨樓層路線。
           if (state.destination.floorId !== state.current.floorId) {
@@ -3226,7 +3472,14 @@ drawCurrent();
             renderFloorButtons();
             performSearch();
 
-            console.log(
+
+            if (
+              state.destination &&
+              state.destination.floorId === FLOOR2_ID
+            ) {
+              await showRoute();
+            }
+console.log(
               `🎯 REAL 2F 藍點 anchor=${state.current.anchorId} ` +
               `logical=(${state.current.gridX},${state.current.gridY}) ` +
               `matchedAP=${matchedAp}`
@@ -3388,7 +3641,7 @@ drawCurrent();
             `matchedAP=${matchedAp}`
           );
 
-          if (state.navigationActive && state.destination &&
+          if (state.destination &&
               state.destination.floorId === FLOOR1_ID) {
 
             const hasDqnRoute =
@@ -3401,7 +3654,11 @@ drawCurrent();
 
             // v15：已有正在使用的 PDR+DQN 路線時，
             // Wi-Fi 校正不重新呼叫後端算路，避免 40 秒一次的卡頓/跳線。
-            if (!state.pdrActive || !hasDqnRoute) {
+            if (
+              !state.navigationActive ||
+              !state.pdrActive ||
+              !hasDqnRoute
+            ) {
               await showRoute();
             }
           }
