@@ -1401,6 +1401,72 @@ function drawPdrCalStop() {
         }
 
         try {
+          // REAL 已到 2F，而且目的地也在 2F：
+          // 使用五個實測 Anchor 畫出連續綠色路線。
+          if (
+            state.current.floorId === FLOOR2_ID &&
+            state.destination.floorId === FLOOR2_ID
+          ) {
+            const floor2AnchorOrder = [
+              "ESCALATOR_END",
+              "MRT_P25",
+              "MRT_P50",
+              "MRT_P75",
+              "END_MRT",
+            ];
+
+            let startIndex = floor2AnchorOrder.indexOf(
+              String(state.current.anchorId || "")
+            );
+
+            const targetIndex = floor2AnchorOrder.indexOf(
+              String(state.destination.id || "")
+            );
+
+            if (startIndex < 0) startIndex = 0;
+
+            const endIndex =
+              targetIndex >= 0
+                ? targetIndex
+                : floor2AnchorOrder.length - 1;
+
+            const step = startIndex <= endIndex ? 1 : -1;
+            const routeAnchorIds = [];
+
+            for (let i = startIndex; ; i += step) {
+              routeAnchorIds.push(floor2AnchorOrder[i]);
+              if (i === endIndex) break;
+            }
+
+            state.currentFloorId = FLOOR2_ID;
+
+            state.route = routeAnchorIds.map((anchorId) => {
+              const p = FLOOR2_ANCHOR_PIXELS[anchorId];
+
+              return {
+                x: Number(p.x),
+                y: Number(p.y),
+                floorId: FLOOR2_ID,
+                anchorId,
+              };
+            });
+
+            state.routeDistance = 0;
+            state.routeTime = 0;
+
+            distanceText.textContent = t("distanceNone");
+            timeText.textContent = t("timeNone");
+            nextStep.textContent =
+              t("proceed", { name: state.destination.name });
+
+            renderFloorButtons();
+            updateWorldFromData();
+
+            if (state.viewFollow) centerOnCurrent();
+
+            renderAll();
+            return;
+          }
           // 跨樓層第一階段：
           // 使用者 REAL 在 2F、目的地在 1F 時，先沿 2F 示意通道導到 ESCALATOR_END。
           // 等 Wi-Fi 真正判定已到 1F 後，submitRealWifiScan() 會再次呼叫 showRoute()，
@@ -3261,6 +3327,10 @@ drawCurrent();
             updateWorldFromData();
             renderFloorButtons();
             performSearch();
+
+            if (state.destination) {
+              await showRoute();
+            }
 
             console.log(
               `🎯 REAL 2F 藍點 anchor=${state.current.anchorId} ` +
