@@ -1443,7 +1443,14 @@ function drawPdrCalStop() {
 
           // 若 REAL 樓層與目的地仍不同，而且不是目前支援的 2F -> 1F 情境，
           // 不送進 1F DQN，避免產生假的跨樓層路線。
-          if (state.destination.floorId !== state.current.floorId) {
+          const isFloor1ToFloor2 =
+            state.current.floorId === FLOOR1_ID &&
+            state.destination.floorId === FLOOR2_ID;
+
+          if (
+            state.destination.floorId !== state.current.floorId &&
+            !isFloor1ToFloor2
+          ) {
             state.route = [];
             state.routeDistance = 0;
             state.routeTime = 0;
@@ -1488,7 +1495,10 @@ function drawPdrCalStop() {
             startDqnY: Number(state.current.gridY),
             startX: Number(state.current.x),
             startY: Number(state.current.y),
-            destinationPlaceId: state.destination.id,
+            destinationPlaceId:
+              isFloor1ToFloor2
+                ? "K12 樓梯"
+                : state.destination.id,
           };
 
           const response = await fetch(`${API_BASE}/api/routes`, {
@@ -1536,7 +1546,9 @@ function drawPdrCalStop() {
           distanceText.textContent = t("distanceApprox", { value: Math.round(state.routeDistance) });
           timeText.textContent = t("timeApprox", { value: state.routeTime });
           nextStep.textContent =
-            t("routeEntrance", { name: state.destination.name, algorithm: routeData.algorithm || "safe-route" });
+            isFloor1ToFloor2
+              ? t("transferFloor", { floor: uiFloorName(FLOOR2_ID) })
+              : t("routeEntrance", { name: state.destination.name, algorithm: routeData.algorithm || "safe-route" });
 
           console.log("🧭 route:", routeData);
         } catch (error) {
