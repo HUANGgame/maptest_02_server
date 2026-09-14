@@ -615,7 +615,7 @@
       const I18N = {
         zh: {
           appTitle: "地下街室內導航系統", client: "用戶端", searchPlaceholder: "輸入地點、設施或分類", search: "搜尋",
-          selectMap: "選擇地圖", mapVisual3: "K區地下街 (AI 網格精準版 - Map Visual 3)", floor: "樓層", loading: "讀取資料中", follow: "跟隨", display: "顯示", grid: "網格",
+          selectMap: "選擇地圖", mapVisual3: "K區地下街 (網格測試版 - Map Visual 3)", floor: "樓層", loading: "讀取資料中", follow: "跟隨", display: "顯示", grid: "網格",
           initialHint: "請搜尋目的地，或從結果中選擇地點。", destinationNone: "目的地：尚未選擇", destination: "目的地：{name}",
           distanceNone: "距離：-- 公尺", timeNone: "時間：-- 分鐘", showRoute: "顯示路線", startNav: "開始導航", endNav: "結束導航",
           privacyHint: "協助改善定位：匿名上傳必要定位狀態，不包含姓名或個人身分資料。",
@@ -635,7 +635,7 @@
         },
         en: {
           appTitle: "Underground Mall Indoor Navigation", client: "User", searchPlaceholder: "Search place, facility, or category", search: "Search",
-          selectMap: "Select map", mapVisual3: "K-Area Underground Mall (AI Grid Precision - Map Visual 3)", floor: "Floor", loading: "Loading data", follow: "Follow", display: "Display", grid: "Grid",
+          selectMap: "Select map", mapVisual3: "K-Area Underground Mall (Grid Test - Map Visual 3)", floor: "Floor", loading: "Loading data", follow: "Follow", display: "Display", grid: "Grid",
           initialHint: "Search for a destination or choose one from the results.", destinationNone: "Destination: Not selected", destination: "Destination: {name}",
           distanceNone: "Distance: -- m", timeNone: "Time: -- min", showRoute: "Show Route", startNav: "Start Navigation", endNav: "End Navigation",
           privacyHint: "Help improve positioning: anonymously upload necessary positioning status without names or personal identifiers.",
@@ -684,7 +684,7 @@
       function uiFloorName(id) {
         const raw = floorName(id);
         if (currentLang !== "en") return raw;
-        if (/ground|地面|一樓|1f|k-floor-grid|AI 網格層/i.test(`${id} ${raw}`)) return "1F";
+        if (/ground|地面|一樓|1f|k-floor-grid|網格層/i.test(`${id} ${raw}`)) return "1F";
         if (/second|二樓|2f|2/i.test(`${id} ${raw}`)) return "2F";
         return raw;
       }
@@ -1113,7 +1113,7 @@ function drawPdrCalStop() {
   if (!state.maps.some((map) => map.id === "map_visual_3")) {
     state.maps.push({
       id: "map_visual_3",
-      name: "K區地下街 (AI 網格精準版 - Map Visual 3)",
+      name: "K區地下街 (網格測試版 - Map Visual 3)",
     });
   }
 
