@@ -1500,6 +1500,8 @@ async function estimateLocation(body) {
     + Math.min(commonApCount, 12) * 4
     + coverage * 25
     + Math.min(margin, 20)
+    + Math.min(best.keyApMatchCount || 0, 3) * 4
+    + Math.min(best.keyApBoost || 0, 6)
     + Math.min(best.repeatBoost || 0, 3.2) * 6
     + Math.min(best.stabilityScore || 0, 1) * 16
     - Math.min(best.distance, 45) * 0.8
@@ -1520,6 +1522,8 @@ async function estimateLocation(body) {
     modelVersion: model.versionName,
     nearestPointId: best.pointId,
     commonApCount,
+    keyApMatchCount: best.keyApMatchCount || 0,
+    keyApBoost: Math.round((best.keyApBoost || 0) * 100) / 100,
     matchedPointCount: candidates.length,
     stableApCount: best.stableApCount || 0,
     trainingSamplesAtPoint: best.sampleCount || 0,
@@ -1647,12 +1651,14 @@ function fingerprintRecencyWeight(record) {
 function rankKnnProfiles(profiles, currentVector, excludedPointId = "", motionContext = null) {
   if (!profiles.length || currentVector.size === 0) return [];
   const currentBssids = new Set(currentVector.keys());
+  const keyApStats = buildKeyApStats(profiles);
   const ranked = profiles
     .filter((profile) => profile.pointId !== excludedPointId)
     .map((profile) => {
       const commonApCount = Array.from(currentBssids).filter((bssid) => profile.vector.has(bssid)).length;
       const coverage = commonApCount / Math.max(1, currentVector.size);
       const distance = rssiDistance(currentVector, profile.vector);
+      const keyAp = keyApMatchForProfile(profile, currentVector, keyApStats, profiles.length);
       const score = Math.max(
         0.1,
         distance
@@ -1660,6 +1666,7 @@ function rankKnnProfiles(profiles, currentVector, excludedPointId = "", motionCo
           + (1 - (profile.priorityWeight || 0.15)) * 18
           + (1 - (profile.recencyWeight || 0.25)) * 4
           - Math.min(commonApCount, 10) * 0.9
+          - keyAp.boost
           - (profile.stabilityScore || 0) * 8
           - (profile.repeatBoost || 0) * 0.7
       );
@@ -1670,11 +1677,50 @@ function rankKnnProfiles(profiles, currentVector, excludedPointId = "", motionCo
         wifiScore: score,
         commonApCount,
         coverage,
+        keyApMatchCount: keyAp.matchCount,
+        keyApBoost: keyAp.boost,
       };
     })
     .filter((candidate) => candidate.commonApCount >= 2 || candidate.coverage >= 0.18)
     .sort((left, right) => left.score - right.score);
   return applyMotionReasoningToCloseCandidates(ranked, motionContext);
+}
+
+function buildKeyApStats(profiles) {
+  const stats = new Map();
+  profiles.forEach((profile) => {
+    profile.vector.forEach((rssi, bssid) => {
+      if (!bssid) return;
+      const item = stats.get(bssid) || { pointCount: 0, strongPointCount: 0 };
+      item.pointCount += 1;
+      if (Number(rssi) >= -78) item.strongPointCount += 1;
+      stats.set(bssid, item);
+    });
+  });
+  return stats;
+}
+
+function keyApMatchForProfile(profile, currentVector, keyApStats, profileCount) {
+  let boost = 0;
+  let matchCount = 0;
+  const maxKeyPointCount = Math.max(2, Math.ceil(profileCount * 0.16));
+  currentVector.forEach((currentRssi, bssid) => {
+    if (!profile.vector.has(bssid)) return;
+    const stats = keyApStats.get(bssid);
+    if (!stats || stats.pointCount > maxKeyPointCount || stats.strongPointCount > maxKeyPointCount) return;
+    const storedRssi = Number(profile.vector.get(bssid));
+    if (!Number.isFinite(storedRssi) || storedRssi < -86) return;
+    const rssiDiff = Math.abs(Number(currentRssi) - storedRssi);
+    if (!Number.isFinite(rssiDiff) || rssiDiff > 18) return;
+    const uniqueness = 1 - (stats.pointCount - 1) / Math.max(1, maxKeyPointCount);
+    const rssiFit = 1 - rssiDiff / 18;
+    boost += 1.4 + uniqueness * 2.2 + rssiFit * 1.4;
+    matchCount += 1;
+  });
+  return {
+    boost: Math.min(10, boost),
+    matchCount,
+  };
 }
 
 function motionContextFromBody(body, model) {
