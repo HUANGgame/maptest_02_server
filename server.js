@@ -1528,6 +1528,7 @@ async function estimateLocation(body) {
     + Math.min(best.keyApBoost || 0, 6)
     + Math.min(best.repeatBoost || 0, 3.2) * 6
     + Math.min(best.stabilityScore || 0, 1) * 16
+    + Math.min(best.trustedAnchorScore || 0, 1) * 8
     - Math.min(best.distance, 45) * 0.8
   ), 5, 95);
   const neighborSpreadMeters = weightedNeighborSpreadMeters(candidates, x, y, model.mapId, model.floorId);
@@ -1633,6 +1634,14 @@ function buildPointProfiles(records) {
       const stabilityScore = groupedByBssid.size ? clamp(stableApCount / groupedByBssid.size, 0, 1) : 0;
       const repeatBoost = clamp(Math.log(Math.max(1, sampleCount)), 0, 3.2);
       const priorityWeight = fingerprintPriorityWeight(first);
+      const recencyWeight = Math.max(...prioritizedRows.map(fingerprintRecencyWeight));
+      const trustedAnchorScore = fingerprintTrustedAnchorScore({
+        sampleCount,
+        stableApCount,
+        stabilityScore,
+        priorityWeight,
+        vectorSize: vector.size,
+      });
       return {
         pointId,
         mapId: first.mapId,
@@ -1645,7 +1654,9 @@ function buildPointProfiles(records) {
         stabilityScore,
         repeatBoost,
         priorityWeight,
-        recencyWeight: Math.max(...prioritizedRows.map(fingerprintRecencyWeight)),
+        recencyWeight,
+        effectiveRecencyWeight: Math.max(recencyWeight, trustedAnchorRecencyFloor(trustedAnchorScore)),
+        trustedAnchorScore,
       };
     })
     .filter((profile) => Number.isFinite(profile.x) && Number.isFinite(profile.y) && profile.vector.size >= 2);
@@ -1672,6 +1683,23 @@ function fingerprintRecencyWeight(record) {
   return 0.25 + 0.75 * Math.pow(0.5, ageDays / 30);
 }
 
+function fingerprintTrustedAnchorScore({ sampleCount, stableApCount, stabilityScore, priorityWeight, vectorSize }) {
+  const sampleScore = clamp(Math.log1p(Math.max(0, Number(sampleCount) || 0)) / Math.log(10), 0, 1);
+  const stableApScore = clamp((Number(stableApCount) || 0) / Math.min(10, Math.max(4, Number(vectorSize) || 4)), 0, 1);
+  const priorityScore = Number(priorityWeight) >= 1 ? 1 : 0;
+  const trust = sampleScore * 0.34 + clamp(Number(stabilityScore) || 0, 0, 1) * 0.34 + stableApScore * 0.22 + priorityScore * 0.10;
+  if ((Number(sampleCount) || 0) < 3 || (Number(stableApCount) || 0) < 2) return trust * 0.45;
+  return clamp(trust, 0, 1);
+}
+
+function trustedAnchorRecencyFloor(trustedAnchorScore) {
+  const trust = clamp(Number(trustedAnchorScore) || 0, 0, 1);
+  if (trust >= 0.72) return 0.72;
+  if (trust >= 0.55) return 0.6;
+  if (trust >= 0.4) return 0.45;
+  return 0.25;
+}
+
 function rankKnnProfiles(profiles, currentVector, excludedPointId = "", motionContext = null) {
   if (!profiles.length || currentVector.size === 0) return [];
   const currentBssids = new Set(currentVector.keys());
@@ -1688,11 +1716,12 @@ function rankKnnProfiles(profiles, currentVector, excludedPointId = "", motionCo
         distance
           + (1 - coverage) * 22
           + (1 - (profile.priorityWeight || 0.15)) * 18
-          + (1 - (profile.recencyWeight || 0.25)) * 4
+          + (1 - (profile.effectiveRecencyWeight || profile.recencyWeight || 0.25)) * 4
           - Math.min(commonApCount, 10) * 0.9
           - keyAp.boost
           - (profile.stabilityScore || 0) * 8
           - (profile.repeatBoost || 0) * 0.7
+          - (profile.trustedAnchorScore || 0) * 3
       );
       return {
         ...profile,
