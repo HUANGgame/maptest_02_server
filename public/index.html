@@ -541,6 +541,11 @@
           mapId: state.currentMapId,
           floorId: state.currentFloorId,
           currentWifiList: state.currentWifiList,
+          hasCurrentPosition: state.hasCurrentPosition,
+          currentX: state.current.x,
+          currentY: state.current.y,
+          heading: state.heading,
+          stepDelta: 0,
         });
         if (result.mapId !== state.currentMapId) {
           state.hasCurrentPosition = false;
@@ -564,10 +569,15 @@
           state.lastLocationConfidence = Number(result.confidence || 0);
           if (state.viewFollow) centerOnCurrent();
         }
-        if (state.navigationActive) state.navigationRouteIndex = nearestRouteIndexOnCurrentFloor();
-        nextStep.textContent = state.destination
-          ? `${nextStepText()}｜定位信心 ${state.lastLocationConfidence}%`
-          : `目前位置已更新，定位信心 ${state.lastLocationConfidence}%。`;
+        if (state.navigationActive && state.destination) {
+          await showRoute({ silent: true });
+          state.navigationRouteIndex = nearestRouteIndexOnCurrentFloor();
+          updateRouteProgressText();
+        } else {
+          nextStep.textContent = state.destination
+            ? `${nextStepText()}｜定位信心 ${state.lastLocationConfidence}%`
+            : `目前位置已更新，定位信心 ${state.lastLocationConfidence}%。`;
+        }
         updateDataStatus();
         renderAll();
       } catch {
@@ -726,7 +736,7 @@
       results.innerHTML = "";
     }
 
-    async function showRoute() {
+    async function showRoute(options = {}) {
       if (!state.destination) {
         nextStep.textContent = "請先選擇目的地。";
         return;
@@ -784,7 +794,7 @@
       }
       distanceText.textContent = `距離：${Math.round(state.routeDistance)} 公尺`;
       timeText.textContent = `時間：${state.routeTime} 分鐘`;
-      nextStep.textContent = nextStepText();
+      if (!options.silent) nextStep.textContent = nextStepText();
       renderAll();
     }
 
@@ -808,7 +818,6 @@
       state.navigationRouteIndex = nearestRouteIndexOnCurrentFloor();
       nextStep.textContent = nextStepText();
       playNavigationAnimation("start");
-      startAutoNavigationDemo();
       submitFeedback(false);
       renderAll();
     }
