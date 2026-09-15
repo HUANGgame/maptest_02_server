@@ -541,6 +541,11 @@
           mapId: state.currentMapId,
           floorId: state.currentFloorId,
           currentWifiList: state.currentWifiList,
+          hasCurrentPosition: state.hasCurrentPosition,
+          currentX: state.current.x,
+          currentY: state.current.y,
+          heading: null,
+          stepDelta: 0,
         });
         if (result.mapId !== state.currentMapId) {
           state.hasCurrentPosition = false;
@@ -564,10 +569,15 @@
           state.lastLocationConfidence = Number(result.confidence || 0);
           if (state.viewFollow) centerOnCurrent();
         }
-        if (state.navigationActive) state.navigationRouteIndex = nearestRouteIndexOnCurrentFloor();
-        nextStep.textContent = state.destination
-          ? `${nextStepText()}｜定位信心 ${state.lastLocationConfidence}%`
-          : `目前位置已更新，定位信心 ${state.lastLocationConfidence}%。`;
+        if (state.navigationActive && state.destination) {
+          await showRoute({ silent: true });
+          state.navigationRouteIndex = nearestRouteIndexOnCurrentFloor();
+          updateRouteProgressText();
+        } else {
+          nextStep.textContent = state.destination
+            ? `${nextStepText()}｜定位信心 ${state.lastLocationConfidence}%`
+            : `目前位置已更新，定位信心 ${state.lastLocationConfidence}%。`;
+        }
         updateDataStatus();
         renderAll();
       } catch {
@@ -726,7 +736,7 @@
       results.innerHTML = "";
     }
 
-    async function showRoute() {
+    async function showRoute(options = {}) {
       if (!state.destination) {
         nextStep.textContent = "請先選擇目的地。";
         return;
@@ -750,8 +760,8 @@
       try {
         if (state.destination.source === "wifiPoint") {
           state.route = await sampledDestinationRouteFromGraph(state.destination);
-          state.routeDistance = routeDistance(state.route);
-          state.routeTime = Math.max(1, Math.ceil(state.routeDistance / 80));
+          state.routeDistance = routeMetricDistance(state.route);
+          state.routeTime = routeEstimatedMinutes(state.routeDistance, 0);
         } else {
           const route = await postJson("/api/routes", body);
           state.route = (route.routePoints || []).map((point) => ({
@@ -783,8 +793,8 @@
         return;
       }
       distanceText.textContent = `距離：${Math.round(state.routeDistance)} 公尺`;
-      timeText.textContent = `時間：${state.routeTime} 分鐘`;
-      nextStep.textContent = nextStepText();
+      timeText.textContent = `時間：${formatMinutes(state.routeTime)} 分鐘`;
+      if (!options.silent) nextStep.textContent = nextStepText();
       renderAll();
     }
 
@@ -808,7 +818,6 @@
       state.navigationRouteIndex = nearestRouteIndexOnCurrentFloor();
       nextStep.textContent = nextStepText();
       playNavigationAnimation("start");
-      startAutoNavigationDemo();
       submitFeedback(false);
       renderAll();
     }
@@ -1756,6 +1765,25 @@
 
     function routeDistance(points) {
       return points.slice(1).reduce((sum, point, index) => sum + distance(point.x, point.y, points[index].x, points[index].y), 0);
+    }
+
+    const K_AREA_METERS_PER_PIXEL = 8.5 / Math.hypot(
+      1154.5441960848293 - 1129.5403499309832,
+      440.9769230769231 - 367.85960382314823
+    );
+
+    function routeMetricDistance(points) {
+      return routeDistance(points) * K_AREA_METERS_PER_PIXEL;
+    }
+
+    function routeEstimatedMinutes(distanceMeters, floorTransitionCount = 0) {
+      const minimum = floorTransitionCount > 0 ? 0.5 : 1;
+      return Math.max(minimum, Math.round((distanceMeters / 75 + floorTransitionCount * 0.5) * 10) / 10);
+    }
+
+    function formatMinutes(value) {
+      const safe = Math.max(0.5, Number(value || 1));
+      return Number.isInteger(safe) ? String(safe) : safe.toFixed(1);
     }
 
     function distance(x1, y1, x2, y2) {
