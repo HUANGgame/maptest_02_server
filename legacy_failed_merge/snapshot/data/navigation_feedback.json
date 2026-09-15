@@ -1,0 +1,88 @@
+[
+  {
+    "id": 1,
+    "anonymousUserId": "smoke-anon",
+    "mapId": "tkut-demo",
+    "floorId": "tkut-demo-ground",
+    "estimatedX": 181,
+    "estimatedY": 619,
+    "currentRouteId": "smoke-route",
+    "nearestRouteNodeId": "node-parking-a",
+    "heading": 0,
+    "stepDelta": 2,
+    "confidence": 85,
+    "estimatedError": 5,
+    "isOffRoute": false,
+    "relocalizeCount": 0,
+    "arrivedDestination": true,
+    "deviceInfo": "smoke-test",
+    "collectedAt": 1780273428831,
+    "currentWifiList": [
+      {
+        "ssid": "Demo AP 1",
+        "bssid": "aa:aa:aa:aa:aa:01",
+        "rssi": -45
+      },
+      {
+        "ssid": "Demo AP 2",
+        "bssid": "aa:aa:aa:aa:aa:02",
+        "rssi": -63
+      },
+      {
+        "ssid": "Demo AP 3",
+        "bssid": "aa:aa:aa:aa:aa:03",
+        "rssi": -71
+      },
+      {
+        "ssid": "Demo AP 4",
+        "bssid": "aa:aa:aa:aa:aa:04",
+        "rssi": -68
+      }
+    ],
+    "qualityStatus": "highConfidence",
+    "createdAt": "2026-06-01T00:23:48.832Z"
+  },
+  {
+    "id": 2,
+    "anonymousUserId": "smoke-anon",
+    "mapId": "tkut-demo",
+    "floorId": "tkut-demo-ground",
+    "estimatedX": 181,
+    "estimatedY": 619,
+    "currentRouteId": "smoke-route",
+    "nearestRouteNodeId": "node-parking-a",
+    "heading": 0,
+    "stepDelta": 2,
+    "confidence": 85,
+    "estimatedError": 5,
+    "isOffRoute": false,
+    "relocalizeCount": 0,
+    "arrivedDestination": true,
+    "deviceInfo": "smoke-test",
+    "collectedAt": 1780273458600,
+    "currentWifiList": [
+      {
+        "ssid": "Demo AP 1",
+        "bssid": "aa:aa:aa:aa:aa:01",
+        "rssi": -45
+      },
+      {
+        "ssid": "Demo AP 2",
+        "bssid": "aa:aa:aa:aa:aa:02",
+        "rssi": -63
+      },
+      {
+        "ssid": "Demo AP 3",
+        "bssid": "aa:aa:aa:aa:aa:03",
+        "rssi": -71
+      },
+      {
+        "ssid": "Demo AP 4",
+        "bssid": "aa:aa:aa:aa:aa:04",
+        "rssi": -68
+      }
+    ],
+    "qualityStatus": "highConfidence",
+    "createdAt": "2026-06-01T00:24:18.601Z"
+  }
+]

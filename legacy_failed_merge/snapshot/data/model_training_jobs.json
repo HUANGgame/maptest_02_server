@@ -1,0 +1,32 @@
+[
+  {
+    "id": "job-1780273428836",
+    "mapId": "tkut-demo",
+    "floorId": "tkut-demo-ground",
+    "modelVersionId": "model-1780273428835",
+    "trainingType": "feedbackIncrementalTraining",
+    "trainingDataCount": 4,
+    "feedbackDataCount": 1,
+    "status": "completed",
+    "startedAt": "2026-06-01T00:23:48.836Z",
+    "finishedAt": "2026-06-01T00:23:48.836Z",
+    "resultSummary": "使用人工指紋 4 筆與高可信匿名回饋 1 筆建立模型版本。",
+    "createdAt": "2026-06-01T00:23:48.836Z",
+    "updatedAt": "2026-06-01T00:23:48.836Z"
+  },
+  {
+    "id": "job-1780273458604",
+    "mapId": "tkut-demo",
+    "floorId": "tkut-demo-ground",
+    "modelVersionId": "model-1780273458604",
+    "trainingType": "feedbackIncrementalTraining",
+    "trainingDataCount": 8,
+    "feedbackDataCount": 2,
+    "status": "completed",
+    "startedAt": "2026-06-01T00:24:18.604Z",
+    "finishedAt": "2026-06-01T00:24:18.604Z",
+    "resultSummary": "使用人工指紋 8 筆與高可信匿名回饋 2 筆建立模型版本。",
+    "createdAt": "2026-06-01T00:24:18.604Z",
+    "updatedAt": "2026-06-01T00:24:18.604Z"
+  }
+]

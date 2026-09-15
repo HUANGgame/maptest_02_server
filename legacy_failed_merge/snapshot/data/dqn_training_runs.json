@@ -1,0 +1,24 @@
+[
+  {
+    "id": "dqn-1780275578070",
+    "mapId": "tkut-demo",
+    "floorId": "tkut-demo-ground",
+    "trainingEpisodes": 60,
+    "averageReward": 69.6,
+    "successRate": 0.644,
+    "scenarioCount": 60,
+    "baselineRouteCount": 7,
+    "actionDistribution": {
+      "continueNavigation": 31,
+      "reroute": 11,
+      "relocalize": 9,
+      "guideBackToRoute": 9
+    },
+    "simulationSummary": "模擬 60 回合，使用 8 個節點、7 條可通行路段與 2 個樓層連接點。",
+    "modelPath": "models/tkut-demo/tkut-demo-ground/dqn_policy_1780275578070.json",
+    "trainedAt": "2026-06-01T00:59:38.070Z",
+    "isActive": true,
+    "createdAt": "2026-06-01T00:59:38.070Z",
+    "updatedAt": "2026-06-01T00:59:38.070Z"
+  }
+]
