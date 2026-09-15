@@ -17,7 +17,6 @@ const mysqlMirror = require("./lib/mysqlMirror");
 
 const port = Number(process.env.PORT || 3015);
 const publicMapsDir = path.resolve(__dirname, "public", "maps");
-const DEFAULT_PIXELS_PER_METER = 8;
 
 const server = http.createServer(async (request, response) => {
   const url = new URL(request.url, `http://${request.headers.host || "localhost"}`);
@@ -277,7 +276,7 @@ const server = http.createServer(async (request, response) => {
       }
       const result = await firebaseMirror.rebuildWifiScanIndex(mapId, floorId, {
         cursor: body.cursor || "",
-        reset: body.reset !== false && !body.cursor,
+        reset: body.reset === true,
         batchSize: body.batchSize || 700,
         maxMillis: body.maxMillis || 18000,
       });
@@ -299,30 +298,6 @@ const server = http.createServer(async (request, response) => {
         mapId: String(body.mapId || "k-area-airport"),
         floorId: String(body.floorId || "k-area-airport-1f"),
         before: String(body.before || "2026-09-01T00:00:00.000Z"),
-        cursor: body.cursor || "",
-        batchSize: body.batchSize || 700,
-        maxMillis: body.maxMillis || 18000,
-      });
-      sendJson(response, 200, { success: true, ...result });
-    } catch (error) {
-      sendJson(response, 400, { success: false, message: error.message });
-    }
-    return;
-  }
-
-  if (request.method === "POST" && url.pathname === "/api/wifi-scans/delete-point-date-range") {
-    try {
-      const body = await readJsonBody(request);
-      if (body.confirm !== "DELETE_WIFI_POINT_DATE_RANGE") {
-        sendJson(response, 400, { success: false, message: "confirm must be DELETE_WIFI_POINT_DATE_RANGE" });
-        return;
-      }
-      const result = await firebaseMirror.deleteWifiScansByPointAndDate({
-        mapId: String(body.mapId || ""),
-        floorId: String(body.floorId || ""),
-        pointId: String(body.pointId || ""),
-        since: String(body.since || ""),
-        before: String(body.before || ""),
         cursor: body.cursor || "",
         batchSize: body.batchSize || 700,
         maxMillis: body.maxMillis || 18000,
@@ -1001,7 +976,6 @@ const server = http.createServer(async (request, response) => {
       const report = appendReport({
         clientReportId: String(body.clientReportId || "").slice(0, 100),
         userId: String(body.userId || body.anonymousUserId || "anonymous"),
-        requesterName: String(body.requesterName || "").slice(0, 100),
         mapId: String(body.mapId || ""),
         floorId: String(body.floorId || ""),
         x: Number(body.x || 0),
@@ -1507,7 +1481,7 @@ async function estimateLocation(body) {
   const profiles = Array.isArray(indexedProfiles) && indexedProfiles.length > 0
     ? indexedProfiles.map((profile) => ({ ...profile, vector: new Map(profile.vectorEntries || []) }))
     : buildPointProfiles(await wifiScansForScope(model.mapId, model.floorId));
-  const candidates = rankKnnProfiles(profiles, currentVector, "", motionContextFromBody(body, model)).slice(0, 5);
+  const candidates = rankKnnProfiles(profiles, currentVector).slice(0, 5);
   if (candidates.length === 0) return null;
 
   const weights = candidates.map((candidate) => 1 / Math.max(candidate.score, 0.001) ** 2);
@@ -1524,11 +1498,8 @@ async function estimateLocation(body) {
     + Math.min(commonApCount, 12) * 4
     + coverage * 25
     + Math.min(margin, 20)
-    + Math.min(best.keyApMatchCount || 0, 3) * 4
-    + Math.min(best.keyApBoost || 0, 6)
     + Math.min(best.repeatBoost || 0, 3.2) * 6
     + Math.min(best.stabilityScore || 0, 1) * 16
-    + Math.min(best.trustedAnchorScore || 0, 1) * 8
     - Math.min(best.distance, 45) * 0.8
   ), 5, 95);
   const neighborSpreadMeters = weightedNeighborSpreadMeters(candidates, x, y, model.mapId, model.floorId);
@@ -1547,8 +1518,6 @@ async function estimateLocation(body) {
     modelVersion: model.versionName,
     nearestPointId: best.pointId,
     commonApCount,
-    keyApMatchCount: best.keyApMatchCount || 0,
-    keyApBoost: Math.round((best.keyApBoost || 0) * 100) / 100,
     matchedPointCount: candidates.length,
     stableApCount: best.stableApCount || 0,
     trainingSamplesAtPoint: best.sampleCount || 0,
@@ -1634,14 +1603,6 @@ function buildPointProfiles(records) {
       const stabilityScore = groupedByBssid.size ? clamp(stableApCount / groupedByBssid.size, 0, 1) : 0;
       const repeatBoost = clamp(Math.log(Math.max(1, sampleCount)), 0, 3.2);
       const priorityWeight = fingerprintPriorityWeight(first);
-      const recencyWeight = Math.max(...prioritizedRows.map(fingerprintRecencyWeight));
-      const trustedAnchorScore = fingerprintTrustedAnchorScore({
-        sampleCount,
-        stableApCount,
-        stabilityScore,
-        priorityWeight,
-        vectorSize: vector.size,
-      });
       return {
         pointId,
         mapId: first.mapId,
@@ -1654,9 +1615,7 @@ function buildPointProfiles(records) {
         stabilityScore,
         repeatBoost,
         priorityWeight,
-        recencyWeight,
-        effectiveRecencyWeight: Math.max(recencyWeight, trustedAnchorRecencyFloor(trustedAnchorScore)),
-        trustedAnchorScore,
+        recencyWeight: Math.max(...prioritizedRows.map(fingerprintRecencyWeight)),
       };
     })
     .filter((profile) => Number.isFinite(profile.x) && Number.isFinite(profile.y) && profile.vector.size >= 2);
@@ -1683,158 +1642,35 @@ function fingerprintRecencyWeight(record) {
   return 0.25 + 0.75 * Math.pow(0.5, ageDays / 30);
 }
 
-function fingerprintTrustedAnchorScore({ sampleCount, stableApCount, stabilityScore, priorityWeight, vectorSize }) {
-  const sampleScore = clamp(Math.log1p(Math.max(0, Number(sampleCount) || 0)) / Math.log(10), 0, 1);
-  const stableApScore = clamp((Number(stableApCount) || 0) / Math.min(10, Math.max(4, Number(vectorSize) || 4)), 0, 1);
-  const priorityScore = Number(priorityWeight) >= 1 ? 1 : 0;
-  const trust = sampleScore * 0.34 + clamp(Number(stabilityScore) || 0, 0, 1) * 0.34 + stableApScore * 0.22 + priorityScore * 0.10;
-  if ((Number(sampleCount) || 0) < 3 || (Number(stableApCount) || 0) < 2) return trust * 0.45;
-  return clamp(trust, 0, 1);
-}
-
-function trustedAnchorRecencyFloor(trustedAnchorScore) {
-  const trust = clamp(Number(trustedAnchorScore) || 0, 0, 1);
-  if (trust >= 0.72) return 0.72;
-  if (trust >= 0.55) return 0.6;
-  if (trust >= 0.4) return 0.45;
-  return 0.25;
-}
-
-function rankKnnProfiles(profiles, currentVector, excludedPointId = "", motionContext = null) {
+function rankKnnProfiles(profiles, currentVector, excludedPointId = "") {
   if (!profiles.length || currentVector.size === 0) return [];
   const currentBssids = new Set(currentVector.keys());
-  const keyApStats = buildKeyApStats(profiles);
-  const ranked = profiles
+  return profiles
     .filter((profile) => profile.pointId !== excludedPointId)
     .map((profile) => {
       const commonApCount = Array.from(currentBssids).filter((bssid) => profile.vector.has(bssid)).length;
       const coverage = commonApCount / Math.max(1, currentVector.size);
       const distance = rssiDistance(currentVector, profile.vector);
-      const keyAp = keyApMatchForProfile(profile, currentVector, keyApStats, profiles.length);
       const score = Math.max(
         0.1,
         distance
           + (1 - coverage) * 22
           + (1 - (profile.priorityWeight || 0.15)) * 18
-          + (1 - (profile.effectiveRecencyWeight || profile.recencyWeight || 0.25)) * 4
+          + (1 - (profile.recencyWeight || 0.25)) * 4
           - Math.min(commonApCount, 10) * 0.9
-          - keyAp.boost
           - (profile.stabilityScore || 0) * 8
           - (profile.repeatBoost || 0) * 0.7
-          - (profile.trustedAnchorScore || 0) * 3
       );
       return {
         ...profile,
         distance,
         score,
-        wifiScore: score,
         commonApCount,
         coverage,
-        keyApMatchCount: keyAp.matchCount,
-        keyApBoost: keyAp.boost,
       };
     })
     .filter((candidate) => candidate.commonApCount >= 2 || candidate.coverage >= 0.18)
     .sort((left, right) => left.score - right.score);
-  return applyMotionReasoningToCloseCandidates(ranked, motionContext);
-}
-
-function buildKeyApStats(profiles) {
-  const stats = new Map();
-  profiles.forEach((profile) => {
-    profile.vector.forEach((rssi, bssid) => {
-      if (!bssid) return;
-      const item = stats.get(bssid) || { pointCount: 0, strongPointCount: 0 };
-      item.pointCount += 1;
-      if (Number(rssi) >= -78) item.strongPointCount += 1;
-      stats.set(bssid, item);
-    });
-  });
-  return stats;
-}
-
-function keyApMatchForProfile(profile, currentVector, keyApStats, profileCount) {
-  let boost = 0;
-  let matchCount = 0;
-  const maxKeyPointCount = Math.max(2, Math.ceil(profileCount * 0.16));
-  currentVector.forEach((currentRssi, bssid) => {
-    if (!profile.vector.has(bssid)) return;
-    const stats = keyApStats.get(bssid);
-    if (!stats || stats.pointCount > maxKeyPointCount || stats.strongPointCount > maxKeyPointCount) return;
-    const storedRssi = Number(profile.vector.get(bssid));
-    if (!Number.isFinite(storedRssi) || storedRssi < -86) return;
-    const rssiDiff = Math.abs(Number(currentRssi) - storedRssi);
-    if (!Number.isFinite(rssiDiff) || rssiDiff > 18) return;
-    const uniqueness = 1 - (stats.pointCount - 1) / Math.max(1, maxKeyPointCount);
-    const rssiFit = 1 - rssiDiff / 18;
-    boost += 1.4 + uniqueness * 2.2 + rssiFit * 1.4;
-    matchCount += 1;
-  });
-  return {
-    boost: Math.min(10, boost),
-    matchCount,
-  };
-}
-
-function motionContextFromBody(body, model) {
-  const currentX = Number(body.currentX);
-  const currentY = Number(body.currentY);
-  const stepDelta = Number(body.stepDelta);
-  const heading = normalizeHeading(body.heading);
-  if (!body.hasCurrentPosition || !Number.isFinite(currentX) || !Number.isFinite(currentY)) return null;
-  return {
-    currentX,
-    currentY,
-    stepDelta: Number.isFinite(stepDelta) ? clamp(stepDelta, 0, 30) : 0,
-    heading,
-    pixelsPerMeter: routePixelsPerMeter(model.mapId, model.floorId),
-  };
-}
-
-function normalizeHeading(value) {
-  if (value && typeof value === "object") {
-    return normalizeHeading(value.azimuth ?? value.degrees ?? value.heading);
-  }
-  const heading = Number(value);
-  if (!Number.isFinite(heading)) return null;
-  return ((heading % 360) + 360) % 360;
-}
-
-function applyMotionReasoningToCloseCandidates(candidates, motionContext) {
-  if (!motionContext || candidates.length < 2) return candidates;
-  const bestWifiScore = candidates[0].score;
-  const closeLimit = Math.max(1.8, bestWifiScore * 0.12);
-  return candidates
-    .map((candidate, index) => {
-      if (candidate.score - bestWifiScore > closeLimit) return { ...candidate, motionPenalty: 0, score: candidate.score };
-      const motionPenalty = motionReasoningPenalty(candidate, motionContext);
-      return {
-        ...candidate,
-        motionPenalty,
-        score: candidate.score + motionPenalty - Math.max(0, 4 - index) * 0.05,
-      };
-    })
-    .sort((left, right) => left.score - right.score);
-}
-
-function motionReasoningPenalty(candidate, context) {
-  const dx = Number(candidate.x) - context.currentX;
-  const dy = Number(candidate.y) - context.currentY;
-  const pixelDistance = Math.hypot(dx, dy);
-  const meters = pixelDistance / Math.max(1, context.pixelsPerMeter || DEFAULT_PIXELS_PER_METER);
-  let penalty = 0;
-  if (context.heading != null && meters >= 0.8) {
-    const targetHeading = ((Math.atan2(dx, -dy) * 180 / Math.PI) + 360) % 360;
-    const diff = Math.abs((((targetHeading - context.heading + 540) % 360) - 180));
-    penalty += Math.min(6, diff / 24);
-  }
-  if (context.stepDelta > 0.8) {
-    const reasonableDistance = context.stepDelta + 8;
-    if (meters > reasonableDistance) {
-      penalty += Math.min(7, (meters - reasonableDistance) * 0.6);
-    }
-  }
-  return penalty;
 }
 
 function weightedNeighborSpreadMeters(candidates, x, y, mapId, floorId) {
@@ -1969,16 +1805,6 @@ function coordinateDistanceMeters(x1, y1, x2, y2, mapId, floorId) {
   return rawDistance;
 }
 
-function routePixelsPerMeter(mapId, floorId) {
-  const floor = readFloors().find((item) => item.mapId === mapId && item.id === floorId);
-  const unit = String(floor?.coordinateUnit || "").toLowerCase();
-  const scale = Number(floor?.scaleValue || floor?.scale || 0);
-  if ((unit === "pixel" || unit === "image_pixel") && Number.isFinite(scale) && scale > 0) {
-    return clamp(1 / scale, 2, 20);
-  }
-  return DEFAULT_PIXELS_PER_METER;
-}
-
 function roundNumber(value, digits = 2) {
   if (!Number.isFinite(value)) return null;
   const factor = 10 ** digits;
@@ -2046,25 +1872,18 @@ function planRoute(body) {
   const routeIds = aStarRoute(startNode.id, targetNode.id, nodes, readRouteEdges().filter((edge) => edge.mapId === mapId && edge.floorId === floorId && !edge.isBlocked));
   if (!routeIds) return null;
   const routePoints = routeIds.map((id) => nodes.find((node) => node.id === id)).filter(Boolean);
-  const distance = routeMetricDistance(routePoints);
+  const distance = routePoints.slice(1).reduce((sum, point, index) => sum + pointDistance(routePoints[index], point), 0);
   return {
     routePoints,
     distance: Math.round(distance * 100) / 100,
-    estimatedTime: routeEstimatedMinutes(distance, 0),
+    estimatedTime: Math.max(1, Math.ceil(distance / 75)),
     floorTransitions: [],
   };
 }
 
 function planCrossFloorRoute(mapId, startFloorId, startX, startY, destination) {
-  const candidates = readFloorTransitions()
-    .filter((item) => item.mapId === mapId && item.fromFloorId === startFloorId && item.toFloorId === destination.floorId)
-    .map((transition) => buildCrossFloorCandidate(mapId, startFloorId, startX, startY, destination, transition))
-    .filter(Boolean)
-    .sort((a, b) => a.distance - b.distance);
-  return candidates[0] || null;
-}
-
-function buildCrossFloorCandidate(mapId, startFloorId, startX, startY, destination, transition) {
+  const transition = readFloorTransitions().find((item) => item.mapId === mapId && item.fromFloorId === startFloorId && item.toFloorId === destination.floorId);
+  if (!transition) return null;
   const transitionFrom = nodeById(transition.fromNodeId);
   const firstLegDestination = { id: "transition-destination", x: transitionFrom?.x, y: transitionFrom?.y, floorId: startFloorId };
   if (firstLegDestination.x == null || firstLegDestination.y == null) return null;
@@ -2096,7 +1915,7 @@ function buildCrossFloorCandidate(mapId, startFloorId, startX, startY, destinati
   return {
     routePoints: firstPoints.concat(secondPoints),
     distance: Math.round(totalDistance * 100) / 100,
-    estimatedTime: routeEstimatedMinutes(totalDistance, 1),
+    estimatedTime: Math.max(1, Math.ceil(totalDistance / 75) + 1),
     floorTransitions: [{
       fromFloorId: transition.fromFloorId,
       toFloorId: transition.toFloorId,
@@ -2117,8 +1936,8 @@ function planZoneRoute(mapId, floorId, start, destination) {
       { id: "zone-start", mapId, floorId, x: startPoint.x, y: startPoint.y, nodeType: "zone", isWalkable: true },
       { id: "zone-target", mapId, floorId, x: targetPoint.x, y: targetPoint.y, nodeType: "zone", isWalkable: true },
     ];
-    const distance = routeMetricDistance(routePoints);
-    return { routePoints, distance: roundNumber(distance, 2), estimatedTime: routeEstimatedMinutes(distance, 0), floorTransitions: [] };
+    const distance = pointDistance(routePoints[0], routePoints[1]);
+    return { routePoints, distance: roundNumber(distance, 2), estimatedTime: Math.max(1, Math.ceil(distance / 75)), floorTransitions: [] };
   }
   const route = aStarZoneRoute(startPoint, targetPoint, zones);
   if (!route || route.length < 2) return null;
@@ -2132,8 +1951,8 @@ function planZoneRoute(mapId, floorId, start, destination) {
     nodeType: zoneTypeAt(point.x, point.y, zones) || "zone",
     isWalkable: true,
   }));
-  const distance = routeMetricDistance(routePoints);
-  return { routePoints, distance: roundNumber(distance, 2), estimatedTime: routeEstimatedMinutes(distance, 0), floorTransitions: [] };
+  const distance = routePoints.slice(1).reduce((sum, point, index) => sum + pointDistance(routePoints[index], point), 0);
+  return { routePoints, distance: roundNumber(distance, 2), estimatedTime: Math.max(1, Math.ceil(distance / 75)), floorTransitions: [] };
 }
 
 function buildRoutingZones(mapId, floorId) {
@@ -2379,23 +2198,6 @@ function reconstructRoute(cameFrom, current) {
 function pointDistance(a, b) {
   if (!a || !b) return Infinity;
   return Math.hypot(Number(a.x) - Number(b.x), Number(a.y) - Number(b.y));
-}
-
-const K_AREA_METERS_PER_PIXEL = 8.5 / Math.hypot(
-  1154.5441960848293 - 1129.5403499309832,
-  440.9769230769231 - 367.85960382314823
-);
-
-function routeMetricDistance(points) {
-  const totalPixels = points.slice(1).reduce((sum, point, index) => sum + pointDistance(points[index], point), 0);
-  return totalPixels * K_AREA_METERS_PER_PIXEL;
-}
-
-function routeEstimatedMinutes(distanceMeters, floorTransitionCount = 0) {
-  const walkingMinutes = distanceMeters / 75;
-  const transitionMinutes = floorTransitionCount * 0.5;
-  const minimum = floorTransitionCount > 0 ? 0.5 : 1;
-  return Math.max(minimum, Math.round((walkingMinutes + transitionMinutes) * 10) / 10);
 }
 
 function normalizeFeedback(body) {
