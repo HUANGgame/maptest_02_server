@@ -760,8 +760,8 @@
       try {
         if (state.destination.source === "wifiPoint") {
           state.route = await sampledDestinationRouteFromGraph(state.destination);
-          state.routeDistance = routeDistance(state.route);
-          state.routeTime = Math.max(1, Math.ceil(state.routeDistance / 80));
+          state.routeDistance = routeMetricDistance(state.route);
+          state.routeTime = routeEstimatedMinutes(state.routeDistance, 0);
         } else {
           const route = await postJson("/api/routes", body);
           state.route = (route.routePoints || []).map((point) => ({
@@ -793,7 +793,7 @@
         return;
       }
       distanceText.textContent = `距離：${Math.round(state.routeDistance)} 公尺`;
-      timeText.textContent = `時間：${state.routeTime} 分鐘`;
+      timeText.textContent = `時間：${formatMinutes(state.routeTime)} 分鐘`;
       if (!options.silent) nextStep.textContent = nextStepText();
       renderAll();
     }
@@ -1765,6 +1765,24 @@
 
     function routeDistance(points) {
       return points.slice(1).reduce((sum, point, index) => sum + distance(point.x, point.y, points[index].x, points[index].y), 0);
+    }
+
+    const K_AREA_METERS_PER_PIXEL = 8.5 / Math.hypot(
+      1154.5441960848293 - 1129.5403499309832,
+      440.9769230769231 - 367.85960382314823
+    );
+
+    function routeMetricDistance(points) {
+      return routeDistance(points) * K_AREA_METERS_PER_PIXEL;
+    }
+
+    function routeEstimatedMinutes(distanceMeters, floorTransitionCount = 0) {
+      return Math.max(1, Math.round((distanceMeters / 75 + floorTransitionCount * 0.5) * 10) / 10);
+    }
+
+    function formatMinutes(value) {
+      const safe = Math.max(1, Number(value || 1));
+      return Number.isInteger(safe) ? String(safe) : safe.toFixed(1);
     }
 
     function distance(x1, y1, x2, y2) {
