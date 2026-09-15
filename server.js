@@ -212,7 +212,6 @@ const server = http.createServer(async (request, response) => {
         return;
       }
       if (!firebaseMirror.isEnabled()) throw new Error("Firebase storage unavailable; retain scans for retry");
-      // Include locally cached duplicates: a previous attempt may have failed in Firebase.
       const saved = appendScans(records, true);
       await firebaseMirror.mirrorWifiScans(saved);
       mysqlMirror.mirrorWifiScans(saved).catch((error) => console.error("MySQL Wi-Fi mirror failed:", error.message));
@@ -1342,11 +1341,6 @@ function filterByScope(records, mapId, floorId) {
 }
 
 async function wifiScansForScope(mapId, floorId) {
-  // Do not pull scoped raw fingerprints from Firebase on Render Free.
-  // A single floor can exceed 90k rows; Firebase snapshots can exhaust the
-  // 256MB Node heap. Raw scans remain persisted in Firebase on upload, while
-  // read paths use the local runtime cache until a compact fingerprint index is
-  // available.
   return filterByScope(readScans(), mapId, floorId);
 }
 
