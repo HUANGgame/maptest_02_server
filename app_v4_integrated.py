@@ -28,9 +28,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# =========================================================
-# Wi-Fi v3 REAL locator
-# =========================================================
+
+
+
 locator = None
 try:
     locator = WifiLocatorV3(BASE_DIR)
@@ -38,10 +38,10 @@ try:
 except Exception as e:
     print(f"⚠️ Wi-Fi v3 定位模型載入失敗：{e}")
 
-# =========================================================
-# Wi-Fi v4 REAL locator
-# v3 保留給 REPLAY；REAL 改用 v4 固定 Anchor
-# =========================================================
+
+
+
+
 real_locator_v4 = None
 try:
     real_locator_v4 = WifiLocatorV4(BASE_DIR)
@@ -52,9 +52,9 @@ try:
 except Exception as e:
     print(f"⚠️ Wi-Fi v4 Anchor 定位模型載入失敗：{e}")
 
-# =========================================================
-# DQN route engine
-# =========================================================
+
+
+
 print(
     "✅ DQN 安全路由引擎已載入"
     if DQN_ENGINE is not None
@@ -62,19 +62,19 @@ print(
 )
 
 
-# =========================================================
-# REAL request 去重 / 節流
-# Android 端可能因不同事件來源在短時間內送出多次。
-# 後端 8 秒內對同一 client 只做一次真正模型推論；
-# 重複請求直接回上一筆結果，避免 Anchor 防抖被假性累計。
-# =========================================================
+
+
+
+
+
+
 REAL_DEDUPE_SECONDS = 8.0
 _last_real_by_client = {}
 _last_current_dqn = None
 
-# =========================================================
-# Request models
-# =========================================================
+
+
+
 class WifiSignal(BaseModel):
     bssid: str
     level: int
@@ -92,9 +92,9 @@ class ReplayRequest(BaseModel):
     sample_index: int
 
 
-# =========================================================
-# REAL — v4 固定 Anchor 定位
-# =========================================================
+
+
+
 @app.post("/api/locate")
 @app.post("/api/locate-real")
 def locate_real(req: RealWifiRequest, request: Request):
@@ -130,8 +130,8 @@ def locate_real(req: RealWifiRequest, request: Request):
 
         result = real_locator_v4.predict(req.signals)
 
-        # 1F v4 Anchor -> DQN 75x25 grid。
-        # 這讓「藍點」和 DQN 起點使用同一個真實定位來源。
+
+
         global _last_current_dqn
         if result.get("validLocation") is not False and result.get("anchorId"):
             try:
@@ -153,7 +153,7 @@ def locate_real(req: RealWifiRequest, request: Request):
                     "floorId": result.get("floorId"),
                 }
 
-        # 真正做過一次模型推論後才更新 cache。
+
         _last_real_by_client[client_key] = {
             "time": now,
             "result": dict(result),
@@ -181,9 +181,9 @@ def locate_real(req: RealWifiRequest, request: Request):
         raise HTTPException(status_code=500, detail=f"v4 定位失敗：{e}")
 
 
-# =========================================================
-# DEMO — 保留原本可控 1F/2F，不假裝是模型預測
-# =========================================================
+
+
+
 @app.post("/api/locate-demo")
 def locate_demo(req: DemoLocateRequest):
     if req.target_floor.lower() == "2f":
@@ -211,10 +211,10 @@ def locate_demo(req: DemoLocateRequest):
     }
 
 
-# =========================================================
-# REPLAY — 用既有真實 fingerprint 驗證 API/畫面串接
-# 注意：v3 final 本身是訓練資料，因此 Replay 不能當正式準確率證明。
-# =========================================================
+
+
+
+
 @app.post("/api/locate-replay")
 def locate_replay(req: ReplayRequest):
     if locator is None:
@@ -267,7 +267,7 @@ def model_status():
         print(f"⚠️ Replay 筆數讀取失敗：{e}")
 
     return {
-        # 保留舊欄位，讓 index_v3_rev4.html 不需修改
+
         "wifiV3Loaded": locator is not None,
         "wifiV4Loaded": real_locator_v4 is not None,
         "realModelVersion": "v4-anchor" if real_locator_v4 else None,
@@ -283,9 +283,9 @@ def model_status():
     }
 
 
-# =========================================================
-# Existing map data
-# =========================================================
+
+
+
 @app.get("/api/maps")
 def get_maps():
     return [{"id": "k-area-airport", "name": "台北車站 K 區與機捷連通道"}]
@@ -327,9 +327,9 @@ def get_places(mapId: str = ""):
     ]
 
 
-# =========================================================
-# Integrated DQN + shortest-safe route
-# =========================================================
+
+
+
 class GridPathRequest(BaseModel):
     mapId: str = ""
     startFloorId: str = ""

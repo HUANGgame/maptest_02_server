@@ -54,11 +54,11 @@ class WifiLocatorV4:
             self.anchor_X[int(floor)] = part[self.features].astype(float).to_numpy()
             self.anchor_y[int(floor)] = part["point_id"].astype(str).to_numpy()
 
-        # v4.4 anti-jitter:
-        # Keep a rolling window of the latest 3 raw anchors.
-        # Switch the displayed anchor when the same new anchor appears at least 2 times
-        # in those 3 scans. This handles patterns such as P75 -> P50 -> P75 better than
-        # requiring two strictly consecutive identical predictions.
+
+
+
+
+
         self.last_floor = None
         self.stable_anchor = {}
         self.raw_history = {}
@@ -129,8 +129,8 @@ class WifiLocatorV4:
 
         live = X[self.features].astype(float).to_numpy()[0]
 
-        # Important change:
-        # compare only APs that Android actually saw in THIS scan.
+
+
         row_mae = np.mean(
             np.abs(train_X[:, observed_idx] - live[observed_idx]),
             axis=1,
@@ -138,7 +138,7 @@ class WifiLocatorV4:
 
         anchor_scores = {}
         for anchor in np.unique(train_y):
-            # Median across fingerprints reduces dependence on one odd scan.
+
             anchor_scores[str(anchor)] = float(
                 np.median(row_mae[train_y == anchor])
             )
@@ -169,7 +169,7 @@ class WifiLocatorV4:
                 "warnings": ["有效匹配 AP 少於 5 個，拒絕定位"],
             }
 
-        # Floor model stays exactly the same as v4.2.
+
         floor = int(self.floor_model.predict(X)[0])
 
         confidence = None
@@ -198,9 +198,9 @@ class WifiLocatorV4:
             if stable is None:
                 self.stable_anchor[floor] = raw_anchor_id
             else:
-                # Majority-of-3 anti-jitter:
-                # switch only if another anchor appears at least twice in the
-                # latest 3 raw predictions.
+
+
+
                 counts = {}
                 for a in history:
                     counts[a] = counts.get(a, 0) + 1

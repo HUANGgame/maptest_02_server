@@ -10,7 +10,7 @@ BASE_DIR = Path(__file__).resolve().parent
 PUBLIC_DIR = BASE_DIR / "public"
 
 
-# 提供地圖圖片
+
 app.mount(
     "/maps",
     StaticFiles(directory=str(PUBLIC_DIR / "maps")),
@@ -18,7 +18,7 @@ app.mount(
 )
 
 
-# Render 正式首頁
+
 @app.get("/", include_in_schema=False)
 def render_home():
     return FileResponse(
@@ -26,12 +26,12 @@ def render_home():
     )
 
 
-# Render 健康檢查
+
 @app.get("/health", include_in_schema=False)
 def health():
     return {"status": "ok"}
 
-# Fixed QR landing page
+
 @app.get("/download/apk", response_class=HTMLResponse, include_in_schema=False)
 def download_apk_page():
     return """

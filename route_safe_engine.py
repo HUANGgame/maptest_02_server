@@ -25,8 +25,8 @@ try:
         grid_cell_meters=0.6,
     )
 except Exception as exc:
-    # Keep the server usable even before PyTorch is installed.
-    # In this state routing uses the shortest safe fallback only.
+
+
     DQN_ERROR = str(exc)
 
 
@@ -104,7 +104,7 @@ def _dqn_path_xy(start_xy, goal_xy):
     sx, sy = nearest_walkable_xy(*start_xy)
     gx, gy = nearest_walkable_xy(*goal_xy)
 
-    # DQNRouteEngine uses (y, x).
+
     result = DQN_ENGINE.find_path((sy, sx), (gy, gx))
     return [
         (int(point["x"]), int(point["y"]))

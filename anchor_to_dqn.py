@@ -72,9 +72,9 @@ def nearest_walkable(grid, gx: int, gy: int):
     raise RuntimeError("找不到可行走格")
 
 
-# 已人工對位到 DQN 地圖的 Anchor。
-# HOBBY_OFF 在舊 DQN 店家資料中位於 logical (8,4)，
-# 對應的安全走道 cell 為 (19,16)。
+
+
+
 MANUAL_DQN_ANCHOR_OVERRIDE = {
     "HOBBY_OFF": {"x": 19, "y": 16},
 }

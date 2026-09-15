@@ -45,7 +45,7 @@ class WifiLocatorV3:
         return str(bssid).lower().strip(), float(level)
 
     def build_feature_row(self, signals: Iterable[Any]) -> tuple[pd.DataFrame, dict]:
-        # 同 BSSID 若重複出現，以平均 RSSI 表示
+
         buckets: dict[str, list[float]] = {}
         total_signal_count = 0
 
@@ -97,7 +97,7 @@ class WifiLocatorV3:
             if floor in classes:
                 confidence = float(probs[classes.index(floor)])
 
-        # 目前前端 Canvas 使用的既有換算
+
         pixel_x = pred_x * 45 + 100
         pixel_y = pred_y * 80 + 100
 

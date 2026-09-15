@@ -11,14 +11,14 @@ import pandas as pd
 try:
     import torch
     import torch.nn as nn
-except ImportError as exc:  # pragma: no cover - environment dependent
+except ImportError as exc:
     torch = None
     nn = None
     _TORCH_IMPORT_ERROR = exc
 else:
     _TORCH_IMPORT_ERROR = None
 
-GridPos = Tuple[int, int]  # (y, x)
+GridPos = Tuple[int, int]
 
 
 class DQNModelError(RuntimeError):
@@ -43,8 +43,8 @@ if nn is not None:
             x = torch.relu(self.fc1(x))
             x = torch.relu(self.fc2(x))
             return self.fc3(x)
-else:  # allows module import even before torch is installed
-    class DQN:  # type: ignore
+else:
+    class DQN:
         pass
 
 
@@ -146,7 +146,7 @@ class DQNRouteEngine:
                 state_dict = torch.load(
                     self.model_path, map_location=self.device, weights_only=True
                 )
-            except TypeError:  # older PyTorch
+            except TypeError:
                 state_dict = torch.load(self.model_path, map_location=self.device)
             self.model.load_state_dict(state_dict)
         except Exception as exc:
@@ -196,7 +196,7 @@ class DQNRouteEngine:
         return count
 
     def state_vector(self, current: GridPos, target: GridPos) -> List[float]:
-        # Keep scaling compatible with the supplied training script.
+
         dy = (target[0] - current[0]) / self.max_y
         dx = (target[1] - current[1]) / self.max_x
         ray_u = self._ray_distance(current, (-1, 0))
@@ -254,8 +254,8 @@ class DQNRouteEngine:
                 estimated_distance_m=0.0,
             )
 
-        # Deterministic DFS whose neighbour order is supplied by DQN Q-values.
-        # Each cell is visited at most once, so the search terminates.
+
+
         visited = {start_safe}
         parent: Dict[GridPos, Optional[GridPos]] = {start_safe: None}
         stack: List[Tuple[GridPos, Optional[List[GridPos]], int]] = [
