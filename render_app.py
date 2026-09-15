@@ -30,13 +30,3 @@ def render_home():
 @app.get("/health", include_in_schema=False)
 def health():
     return {"status": "ok"}
-
-# Fixed APK download URL
-@app.get("/download/apk", include_in_schema=False)
-def download_apk():
-    apk_path = PUBLIC_DIR / "TaipeiStation_IndoorNavigation_FINAL.apk"
-    return FileResponse(
-        apk_path,
-        media_type="application/vnd.android.package-archive",
-        filename="TaipeiStation_IndoorNavigation_FINAL.apk"
-    )
