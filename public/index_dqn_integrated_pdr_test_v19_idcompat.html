@@ -2123,20 +2123,7 @@ drawCurrent();
         } else {
           const targetDisplayHeading = normalizeDegrees(state.heading);
 
-          if (!Number.isFinite(Number(state.displayHeading))) {
-            state.displayHeading = targetDisplayHeading;
-          } else {
-            let displayDelta =
-              ((targetDisplayHeading - Number(state.displayHeading) + 540) % 360) - 180;
-
-            if (Math.abs(displayDelta) < 3) {
-              displayDelta = 0;
-            }
-
-            state.displayHeading = normalizeDegrees(
-              Number(state.displayHeading) + displayDelta * 0.18
-            );
-          }
+          state.displayHeading = targetDisplayHeading;
 
           const rad = state.viewFollow
             ? 0
