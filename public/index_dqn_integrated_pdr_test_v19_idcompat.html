@@ -10,7 +10,7 @@
     <style>
       :root {
         color-scheme: light;
-        --bg: #f3f6f9; /* 更柔和的背景色 */
+        --bg: #f3f6f9;
         --panel: #ffffff;
         --line: #e2e8f0;
         --text: #1e293b;
@@ -40,14 +40,12 @@
         color: inherit;
       }
       
-      /* 🌟 整體版面佈局 */
       .app {
         min-height: 100%;
         display: grid;
         grid-template-rows: auto 1fr auto;
       }
       
-      /* 🌟 頂部導覽列 (加入柔和陰影) */
       .topbar {
         display: grid;
         grid-template-columns: 1fr;
@@ -86,7 +84,6 @@
         gap: 8px;
       }
       
-      /* 🌟 輸入框與按鈕的現代化 */
       input, select, textarea {
         width: 100%;
         min-height: 44px;
@@ -120,7 +117,6 @@
         transform: translateY(1px);
       }
       
-      /* 🌟 主視覺按鈕 (漸層與光暈) */
       .primary {
         border: none;
         background: linear-gradient(135deg, var(--blue), var(--blue-hover));
@@ -133,12 +129,11 @@
         color: #fff;
       }
       
-      /* 🌟 地圖區域 */
       .map-shell {
         position: relative;
         min-height: 460px;
         overflow: hidden;
-        background: #e2e8f0; /* 底圖載入前的顏色 */
+        background: #e2e8f0;
       }
       .map-shell.navigation-start canvas { animation: mapStartPulse 0.9s ease-out; }
       .map-shell.navigation-end canvas { animation: mapEndFade 0.65s ease-out; }
@@ -149,7 +144,6 @@
         touch-action: none;
       }
       
-      /* 🌟 浮動控制面板 (毛玻璃 Glassmorphism 特效) */
       .floor-switch, .map-tools, .status-chip {
         position: absolute;
         background: rgba(255, 255, 255, 0.85);
@@ -177,7 +171,6 @@
       .floor-switch { left: 16px; top: 80px; display: grid; gap: 4px; padding: 6px; }
       .map-tools { right: 16px; top: 80px; display: grid; gap: 4px; padding: 6px; }
       
-      /* 浮動工具按鈕修飾 */
       .floor-switch button, .map-tools button {
         width: 44px;
         height: 44px;
@@ -194,7 +187,6 @@
         box-shadow: 0 2px 8px rgba(37, 99, 235, 0.3);
       }
       
-      /* 導航提示橫幅 */
       .nav-flash {
         position: absolute;
         left: 50%;
@@ -213,7 +205,6 @@
       }
       .nav-flash.show { animation: flashInOut 1.25s ease both; }
       
-      /* 🌟 底部資訊板 (抽屜式設計) */
       .sheet {
         background: var(--panel);
         box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.06);
@@ -222,7 +213,6 @@
         position: relative;
         z-index: 10;
       }
-      /* 抽屜頂部的拉柄裝飾 */
       .sheet::before {
         content: '';
         display: block;
@@ -252,7 +242,6 @@
       
       .actions { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
       
-      /* 🌟 搜尋結果清單 */
       .results {
         max-height: 220px;
         overflow-y: auto;
@@ -272,7 +261,6 @@
       .result strong { font-size: 16px; color: var(--text); }
       .result span { display: inline-block; margin-top: 4px; }
       
-      /* 評價按鈕修飾 */
       .result button.primary {
         background: #fff;
         color: var(--blue);
@@ -298,7 +286,6 @@
       }
       .privacy input { width: 18px; height: 18px; cursor: pointer; accent-color: var(--blue); }
       
-      /* 🌟 彈窗設計 (Dialog) */
       dialog {
         border: none;
         border-radius: 20px;
@@ -315,7 +302,6 @@
       dialog h2 { margin: 0 0 16px 0; font-size: 20px; color: var(--text); }
       .dialog-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 20px; }
       
-      /* 大螢幕優化 (Desktop) */
       @media (min-width: 900px) {
         .app { width: min(1180px, 100%); margin: 0 auto; box-shadow: 0 0 40px rgba(0,0,0,0.05); }
         .topbar {
@@ -349,7 +335,6 @@
         100% { opacity: 1; }
       }
 
-      /* 中英文介面切換 */
       .brand-actions {
         display: flex;
         align-items: center;
@@ -378,7 +363,6 @@
       }
       .lang-switch button:hover { transform: none; }
     
-      /* ===== SOS emergency alarm ===== */
       #sosButton {
         position: fixed;
         right: 18px;
@@ -576,16 +560,13 @@
       </div>
     </dialog>
 
-    <!-- 🌟 新增：商店評價彈窗介面 -->
     <dialog id="reviewDialog" style="max-width: 500px; width: 90%;">
       <h2 id="reviewPlaceName" style="margin-top: 0;">商店名稱</h2>
       
-      <!-- 顯示所有評價的地方 -->
       <div id="reviewsContainer" style="max-height: 250px; overflow-y: auto; background: #f9fafb; padding: 10px; border-radius: 8px; margin-bottom: 15px;">
         <div style="text-align: center; color: var(--muted);">載入評論中...</div>
       </div>
 
-      <!-- 讓使用者新增評價 -->
       <div style="border-top: 1px solid var(--line); padding-top: 15px;">
         <label id="reviewStarLabel" style="display: block; font-weight: bold; margin-bottom: 5px;">給予星級：</label>
         <select id="reviewStar" style="margin-bottom: 10px; padding: 8px;">
@@ -708,8 +689,6 @@
           const next = document.querySelector("#nextStep");
           if (next) {
             if (state.destination && !state.hasRealLocation) {
-              // 切換中英文時，如果已選目的地但尚未取得 REAL 定位，
-              // 重新套用目前語言的 needReal，避免殘留上一語言文字。
               next.textContent = t("needReal");
             } else if (!state.destination && !state.navigationActive) {
               next.textContent = t("initialHint");
@@ -741,17 +720,11 @@
   floorImages: new Map(),
   currentMapId: "map_visual_3",
   currentFloorId: "k-floor-grid",
-  // 🌟 將起點強制設在 K 區的「西廣場」走道上，確保它在畫布可見範圍內
   current: { x: 53, y: 62, gridX: 5, gridY: 4, anchorId: null, floorId: "k-floor-grid" },
-  // lastRealFix 只由真正的 /api/locate-real 回應更新。
-  // 2F 藍點直接讀這份資料，避免被 UI 狀態覆寫。
   lastRealFix: null,
   hasRealLocation: false,
   heading: null,
 
-  // ===== REAL PDR test v12 =====
-  // 只在收到 Android 真實 Step Detector 事件時前進。
-  // Game Rotation Vector 提供相對方向；第一次導航步伐會以目前 DQN 路線方向校正。
   pdrSensorHeading: null,
   pdrHeadingOffsetDeg: null,
   pdrGridX: null,
@@ -785,8 +758,6 @@
         navigationFrame: null,
         feedbackAllowed: localStorage.getItem("feedbackAllowed") === "true",
       };
-      // 🎯 你的直覺解法：打破錯誤的比例，建立精準的「網格對應真實畫布」對照表
-      // 🎯 真實比例校正引擎 (X 軸)
       function getGridPixelX(gridX) {
           const xMap = {
               2: 15, 3: 35, 5: 53, 7: 88, 8: 95, 10: 115, 12: 144, 13: 148,
@@ -795,7 +766,6 @@
               30: 317, 31: 340, 32: 343, 33: 355, 34: 370
           };
           if (xMap[gridX] !== undefined) return xMap[gridX];
-          // 縫隙自動內插
           const keys = Object.keys(xMap).map(Number).sort((a,b)=>a-b);
           for(let i=0; i<keys.length-1; i++){
               if(gridX > keys[i] && gridX < keys[i+1]){
@@ -806,11 +776,10 @@
           return gridX * 10;
       }
 
-      // 🎯 真實比例校正引擎 (Y 軸：絕對純白避障區)
       function getGridPixelY(gridY) {
-          if (gridY === 2) return 42; // 🟢 上排走道 (完美避開寶雅 35 與 Hobby OFF 48)
-          if (gridY === 3) return 52; // 🟢 垂直通道
-          if (gridY === 4) return 62; // 🟢 下排走道 (完美避開 Hobby OFF 48 與大創 76)
+          if (gridY === 2) return 42;
+          if (gridY === 3) return 52;
+          if (gridY === 4) return 62;
           return gridY * 10;
       }
 
@@ -825,8 +794,6 @@
         };
       }
 
-      // 已人工確認的 REAL Anchor 顯示位置。
-      // 先只放確認過的 HOBBY_OFF，避免猜其他 Anchor。
       const ANCHOR_DISPLAY_LOGICAL = {
   HOBBY_OFF: { x: 8, y: 4 },
   "28": { x: 28, y: 7 },
@@ -856,7 +823,6 @@ function drawDebugAnchors() {
 
   Object.entries(DEBUG_1F_ANCHORS).forEach(([anchorId, logical]) => {
 
-    // 如果有特殊顯示位置，就使用特殊位置
     const displayLogical =
       ANCHOR_DISPLAY_LOGICAL[anchorId] || logical;
 
@@ -865,19 +831,16 @@ function drawDebugAnchors() {
 
     const point = screen(px, py);
 
-    // 外圈
     ctx.fillStyle = "#ffffff";
     ctx.beginPath();
     ctx.arc(point.x, point.y, 8, 0, Math.PI * 2);
     ctx.fill();
 
-    // Anchor 點
     ctx.fillStyle = "#dc2626";
     ctx.beginPath();
     ctx.arc(point.x, point.y, 5, 0, Math.PI * 2);
     ctx.fill();
 
-    // 名稱
     ctx.fillStyle = "#991b1b";
     ctx.font = "700 12px Microsoft JhengHei, sans-serif";
     ctx.textAlign = "left";
@@ -910,11 +873,8 @@ function drawPdrCalStop() {
     };
   }
 
-  // Anchor 28 DQN 起點
   const startGrid = { x: 59, y: 16 };
 
-  // 第一段直線終點
-  // 17 cells × 0.60 m = 10.2 m
   const stopGrid = { x: 42, y: 16 };
 
   const startMap = calGridToPixel(
@@ -967,9 +927,6 @@ function drawPdrCalStop() {
   ctx.restore();
 }
 
-      // 2F 機捷層：依現場已確認的五個 Anchor 顯示座標。
-      // 目前尚未提供正式 2F 底圖，因此先用這五個真實定位點畫「簡化走道示意」。
-      // 藍點仍完全使用 REAL Wi-Fi 的 floor / anchor 結果，不用假動畫冒充定位。
       const FLOOR2_ID = "k-floor-mrt";
       const FLOOR1_ID = "k-floor-grid";
       const FLOOR2_ANCHOR_PIXELS = {
@@ -984,7 +941,6 @@ function drawPdrCalStop() {
         const anchor = FLOOR2_ANCHOR_PIXELS[data?.anchorId];
         if (anchor) return { ...anchor };
 
-        // 若未來新增同一條連通道上的中間 Anchor，以 v4 logical gridX 內插。
         const gx = Number(data?.gridX);
         if (Number.isFinite(gx)) {
           return { x: 208 - 9 * gx, y: 696 - 48 * gx };
@@ -1121,7 +1077,6 @@ function drawPdrCalStop() {
     state.currentMapId = state.maps[0].id;
   }
   
-  // 🌟 修復藍色箭頭：根據不同地圖給予正確的預設中心位置
   if (state.currentMapId === "map_visual_3") {
     state.current = { x: 180, y: 40, floorId: "k-floor-grid" };
   } else {
@@ -1160,7 +1115,6 @@ function drawPdrCalStop() {
             },
           ];
         } else {
-          // ... 下面的程式碼保持不動
           const floors = await fetchJson(
             `/api/floors?mapId=${encodeURIComponent(state.currentMapId)}`,
           ).catch(() => []);
@@ -1179,10 +1133,8 @@ function drawPdrCalStop() {
       }
 
       async function loadPlaces() {
-        // 🌟 同步更新 map_visual_3
         if (state.currentMapId === "map_visual_3") {
         state.places = [
-            // 📍 下排走道 (邏輯 Y 固定為 4)
             { id: "桃園機場捷運", name: "桃園機場捷運", category: "出口", x: 2, y: 4, visualX: 15, visualY: 40 },
             { id: "K12 樓梯", name: "K12 樓梯", category: "設施", x: 2, y: 4, visualX: 15, visualY: 35 },
             { id: "東森購物", name: "東森購物", category: "生活", x: 3, y: 4, visualX: 35, visualY: 76 },
@@ -1209,7 +1161,6 @@ function drawPdrCalStop() {
             { id: "這一小鍋", name: "這一小鍋", category: "餐飲", x: 33, y: 4, visualX: 355, visualY: 76 },
             { id: "K1 樓梯", name: "K1 樓梯", category: "設施", x: 34, y: 4, visualX: 370, visualY: 53 },
 
-            // 📍 上排走道 (邏輯 Y 固定為 2)
             { id: "寶雅", name: "寶雅", category: "生活", x: 7, y: 2, visualX: 95, visualY: 35 },
             { id: "松本清", name: "松本清", category: "生活", x: 12, y: 2, visualX: 144, visualY: 35 },
             { id: "扭蛋總動員", name: "扭蛋總動員", category: "休閒", x: 14, y: 2, visualX: 157, visualY: 35 },
@@ -1231,7 +1182,6 @@ function drawPdrCalStop() {
             { id: "K1 無障礙電梯", name: "K1 無障礙電梯", category: "設施", x: 33, y: 2, visualX: 345, visualY: 20 }
           ].map(p => ({...p, floorId: FLOOR1_ID}));
 
-          // 2F 不套用 1F 店家；只放已實測的五個定位地標。
           state.places.push(
             { id: "ESCALATOR_END", name: "手扶梯出口", category: "設施", x: 190, y: 600, floorId: FLOOR2_ID, source: "floorAnchor" },
             { id: "MRT_P25", name: "MRT P25", category: "設施", x: 167.5, y: 480, floorId: FLOOR2_ID, source: "floorAnchor" },
@@ -1258,8 +1208,6 @@ function drawPdrCalStop() {
             !state.destination &&
             !state.hasRealLocation
           ) {
-            // 只有「尚未取得 REAL Wi-Fi 定位」時，才允許 sample point
-            // 當作畫面預設中心。不可覆寫真實定位。
             const first = state.wifiPoints[0];
             state.current = {
               x: Number(first.x),
@@ -1289,8 +1237,6 @@ function drawPdrCalStop() {
           button.textContent = shortFloorName(floor, index);
           button.className = floor.id === state.currentFloorId ? "active" : "";
           button.addEventListener("click", async () => {
-            // currentFloorId 是「目前查看的樓層」；
-            // state.current.floorId 才是 REAL 使用者真正所在樓層。
             state.currentFloorId = floor.id;
             state.viewFocusedKey = "";
             await loadWifiPoints();
@@ -1305,8 +1251,6 @@ function drawPdrCalStop() {
       function performSearch() {
         const keyword = searchInput.value.trim().toLowerCase();
         
-        // 1. 沒輸入關鍵字時，只列目前查看樓層。
-        //    有輸入關鍵字時，允許跨樓層搜尋（例如人在 2F 搜尋 1F 的「全家」）。
         let matched = keyword
           ? navigationTargets()
           : navigationTargets().filter(
@@ -1314,22 +1258,18 @@ function drawPdrCalStop() {
             );
 
         if (keyword) {
-          // 2. 如果有輸入關鍵字，進行搜尋過濾
           matched = matched.filter((place) =>
             [place.id, place.name, place.category, categoryText(place.category), place.description].some(
               (value) => String(value || "").toLowerCase().includes(keyword)
             )
           );
           
-          // 若有完全吻合的結果，自動設為目的地
           const exact = matched.find(
             (place) => String(place.id).toLowerCase() === keyword || String(place.name).toLowerCase() === keyword
           );
           if (exact) selectDestination(exact.id);
           
         } else {
-          // 3. 🌟 核心修改：如果沒有輸入關鍵字，預設顯示「所有實體店家」
-          // 排除 Wi-Fi 定位點、電梯、樓梯、出口與廣場
           matched = matched.filter(
             (place) =>
               place.source !== "wifiPoint" &&
@@ -1339,11 +1279,8 @@ function drawPdrCalStop() {
           );
         }
 
-        // 4. 強制顯示結果區塊（紅框區域）
         results.hidden = matched.length === 0;
 
-        // 5. 渲染店家列表 HTML
-        // 5. 渲染店家列表 HTML (新增評論按鈕)
         results.innerHTML = matched
           .map(
             (place) => `
@@ -1373,8 +1310,6 @@ function drawPdrCalStop() {
         if (state.destination) {
           destinationText.textContent = t("destination", { name: state.destination.name });
 
-          // 重要：選目的地不能改寫 REAL 使用者所在樓層。
-          // state.current.floorId 永遠只由真正定位更新。
           if (state.destination.floorId !== state.current.floorId) {
             nextStep.textContent =
               t("transferFloor", { floor: uiFloorName(state.destination.floorId) });
@@ -1401,8 +1336,6 @@ function drawPdrCalStop() {
         }
 
         try {
-          // REAL 已到 2F，而且目的地也在 2F：
-          // 使用五個實測 Anchor 畫出連續綠色路線。
           if (
             state.current.floorId === FLOOR2_ID &&
             state.destination.floorId === FLOOR2_ID
@@ -1467,10 +1400,6 @@ function drawPdrCalStop() {
             renderAll();
             return;
           }
-          // 跨樓層第一階段：
-          // 使用者 REAL 在 2F、目的地在 1F 時，先沿 2F 示意通道導到 ESCALATOR_END。
-          // 等 Wi-Fi 真正判定已到 1F 後，submitRealWifiScan() 會再次呼叫 showRoute()，
-          // 再由 1F DQN 安全路由接手到店家。
           if (
             state.current.floorId === FLOOR2_ID &&
             state.destination.floorId === FLOOR1_ID
@@ -1491,8 +1420,6 @@ function drawPdrCalStop() {
               },
             ];
 
-            // 2F 目前只有 Anchor 示意通道，沒有經實測的公尺比例，
-            // 所以不顯示虛假的距離 / 時間數字。
             state.routeDistance = 0;
             state.routeTime = 0;
             distanceText.textContent = t("distanceNone");
@@ -1507,8 +1434,6 @@ function drawPdrCalStop() {
             return;
           }
 
-          // 若 REAL 樓層與目的地仍不同，而且不是目前支援的 2F -> 1F 情境，
-          // 不送進 1F DQN，避免產生假的跨樓層路線。
           const isFloor1ToFloor2 =
             state.current.floorId === FLOOR1_ID &&
             state.destination.floorId === FLOOR2_ID;
@@ -1528,7 +1453,6 @@ function drawPdrCalStop() {
             return;
           }
 
-          // 同樓層且位於 1F，才呼叫已驗證的 DQN 安全路由。
           const floor = currentFloor();
           const ox = Number(floor?.imageLeft ?? -4.63);
           const oy = Number(floor?.imageTop ?? -16.36);
@@ -1545,7 +1469,6 @@ function drawPdrCalStop() {
           }
 
           if (state.current.floorId !== FLOOR1_ID) {
-            // 目前 2F 只做 Anchor / 樓層轉接示意；尚未宣稱有 2F DQN。
             state.route = [];
             nextStep.textContent = t("proceed", { name: state.destination.name });
             renderAll();
@@ -1593,7 +1516,6 @@ function drawPdrCalStop() {
             };
           });
 
-          // 起點強制使用 REAL 定位藍點。
           if (state.route.length > 0) {
             state.route.unshift({
               x: state.current.x,
@@ -1604,8 +1526,6 @@ function drawPdrCalStop() {
             });
           }
 
-          // 路線最後一點直接使用後端校正過的 DQN 店家入口格。
-          // 不再額外拉回固定 y=62，避免「全家」等支線店家路線被拉錯。
           state.routeDistance = Number(routeData.distance || routeData.distance_m || 0);
           state.routeTime = Math.max(1, Number(routeData.estimatedTime || 1));
 
@@ -1633,7 +1553,6 @@ function drawPdrCalStop() {
         }
         state.navigationActive = true;
 
-        // PDR 目前先驗證 1F DQN 路線。
         state.pdrActive =
           state.current.floorId === FLOOR1_ID &&
           Array.isArray(state.route) &&
@@ -1686,9 +1605,6 @@ function drawPdrCalStop() {
 
         trackingTimer = setInterval(async () => {
           try {
-            // map_visual_3 的 REAL 位置由 Android submitRealWifiScan() 直接更新。
-            // 舊版 /api/current-location 輪詢是 1F-only，會把 2F floorId 覆寫回 1F，
-            // 導致 drawCurrent() 因樓層不一致而把藍點隱藏。
             if (state.currentMapId === "map_visual_3") return;
 
             const response = await fetch(`${API_BASE}/api/current-location`);
@@ -1786,7 +1702,6 @@ function drawPdrCalStop() {
         ctx.fillRect(0, 0, rect.width, rect.height);
         drawFloorImage();
         drawSecondFloorSchematic();
-        //drawWalkways();
         drawWifiSampleMap();
         drawRoute();
 drawPlaces();
@@ -1795,7 +1710,6 @@ drawPdrCalStop();
 drawCurrent();
       }
       
-            // 🌟 內嵌 K_Area_Grid.csv 網格資料（0=走道 1=商店黑格 2=其他 3=樓梯/電梯 4=其他）
       const GRID_DATA = [
         [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,3,3,0,3,3,1,1,3,1,1,1,1,1,1,1,1,1,3,1,1,1],
         [1,1,0,0,0,0,0,1,1,1,1,1,1,1,1,1,3,3,0,3,3,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
@@ -1812,7 +1726,6 @@ drawCurrent();
         if (!state.showGridOverlay) return;
         const floor = currentFloor();
         if (!floor?.imageUrl) return;
-        // 依圖片實際尺寸換算格距（可在下方微調原點，讓疊圖對齊圖片）
         const cols = 37, rows = 9;
         const cellW = floor.imageWidth / cols;
         const cellH = floor.imageHeight / rows;
@@ -1826,9 +1739,9 @@ drawCurrent();
             const x0 = ox + c * cellW;
             const y0 = oy + r * cellH;
             if (v === 1) {
-              ctx.fillStyle = "#1f2933";   // 商店/黑格
+              ctx.fillStyle = "#1f2933";
             } else if (v === 0 || v === 3) {
-              ctx.fillStyle = "#ffffff";   // 走道/樓梯
+              ctx.fillStyle = "#ffffff";
             } else {
               return;
             }
@@ -1853,21 +1766,18 @@ drawCurrent();
         ctx.lineCap = "round";
         ctx.lineJoin = "round";
 
-        // 淡灰色走道帶
         ctx.strokeStyle = "#e5e7eb";
         ctx.lineWidth = 42;
         ctx.beginPath();
         points.forEach((p, i) => i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y));
         ctx.stroke();
 
-        // 白色可行走區
         ctx.strokeStyle = "#ffffff";
         ctx.lineWidth = 26;
         ctx.beginPath();
         points.forEach((p, i) => i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y));
         ctx.stroke();
 
-        // 中央虛線只幫助閱讀，不代表定位資料
         ctx.strokeStyle = "#94a3b8";
         ctx.lineWidth = 2;
         ctx.setLineDash([8, 8]);
@@ -1914,8 +1824,6 @@ drawCurrent();
           (point) => !point.floorId || point.floorId === state.currentFloorId,
         );
 
-        // v17：導航進行中，綠線的起點永遠使用目前藍點。
-        // 已經走過的 route 片段不再留在藍點後方。
         if (
           state.navigationActive &&
           state.hasRealLocation &&
@@ -1983,9 +1891,6 @@ drawCurrent();
         });
         ctx.stroke();
       }
-      // 修正：舊版 drawPlaces() 會呼叫 getVisualY()，
-      // 但函式沒有定義，造成 2F REAL 定位進入 renderAll() 時中斷，
-      // 因此樓層雖然切到 2F，藍點卻沒有完成繪製。
       function getVisualY(y) {
         const value = Number(y);
         return Number.isFinite(value) ? value : 0;
@@ -1997,20 +1902,16 @@ drawCurrent();
         state.places
           .filter((place) => place.floorId === state.currentFloorId)
           .forEach((place) => {
-            // 🎯 核心修復：如果店家有專屬的視覺座標，就絕對不要再經過 getVisualY 轉換！
             const finalX = place.visualX !== undefined ? place.visualX : place.x;
             const finalY = place.visualY !== undefined ? place.visualY : getVisualY(place.y);
             const point = screen(finalX, finalY);
             
             const selected = state.destination && state.destination.id === place.id;
             ctx.font = selected ? "26px Arial" : "20px Arial";
-            // store icon hidden
             ctx.font = selected ? "bold 15px Microsoft JhengHei, sans-serif" : "13px Microsoft JhengHei, sans-serif";
             ctx.lineWidth = 3;
             ctx.strokeStyle = "rgba(255, 255, 255, 0.8)";
-            // store name hidden
             ctx.fillStyle = selected ? "#b42318" : "#1f2933";
-            // store name hidden
           });
       }
       function drawWifiSampleMap() {}
@@ -2020,7 +1921,6 @@ drawCurrent();
       function drawDestinationMarker() {
         if (!state.destination || state.destination.floorId !== state.currentFloorId) return;
         
-        // 🎯 終點紅心也套用正確的雙軌制
         const finalX = state.destination.visualX !== undefined ? state.destination.visualX : state.destination.x;
         const finalY = state.destination.visualY !== undefined ? state.destination.visualY : getVisualY(state.destination.y);
         const point = screen(finalX, finalY);
@@ -2052,8 +1952,6 @@ drawCurrent();
       function drawCurrent() {
         if (!state.hasRealLocation) return;
 
-        // 2F：只使用最後一次真正 /api/locate-real 的 fix。
-        // 不依賴 state.current，避免 UI、搜尋或樓層資料載入流程把藍點狀態覆寫。
         if (state.currentFloorId === FLOOR2_ID) {
           const fix = state.lastRealFix;
           if (!fix || Number(fix.floor) !== 1) return;
@@ -2067,16 +1965,13 @@ drawCurrent();
           const realY = anchorPoint ? Number(anchorPoint.y) : Number(fix.y);
           if (!Number.isFinite(realX) || !Number.isFinite(realY)) return;
 
-          // 2F 示意圖不做旋轉，直接以實際 Anchor 座標畫 REAL 藍點。
           const point = baseScreen(realX, realY);
 
-          // 白色外圈，確保在灰白走道上仍清楚。
           ctx.fillStyle = "#ffffff";
           ctx.beginPath();
           ctx.arc(point.x, point.y, 17, 0, Math.PI * 2);
           ctx.fill();
 
-          // REAL 藍點。
           ctx.fillStyle = "#2563eb";
           ctx.beginPath();
           ctx.arc(point.x, point.y, 10, 0, Math.PI * 2);
@@ -2094,7 +1989,6 @@ drawCurrent();
           return;
         }
 
-        // 1F：沿用既有 REAL current 顯示。
         if (state.current.floorId !== state.currentFloorId) return;
 
         const point = screen(state.current.x, state.current.y);
@@ -2104,9 +1998,6 @@ drawCurrent();
         ctx.fill();
 
         if (state.navigationActive) {
-          // v15：導航中只畫固定外圈。
-          // v14 以前 scheduleNavigationFrame() 會造成 drawMap() 以接近 60fps
-          // 不斷重畫整張地圖，容易讓 WebView 卡頓、步伐顯示延遲。
           const pulse = 18;
           ctx.strokeStyle = "rgba(37, 99, 235, .24)";
           ctx.lineWidth = 5;
@@ -2182,16 +2073,12 @@ drawCurrent();
         setTimeout(() => navFlash.classList.remove("show"), 1300);
       }
       function scheduleNavigationFrame() {
-        // v15 performance safeguard:
-        // 禁止以動畫 frame 連續重畫整張 Canvas。
-        // PDR step / Wi-Fi fix / UI 操作會主動觸發必要的 render。
         return;
       }
       function baseScreen(x, y) {
         const rect = canvas.getBoundingClientRect();
         const padding = 28;
 
-        // 使用同一個縮放比例處理 X/Y，避免手機窄螢幕把地圖拉高變形。
         const usableWidth = Math.max(1, rect.width - padding * 2);
         const usableHeight = Math.max(1, rect.height - padding * 2);
         const scale = Math.min(
@@ -2199,7 +2086,6 @@ drawCurrent();
           usableHeight / Math.max(1, world.height)
         );
 
-        // 將保持原比例的地圖置中於 canvas。
         const fittedWidth = world.width * scale;
         const fittedHeight = world.height * scale;
         const originX = (rect.width - fittedWidth) / 2;
@@ -2222,11 +2108,9 @@ drawCurrent();
       function debugScreenToDqn(clientX, clientY) {
   const rect = canvas.getBoundingClientRect();
 
-  // 先取得點擊位置，相對於 canvas
   let px = clientX - rect.left;
   let py = clientY - rect.top;
 
-  // 如果目前畫面有跟隨旋轉，先反向旋轉回去
   const rad = followRotationRadians();
 
   if (rad) {
@@ -2271,7 +2155,6 @@ drawCurrent();
   const originY =
     (rect.height - fittedHeight) / 2;
 
-  // 反推 zoom + pan
   const sx =
     rect.width / 2 +
     (
@@ -2288,7 +2171,6 @@ drawCurrent();
       rect.height / 2
     ) / state.zoom;
 
-  // screen → map
   const mapX =
     world.left +
     (sx - originX) / scale;
@@ -2582,8 +2464,6 @@ drawCurrent();
           const isTap = Math.hypot(dx, dy) <= 14;
           state.dragStart = null;
 
-          // Android WebView 可能不顯示 JavaScript alert，
-          // 因此 K4 校正直接在畫面上顯示座標。
           if (event.type === "pointerup" && isTap) {
             showK4TapDebug(event);
           }
@@ -2719,7 +2599,6 @@ drawCurrent();
         );
       }
 
-      // 🌟 新增：評價系統全域變數與功能
       let currentReviewPlaceId = null;
 
       async function openReviewModal(placeId, placeName) {
@@ -2731,7 +2610,6 @@ drawCurrent();
         const reviewDialog = document.getElementById("reviewDialog");
         reviewDialog.showModal();
 
-        // 開啟彈窗時，自動載入大家的評價
         await loadReviews(placeId);
       }
 
@@ -2748,11 +2626,9 @@ drawCurrent();
             return;
           }
 
-          // 計算平均星數
           const avgStar = (reviews.reduce((acc, r) => acc + Number(r.star), 0) / reviews.length).toFixed(1);
           let html = `<div style="margin-bottom: 10px; font-weight: bold; color: var(--accent);">${escapeHtml(t("avgRating", { avg: avgStar, count: reviews.length }))}</div>`;
           
-          // 顯示每則評論 (越新的在越上面)
           reviews.reverse().forEach(r => {
             const stars = "⭐".repeat(r.star);
             const date = new Date(r.timestamp).toLocaleString(currentLang === "en" ? "en-US" : "zh-TW", { hour12: false });
@@ -2782,7 +2658,6 @@ drawCurrent();
         }
 
         try {
-          // 防止重複點擊
           const btn = document.querySelector("#reviewDialog .primary");
           btn.textContent = t("sending");
           btn.disabled = true;
@@ -2800,7 +2675,6 @@ drawCurrent();
 
           if (!response.ok) throw new Error("儲存失敗");
           
-          // 重新載入評價，讓剛剛輸入的評價立刻顯示出來
           await loadReviews(currentReviewPlaceId);
           document.getElementById("reviewText").value = "";
         } catch (err) {
@@ -2816,13 +2690,6 @@ drawCurrent();
 
 
     <script>
-      // ============================================================
-      // REAL PDR TEST v17 HEADING + ROUTE HEAD
-      // Step Detector = 真實步伐事件
-      // Game Rotation Vector = 相對方向
-      // Wi-Fi fix = 絕對位置校正
-      // DQN route = map matching 約束
-      // ============================================================
 
       function updatePdrDebug(message) {
         const el = document.getElementById("pdrDebug");
@@ -2899,7 +2766,6 @@ drawCurrent();
           const dy = Number(b.gridY) - Number(a.gridY);
           if (Math.hypot(dx, dy) < 0.01) continue;
 
-          // 地圖 heading 定義：0°=畫面上方、90°=右方、180°=下方、270°=左方。
           return normalizeDeg(Math.atan2(dx, -dy) * 180 / Math.PI);
         }
         return null;
@@ -2986,8 +2852,6 @@ drawCurrent();
           return false;
         }
 
-        // 使用「校正當下」而不是「第一個 Linear step」建立方向基準。
-        // 使用者校正時需讓平板的前進方向朝向綠線第一段。
         state.pdrHeadingOffsetDeg =
           normalizeDeg(routeHeading - state.pdrSensorHeading);
 
@@ -3018,8 +2882,6 @@ drawCurrent();
       }
 
       function submitPdrStep(sensorHeadingDeg, androidStepCount) {
-        // v16：把 Android Sensor 計數、WebView RX、實際 MOVE 分開顯示。
-        // RX counter 只表示 JS 收到事件，不表示藍點已移動。
         const nowMs = Date.now();
         state.pdrRxCount = Number(state.pdrRxCount || 0) + 1;
         const gapMs =
@@ -3032,7 +2894,6 @@ drawCurrent();
         if (Number.isFinite(androidCount)) {
           state.pdrAndroidCount = androidCount;
         } else {
-          // 相容舊 Android 呼叫方式：沒有第二參數時至少用 RX 當參考。
           state.pdrAndroidCount = state.pdrRxCount;
         }
 
@@ -3043,7 +2904,6 @@ drawCurrent();
           state.pdrSensorHeading = normalizeDeg(raw);
         }
 
-        // 沒有真實 Wi-Fi 起點，不允許 PDR 自行產生位置。
         if (!state.hasRealLocation) {
           updatePdrDebug(
             `RX ${state.pdrRxCount}｜gap=${gapMs}ms｜` +
@@ -3053,7 +2913,6 @@ drawCurrent();
           return;
         }
 
-        // v12 先只驗證 1F，避免把 2F 示意通道誤稱為完整 PDR 地圖。
         if (
           state.current.floorId !== FLOOR1_ID ||
           state.currentFloorId !== FLOOR1_ID
@@ -3094,7 +2953,6 @@ drawCurrent();
           return;
         }
 
-        // 第一次真實步伐：用當前 DQN 路線的第一段方向校正相對 heading。
         if (state.pdrHeadingOffsetDeg == null) {
           const routeHeading = routeHeadingDegAt(state.pdrRouteIndex);
           if (!Number.isFinite(routeHeading)) {
@@ -3116,9 +2974,6 @@ drawCurrent();
         const mappedHeading = Number(state.heading);
         const expectedHeading = routeHeadingDegAt(state.pdrRouteIndex);
 
-        // v13：方向偏離路線時不再「凍結」。
-        // 真實 Step Detector 每一步都先更新 raw PDR，
-        // 路線只做 soft map-match，不再決定藍點能不能走。
         const stepCells =
           Number(state.pdrStepLengthM) / Number(state.pdrGridCellM);
 
@@ -3137,12 +2992,9 @@ drawCurrent();
         const candidateY =
           Number(state.pdrRawGridY) - Math.cos(rad) * stepCells;
 
-        // raw PDR 一定跟著真實步伐更新，所以走偏、回頭都能反映。
         state.pdrRawGridX = candidateX;
         state.pdrRawGridY = candidateY;
 
-        // 只在目前路線索引附近找最近點，且允許往前或往後，
-        // 避免 v12 的「只能前進、不能走回起點」問題。
         const searchFrom = Math.max(0, state.pdrRouteIndex - 8);
         const searchTo = Math.min(
           state.route.length - 1,
@@ -3170,8 +3022,6 @@ drawCurrent();
           );
         }
 
-        // soft map-match：
-        // 靠近綠色安全路線時輕度吸附；走離路線時仍顯示真實 PDR 位移。
         if (routeDistance <= 3.0) {
           const snapWeight = 0.90;
 
@@ -3188,7 +3038,6 @@ drawCurrent();
           state.pdrGridX = candidateX;
           state.pdrGridY = candidateY;
 
-          // 若仍在路線附近，更新索引；不使用 Math.max，允許回頭。
           if (routeDistance <= 3.0) {
             state.pdrRouteIndex = nearestIndex;
           }
@@ -3196,7 +3045,7 @@ drawCurrent();
 
         state.current.gridX = state.pdrGridX;
         state.current.gridY = state.pdrGridY;
-        state.current.anchorId = null; // 已離開 Wi-Fi Anchor，下一次 Wi-Fi fix 會重新設定。
+        state.current.anchorId = null;
 
         const display = dqnGridToPixel(
           state.current.gridX,
@@ -3232,8 +3081,6 @@ drawCurrent();
           `grid=(${state.current.gridX.toFixed(1)},${state.current.gridY.toFixed(1)})`
         );
 
-        // v13 不再每一步都重算 follow viewport，避免 WebView 卡頓。
-        // 每 4 步才重新置中一次。
         if (state.viewFollow && state.pdrStepCount % 4 === 0) {
           centerOnCurrent();
         }
@@ -3246,8 +3093,6 @@ drawCurrent();
     </script>
 
     <script>
-      // Demo candidate v11：
-      // 保留既有呼叫介面，但正式展示不顯示工程除錯資訊。
       function showRealDebug(data, p, matchedAp) {
         return;
       }
@@ -3285,7 +3130,6 @@ drawCurrent();
           const realFloor = Number(data.floor);
           state.current.anchorId = data.anchorId || null;
 
-          // 2F：DQN 目前只驗證 1F，因此 2F 直接使用 Wi-Fi v4 Anchor。
           if (realFloor === 1) {
             const p = floor2PixelFromReal(data);
             if (!p) {
@@ -3309,7 +3153,6 @@ drawCurrent();
             state.hasRealLocation = true;
             state.viewFocusedKey = null;
 
-            // 先直接畫一次，避免後續任何 UI 流程出錯時 REAL 藍點沒有被畫出。
             drawMap();
             showRealDebug(data, p, matchedAp);
 
@@ -3337,7 +3180,6 @@ drawCurrent();
             return;
           }
 
-          // 1F：維持已驗證的 DQN grid → 1F 地圖座標。
           if (realFloor !== 0) {
             console.warn("未知 REAL 樓層", data);
             return;
@@ -3383,9 +3225,6 @@ drawCurrent();
           };
           state.hasRealLocation = true;
 
-          // v15 hybrid：
-          // 沒有進行 PDR 導航時，Wi-Fi 仍是絕對位置。
-          // PDR 導航進行中，Wi-Fi 只做「柔性校正」，避免每 40 秒把藍點硬拉回 Anchor。
           const wifiGridX = Number(state.current.gridX);
           const wifiGridY = Number(state.current.gridY);
 
@@ -3403,8 +3242,6 @@ drawCurrent();
               wifiGridY - pdrY
             );
 
-            // Wi-Fi Anchor 是較粗的絕對 fix：
-            // 小/中等差異只修正 18%；差異極大時提高到 35%，仍避免瞬間跳回。
             const correctionWeight = 0;
 
             const correctedX =
@@ -3470,7 +3307,6 @@ drawCurrent();
           renderFloorButtons();
           performSearch();
 
-          // 1F 也同步更新 REAL DEBUG，避免殘留上一個 2F 定位資訊。
           showRealDebug(
             data,
             { x: Number(state.current.x), y: Number(state.current.y) },
@@ -3494,8 +3330,6 @@ drawCurrent();
                   Number.isFinite(Number(p.gridY))
               );
 
-            // v15：已有正在使用的 PDR+DQN 路線時，
-            // Wi-Fi 校正不重新呼叫後端算路，避免 40 秒一次的卡頓/跳線。
           if (!state.pdrActive || !hasDqnRoute) {
               await showRoute();
 
@@ -3507,8 +3341,6 @@ drawCurrent();
                     Number.isFinite(Number(p.gridY))
                 );
 
-              // 跨樓層從 2F 回到 1F 後，
-              // DQN 路線已重新建立時，自動恢復 1F PDR。
               if (
                 state.navigationActive &&
                 state.current.floorId === FLOOR1_ID &&
@@ -3529,7 +3361,6 @@ drawCurrent();
               }
             }
           }
-          // PDR 導航中不要因 Wi-Fi 校正突然重置 viewport。
           if (state.viewFollow && !state.pdrActive) {
             centerOnCurrent();
           }
@@ -3542,7 +3373,6 @@ drawCurrent();
 
       window.submitRealWifiScan = submitRealWifiScan;
 
-      // 相容舊 Android bridge 名稱。
       window.receiveAndroidWifiSignals = async function (signalsJsonString) {
         try {
           const parsed = typeof signalsJsonString === "string"
@@ -3570,8 +3400,6 @@ drawCurrent();
     </div>
 
     <script>
-      // ===== SOS full mode =====
-      // 長按 1 秒才啟動；啟動後由 Android 原生層負責最大音量、震動與手電筒。
       (() => {
         const HOLD_MS = 1000;
 
@@ -3683,7 +3511,6 @@ drawCurrent();
           overlay.classList.add("sos-active");
           document.body.style.overflow = "hidden";
 
-          // 先讓 Android 把音量拉高，再開始 WebAudio 警報。
           callNativeStart();
 
           try {
