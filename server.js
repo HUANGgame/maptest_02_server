@@ -277,7 +277,7 @@ const server = http.createServer(async (request, response) => {
       }
       const result = await firebaseMirror.rebuildWifiScanIndex(mapId, floorId, {
         cursor: body.cursor || "",
-        reset: body.reset === true,
+        reset: body.reset !== false && !body.cursor,
         batchSize: body.batchSize || 700,
         maxMillis: body.maxMillis || 18000,
       });
