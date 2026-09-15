@@ -1872,18 +1872,25 @@ function planRoute(body) {
   const routeIds = aStarRoute(startNode.id, targetNode.id, nodes, readRouteEdges().filter((edge) => edge.mapId === mapId && edge.floorId === floorId && !edge.isBlocked));
   if (!routeIds) return null;
   const routePoints = routeIds.map((id) => nodes.find((node) => node.id === id)).filter(Boolean);
-  const distance = routePoints.slice(1).reduce((sum, point, index) => sum + pointDistance(routePoints[index], point), 0);
+  const distance = routeMetricDistance(routePoints);
   return {
     routePoints,
-    distance: Math.round(distance * 100) / 100,
-    estimatedTime: Math.max(1, Math.ceil(distance / 75)),
+    distance: roundNumber(distance, 2),
+    estimatedTime: routeEstimatedMinutes(distance, 0),
     floorTransitions: [],
   };
 }
 
 function planCrossFloorRoute(mapId, startFloorId, startX, startY, destination) {
-  const transition = readFloorTransitions().find((item) => item.mapId === mapId && item.fromFloorId === startFloorId && item.toFloorId === destination.floorId);
-  if (!transition) return null;
+  const candidates = readFloorTransitions()
+    .filter((item) => item.mapId === mapId && item.fromFloorId === startFloorId && item.toFloorId === destination.floorId)
+    .map((transition) => buildCrossFloorCandidate(mapId, startFloorId, startX, startY, destination, transition))
+    .filter(Boolean)
+    .sort((a, b) => a.routeScore - b.routeScore);
+  return candidates[0] || null;
+}
+
+function buildCrossFloorCandidate(mapId, startFloorId, startX, startY, destination, transition) {
   const transitionFrom = nodeById(transition.fromNodeId);
   const firstLegDestination = { id: "transition-destination", x: transitionFrom?.x, y: transitionFrom?.y, floorId: startFloorId };
   if (firstLegDestination.x == null || firstLegDestination.y == null) return null;
@@ -1912,10 +1919,14 @@ function planCrossFloorRoute(mapId, startFloorId, startX, startY, destination) {
   const firstPoints = firstLeg?.routePoints || [];
   const firstDistance = Number(firstLeg?.distance || 0);
   const totalDistance = firstDistance + secondDistance;
+  const destinationIsTransitionTarget =
+    destination.routeNodeId === transition.toNodeId ||
+    pointDistance(destination, secondStart) <= 80;
   return {
     routePoints: firstPoints.concat(secondPoints),
-    distance: Math.round(totalDistance * 100) / 100,
-    estimatedTime: Math.max(1, Math.ceil(totalDistance / 75) + 1),
+    distance: roundNumber(totalDistance, 2),
+    routeScore: destinationIsTransitionTarget ? totalDistance - 100000 : totalDistance,
+    estimatedTime: routeEstimatedMinutes(totalDistance, 1),
     floorTransitions: [{
       fromFloorId: transition.fromFloorId,
       toFloorId: transition.toFloorId,
@@ -1936,8 +1947,8 @@ function planZoneRoute(mapId, floorId, start, destination) {
       { id: "zone-start", mapId, floorId, x: startPoint.x, y: startPoint.y, nodeType: "zone", isWalkable: true },
       { id: "zone-target", mapId, floorId, x: targetPoint.x, y: targetPoint.y, nodeType: "zone", isWalkable: true },
     ];
-    const distance = pointDistance(routePoints[0], routePoints[1]);
-    return { routePoints, distance: roundNumber(distance, 2), estimatedTime: Math.max(1, Math.ceil(distance / 75)), floorTransitions: [] };
+    const distance = routeMetricDistance(routePoints);
+    return { routePoints, distance: roundNumber(distance, 2), estimatedTime: routeEstimatedMinutes(distance, 0), floorTransitions: [] };
   }
   const route = aStarZoneRoute(startPoint, targetPoint, zones);
   if (!route || route.length < 2) return null;
@@ -1951,8 +1962,8 @@ function planZoneRoute(mapId, floorId, start, destination) {
     nodeType: zoneTypeAt(point.x, point.y, zones) || "zone",
     isWalkable: true,
   }));
-  const distance = routePoints.slice(1).reduce((sum, point, index) => sum + pointDistance(routePoints[index], point), 0);
-  return { routePoints, distance: roundNumber(distance, 2), estimatedTime: Math.max(1, Math.ceil(distance / 75)), floorTransitions: [] };
+  const distance = routeMetricDistance(routePoints);
+  return { routePoints, distance: roundNumber(distance, 2), estimatedTime: routeEstimatedMinutes(distance, 0), floorTransitions: [] };
 }
 
 function buildRoutingZones(mapId, floorId) {
@@ -2198,6 +2209,23 @@ function reconstructRoute(cameFrom, current) {
 function pointDistance(a, b) {
   if (!a || !b) return Infinity;
   return Math.hypot(Number(a.x) - Number(b.x), Number(a.y) - Number(b.y));
+}
+
+const K_AREA_METERS_PER_PIXEL = 8.5 / Math.hypot(
+  1154.5441960848293 - 1129.5403499309832,
+  440.9769230769231 - 367.85960382314823
+);
+
+function routeMetricDistance(points) {
+  const totalPixels = points.slice(1).reduce((sum, point, index) => sum + pointDistance(points[index], point), 0);
+  return totalPixels * K_AREA_METERS_PER_PIXEL;
+}
+
+function routeEstimatedMinutes(distanceMeters, floorTransitionCount = 0) {
+  const walkingMinutes = distanceMeters / 75;
+  const transitionMinutes = floorTransitionCount * 0.5;
+  const minimum = floorTransitionCount > 0 ? 0.5 : 1;
+  return Math.max(minimum, Math.round((walkingMinutes + transitionMinutes) * 10) / 10);
 }
 
 function normalizeFeedback(body) {
