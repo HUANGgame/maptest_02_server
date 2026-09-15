@@ -2121,7 +2121,9 @@ drawCurrent();
           ctx.arc(point.x, point.y, 8, 0, Math.PI * 2);
           ctx.fill();
         } else {
-          const targetDisplayHeading = normalizeDegrees(state.heading);
+          const targetDisplayHeading = normalizeDegrees(
+            state.navigationActive ? state.heading : state.heading - 90
+          );
 
           state.displayHeading = targetDisplayHeading;
 
