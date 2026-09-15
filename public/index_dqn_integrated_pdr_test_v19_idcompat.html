@@ -2121,7 +2121,7 @@ drawCurrent();
           ctx.arc(point.x, point.y, 8, 0, Math.PI * 2);
           ctx.fill();
         } else {
-          const targetDisplayHeading = normalizeDegrees(-state.heading - 90);
+                   const targetDisplayHeading = normalizeDegrees(-state.heading + 90);
 
           if (!Number.isFinite(Number(state.displayHeading))) {
             state.displayHeading = targetDisplayHeading;
