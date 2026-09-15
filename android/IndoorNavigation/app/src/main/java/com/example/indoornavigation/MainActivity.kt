@@ -313,7 +313,7 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
                     webPageReady = true
 
                     statusText.text =
-                        "✅ 地圖完成載入，自動 REAL 定位準備中"
+                        " 地圖完成載入，自動 REAL 定位準備中"
 
                     navigationWebView.evaluateJavascript(
                         """
@@ -359,7 +359,7 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
         )
 
         statusText.text =
-            "✅ 自動 REAL 定位已啟動，每 40 秒要求一次 Wi-Fi 掃描"
+            " 自動 REAL 定位已啟動，每 40 秒要求一次 Wi-Fi 掃描"
 
         scanHandler.postDelayed(
             autoScanRunnable,
@@ -407,7 +407,7 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
 
         hybridDeliveredSteps++
         statusText.text =
-            "👣 PDR $hybridDeliveredSteps 步 | 🧭 ${currentHeadingDeg.toInt()}°"
+            " PDR $hybridDeliveredSteps 步 |  ${currentHeadingDeg.toInt()}°"
 
         if (webPageReady) {
 
@@ -607,7 +607,7 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
             } else {
 
                 statusText.text =
-                    "⚠️ 主動掃描受限，使用目前可取得的 Wi-Fi scan"
+                    " 主動掃描受限，使用目前可取得的 Wi-Fi scan"
 
                 sendScanToWebView(false)
             }
@@ -634,7 +634,7 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
             if (results.isEmpty()) {
 
                 statusText.text =
-                    "❌ 沒有取得任何 Wi-Fi AP"
+                    " 沒有取得任何 Wi-Fi AP"
 
                 return
             }
@@ -651,7 +651,7 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
             ) {
 
                 statusText.text =
-                    "↩️ 略過過密 Wi-Fi 掃描 ${results.size} AP"
+                    " 略過過密 Wi-Fi 掃描 ${results.size} AP"
 
                 return
             }
@@ -723,9 +723,9 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
 
                     statusText.text =
                         if (isNewScan) {
-                            "✅ 新 Wi-Fi 掃描 ${results.size} AP → 已送出定位"
+                            " 新 Wi-Fi 掃描 ${results.size} AP  已送出定位"
                         } else {
-                            "⚠️ Wi-Fi 掃描可能為快取 ${results.size} AP → 已送出定位"
+                            " Wi-Fi 掃描可能為快取 ${results.size} AP  已送出定位"
                         }
                 }
             }

@@ -1536,11 +1536,11 @@ function drawPdrCalStop() {
               ? t("transferFloor", { floor: uiFloorName(FLOOR2_ID) })
               : t("routeEntrance", { name: state.destination.name, algorithm: routeData.algorithm || "safe-route" });
 
-          console.log("🧭 route:", routeData);
+          console.log(" route:", routeData);
         } catch (error) {
           console.error("路線取得失敗", error);
           state.route = [];
-          nextStep.textContent = `❌ ${error.message}`;
+          nextStep.textContent = ` ${error.message}`;
         }
 
         renderAll();
@@ -3120,7 +3120,7 @@ drawCurrent();
 
           if (data.validLocation === false || matchedAp < 5) {
             state.hasRealLocation = false;
-            console.warn("⛔ REAL 定位無效", data);
+            console.warn(" REAL 定位無效", data);
             nextStep.textContent =
               t("invalidLocation", { count: matchedAp });
             renderAll();
@@ -3165,7 +3165,7 @@ drawCurrent();
             }
 
             console.log(
-              `🎯 REAL 2F 藍點 anchor=${state.current.anchorId} ` +
+              ` REAL 2F 藍點 anchor=${state.current.anchorId} ` +
               `logical=(${state.current.gridX},${state.current.gridY}) ` +
               `matchedAP=${matchedAp}`
             );
@@ -3314,7 +3314,7 @@ drawCurrent();
           );
 
           console.log(
-            `🎯 REAL 1F 藍點 anchor=${state.current.anchorId} ` +
+            ` REAL 1F 藍點 anchor=${state.current.anchorId} ` +
             `DQN=(${state.current.gridX},${state.current.gridY}) ` +
             `matchedAP=${matchedAp}`
           );
@@ -3393,7 +3393,7 @@ drawCurrent();
     </button>
 
     <div id="sosOverlay" role="alertdialog" aria-modal="true" aria-live="assertive">
-      <div class="sos-symbol">⚠</div>
+      <div class="sos-symbol"></div>
       <h2>SOS 緊急警報</h2>
       <p>警報已啟動，請前往安全、人多或有工作人員的區域。</p>
       <button id="sosStopButton" type="button">停止警報</button>

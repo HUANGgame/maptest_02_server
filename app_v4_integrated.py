@@ -34,9 +34,9 @@ app.add_middleware(
 locator = None
 try:
     locator = WifiLocatorV3(BASE_DIR)
-    print(f"✅ Wi-Fi v3 定位模型載入成功：{len(locator.features)} 個 BSSID 特徵")
+    print(f" Wi-Fi v3 定位模型載入成功：{len(locator.features)} 個 BSSID 特徵")
 except Exception as e:
-    print(f"⚠️ Wi-Fi v3 定位模型載入失敗：{e}")
+    print(f" Wi-Fi v3 定位模型載入失敗：{e}")
 
 
 
@@ -46,19 +46,19 @@ real_locator_v4 = None
 try:
     real_locator_v4 = WifiLocatorV4(BASE_DIR)
     print(
-        f"✅ Wi-Fi v4 Anchor 定位模型載入成功："
+        f" Wi-Fi v4 Anchor 定位模型載入成功："
         f"{len(real_locator_v4.features)} 個 BSSID 特徵"
     )
 except Exception as e:
-    print(f"⚠️ Wi-Fi v4 Anchor 定位模型載入失敗：{e}")
+    print(f" Wi-Fi v4 Anchor 定位模型載入失敗：{e}")
 
 
 
 
 print(
-    "✅ DQN 安全路由引擎已載入"
+    " DQN 安全路由引擎已載入"
     if DQN_ENGINE is not None
-    else f"⚠️ DQN 尚未啟用，先使用最短安全 fallback：{DQN_ERROR}"
+    else f" DQN 尚未啟用，先使用最短安全 fallback：{DQN_ERROR}"
 )
 
 
@@ -121,7 +121,7 @@ def locate_real(req: RealWifiRequest, request: Request):
                 cached["dedupeAgeSeconds"] = round(elapsed, 3)
 
                 print(
-                    "↩️ [REAL-v4] 略過過密請求 "
+                    " [REAL-v4] 略過過密請求 "
                     f"client={client_key} "
                     f"age={elapsed:.2f}s "
                     f"receivedAP={len(req.signals)}"
@@ -161,14 +161,14 @@ def locate_real(req: RealWifiRequest, request: Request):
 
         if result.get("validLocation") is False:
             print(
-                "⛔ [REAL-v4] 定位拒絕 "
+                " [REAL-v4] 定位拒絕 "
                 f"matchedAP={result['matchedFeatureCount']} "
                 f"receivedAP={result['receivedSignalCount']}"
             )
             return result
 
         print(
-            "🎯 [REAL-v4] "
+            " [REAL-v4] "
             f"floor={result['floor']} "
             f"anchor={result.get('anchorId')} "
             f"grid=({result['gridX']:.2f},{result['gridY']:.2f}) "
@@ -264,7 +264,7 @@ def model_status():
                 pd.read_csv(replay_path, usecols=["z"])
             )
     except Exception as e:
-        print(f"⚠️ Replay 筆數讀取失敗：{e}")
+        print(f" Replay 筆數讀取失敗：{e}")
 
     return {
 
@@ -540,5 +540,5 @@ def get_wifi_points(mapId: str = "", floorId: str = ""):
             )
         return {"points": points}
     except Exception as e:
-        print("⚠️ 讀取 v3 CSV 失敗:", e)
+        print(" 讀取 v3 CSV 失敗:", e)
         return {"points": []}
