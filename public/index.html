@@ -1777,11 +1777,12 @@
     }
 
     function routeEstimatedMinutes(distanceMeters, floorTransitionCount = 0) {
-      return Math.max(1, Math.round((distanceMeters / 75 + floorTransitionCount * 0.5) * 10) / 10);
+      const minimum = floorTransitionCount > 0 ? 0.5 : 1;
+      return Math.max(minimum, Math.round((distanceMeters / 75 + floorTransitionCount * 0.5) * 10) / 10);
     }
 
     function formatMinutes(value) {
-      const safe = Math.max(1, Number(value || 1));
+      const safe = Math.max(0.5, Number(value || 1));
       return Number.isInteger(safe) ? String(safe) : safe.toFixed(1);
     }
 

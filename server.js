@@ -2394,7 +2394,8 @@ function routeMetricDistance(points) {
 function routeEstimatedMinutes(distanceMeters, floorTransitionCount = 0) {
   const walkingMinutes = distanceMeters / 75;
   const transitionMinutes = floorTransitionCount * 0.5;
-  return Math.max(1, Math.round((walkingMinutes + transitionMinutes) * 10) / 10);
+  const minimum = floorTransitionCount > 0 ? 0.5 : 1;
+  return Math.max(minimum, Math.round((walkingMinutes + transitionMinutes) * 10) / 10);
 }
 
 function normalizeFeedback(body) {
