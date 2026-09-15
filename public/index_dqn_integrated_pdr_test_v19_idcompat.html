@@ -3507,11 +3507,39 @@ drawCurrent();
 
             // v15：已有正在使用的 PDR+DQN 路線時，
             // Wi-Fi 校正不重新呼叫後端算路，避免 40 秒一次的卡頓/跳線。
-            if (!state.pdrActive || !hasDqnRoute) {
+          if (!state.pdrActive || !hasDqnRoute) {
               await showRoute();
+
+              const hasNewDqnRoute =
+                Array.isArray(state.route) &&
+                state.route.some(
+                  (p) =>
+                    Number.isFinite(Number(p.gridX)) &&
+                    Number.isFinite(Number(p.gridY))
+                );
+
+              // 跨樓層從 2F 回到 1F 後，
+              // DQN 路線已重新建立時，自動恢復 1F PDR。
+              if (
+                state.navigationActive &&
+                state.current.floorId === FLOOR1_ID &&
+                state.destination?.floorId === FLOOR1_ID &&
+                !state.pdrActive &&
+                hasNewDqnRoute
+              ) {
+                state.pdrActive = true;
+                resetPdrFromCurrent();
+
+                state.pdrStepCount = 0;
+                state.pdrRxCount = 0;
+                state.pdrAndroidCount = 0;
+                state.pdrLastRxMs = 0;
+                state.pdrLastOutcome = "READY";
+
+                updatePdrSyncDebug("READY");
+              }
             }
           }
-
           // PDR 導航中不要因 Wi-Fi 校正突然重置 viewport。
           if (state.viewFollow && !state.pdrActive) {
             centerOnCurrent();
