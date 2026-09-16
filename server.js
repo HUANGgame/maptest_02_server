@@ -7,7 +7,7 @@ const { appendHistory, appendSavedLocation, clearHistory, clearSavedLocations, r
 const { activateModel, activeModel, createModelVersion, readModels } = require("./lib/modelStore");
 const { deletePlaceRecord, readPlaces, updatePlaceStatus } = require("./lib/placeStore");
 const { searchPlaces } = require("./lib/placeSearch");
-const { appendPolicyLog, createDqnRun, readDqnRuns, readPolicyLogs } = require("./lib/policyStore");
+const { appendPolicyLog, createPolicyRun, readPolicyRuns, readPolicyLogs } = require("./lib/policyStore");
 const { appendReport, deleteReports, readReports } = require("./lib/reportStore");
 const { clearRouteGraphForFloor, createFloorTransition, createRouteNode, createRouteSegment, createRouteZone, deleteFloorTransition, deleteRouteEdge, deleteRouteNode, deleteRouteZone, readFloorTransitions, readRouteEdges, readRouteNodes, readRouteZones, restoreLastDeleted, setRouteEdgeBlocked, updateRouteZone } = require("./lib/routeEdgeStore");
 const { createTrainingJob, readTrainingJobs } = require("./lib/trainingJobStore");
@@ -45,32 +45,6 @@ const server = http.createServer(async (request, response) => {
 
   if (request.method === "GET" && url.pathname === "/admin") {
     sendFile(response, path.join(__dirname, "public", "admin.html"), "text/html; charset=utf-8");
-    return;
-  }
-
-  if (request.method === "GET" && url.pathname === "/wifi-test") {
-    sendFile(response, path.join(__dirname, "public", "wifi-test.html"), "text/html; charset=utf-8");
-    return;
-  }
-
-  if (request.method === "POST" && url.pathname === "/api/dev-predict") {
-    try {
-      const body = await readJsonBody(request);
-      const modelUrl = String(body.modelUrl || "https://mxz0qz8w-8000.jpe1.devtunnels.ms/predict").trim();
-      const signals = normalizePredictSignals(body.signals);
-      if (!modelUrl.startsWith("https://") && !modelUrl.startsWith("http://")) {
-        sendJson(response, 400, { success: false, message: "模型網址格式不正確" });
-        return;
-      }
-      if (Object.keys(signals).length === 0) {
-        sendJson(response, 400, { success: false, message: "請提供 Wi-Fi 訊號資料" });
-        return;
-      }
-      const result = await callDevPredict(modelUrl, signals);
-      sendJson(response, 200, result);
-    } catch (error) {
-      sendJson(response, 502, { success: false, message: error.message });
-    }
     return;
   }
 
@@ -852,7 +826,7 @@ const server = http.createServer(async (request, response) => {
         return;
       }
       const simulation = simulateNavigationPolicyTraining(mapId, floorId, episodes);
-      const run = createDqnRun({
+      const run = createPolicyRun({
         mapId,
         floorId,
         trainingEpisodes: episodes,
@@ -862,7 +836,7 @@ const server = http.createServer(async (request, response) => {
         baselineRouteCount: simulation.baselineRouteCount,
         actionDistribution: simulation.actionDistribution,
         simulationSummary: simulation.summary,
-        modelPath: `models/${mapId}/${floorId}/dqn_policy_${Date.now()}.json`,
+        modelPath: `models/${mapId}/${floorId}/navigation_policy_${Date.now()}.json`,
         isActive: body.activate !== false,
       });
       mirrorFullAdminSnapshot().catch((error) => console.error("MySQL admin mirror failed:", error.message));
@@ -876,7 +850,7 @@ const server = http.createServer(async (request, response) => {
   if (request.method === "GET" && url.pathname === "/api/navigation-policy/runs") {
     const mapId = url.searchParams.get("mapId") || "";
     const floorId = url.searchParams.get("floorId") || "";
-    sendJson(response, 200, readDqnRuns().filter((run) => {
+    sendJson(response, 200, readPolicyRuns().filter((run) => {
       if (mapId && run.mapId !== mapId) return false;
       if (floorId && run.floorId !== floorId) return false;
       return true;
@@ -1086,11 +1060,11 @@ function mirrorFullAdminSnapshot() {
     routeNodes: readRouteNodes(),
     routeEdges: readRouteEdges(),
     floorTransitions: readFloorTransitions(),
-    dqnRuns: readDqnRuns(),
+    policyRuns: readPolicyRuns(),
     policyLogs: readPolicyLogs(),
   };
   return Promise.all([
-    firebaseMirror.mirrorJsonFiles(["catalog_records.json", "place_overrides.json", "route_graph_records.json", "route_edge_overrides.json", "dqn_training_runs.json", "navigation_policy_logs.json"]),
+    firebaseMirror.mirrorJsonFiles(["catalog_records.json", "place_overrides.json", "route_graph_records.json", "route_edge_overrides.json", "strategy_training_runs.json", "navigation_policy_logs.json"]),
     mysqlMirror.mirrorAdminData(snapshot),
   ]);
 }
@@ -1179,61 +1153,6 @@ function readJsonBody(request) {
   });
 }
 
-async function callDevPredict(modelUrl, signals) {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 12_000);
-  try {
-    const upstream = await fetch(modelUrl, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ signals }),
-      signal: controller.signal,
-    });
-    const raw = await upstream.text();
-    if (!upstream.ok) {
-      throw new Error(`模型服務 HTTP ${upstream.status}: ${raw.slice(0, 200)}`);
-    }
-    let parsed;
-    try {
-      parsed = raw ? JSON.parse(raw) : {};
-    } catch (_error) {
-      throw new Error("模型回傳不是 JSON");
-    }
-    const location = parsed.location || parsed.prediction || parsed.result || null;
-    return {
-      success: true,
-      modelUrl,
-      location,
-      raw: parsed,
-    };
-  } catch (error) {
-    if (error.name === "AbortError") throw new Error("模型服務連線逾時");
-    throw error;
-  } finally {
-    clearTimeout(timeout);
-  }
-}
-
-function normalizePredictSignals(input) {
-  if (Array.isArray(input)) {
-    return input.reduce((signals, item) => {
-      const bssid = String(item?.bssid || "").trim().toLowerCase();
-      const rssi = Number(item?.rssi);
-      if (bssid && Number.isFinite(rssi)) signals[bssid] = rssi;
-      return signals;
-    }, {});
-  }
-  if (input && typeof input === "object") {
-    return Object.entries(input).reduce((signals, [bssid, rssi]) => {
-      const key = String(bssid || "").trim().toLowerCase();
-      const value = Number(rssi);
-      if (key && Number.isFinite(value)) signals[key] = value;
-      return signals;
-    }, {});
-  }
-  return {};
-}
-
 function buildScopedExport(mapId, floorId) {
   const scopeMatches = (record) => {
     if (mapId && record.mapId !== mapId) return false;
@@ -1268,7 +1187,7 @@ function buildScopedExport(mapId, floorId) {
     modelVersions: readModels().filter(scopeMatches),
     modelTrainingJobs: readTrainingJobs().filter(scopeMatches),
     navigationFeedbackRecords: readFeedback().filter(scopeMatches),
-    dqnTrainingRuns: readDqnRuns().filter(scopeMatches),
+    strategyTrainingRuns: readPolicyRuns().filter(scopeMatches),
     navigationPolicyLogs: readPolicyLogs().filter(scopeMatches),
     userReports: readReports({ mapId, floorId }),
   };
@@ -2533,3 +2452,4 @@ function decideNavigationPolicy(body) {
     confidence: 0.7,
   };
 }
+
