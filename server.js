@@ -14,6 +14,15 @@ const { createTrainingJob, readTrainingJobs } = require("./lib/trainingJobStore"
 const { appendScans, readScans } = require("./lib/jsonStore");
 const firebaseMirror = require("./lib/firebaseMirror");
 const mysqlMirror = require("./lib/mysqlMirror");
+const { createPlaceReviews } = require("./lib/placeReviews");
+const handlePlaceReviews = createPlaceReviews({
+  readPlaces, readBody: readJsonBody, sendJson,
+  storage: {
+    read: firebaseMirror.readPlaceReviews,
+    save: firebaseMirror.savePlaceReview,
+    remove: firebaseMirror.removePlaceReview,
+  },
+});
 
 const port = Number(process.env.PORT || 3015);
 const publicMapsDir = path.resolve(__dirname, "public", "maps");
@@ -21,6 +30,8 @@ const DEFAULT_PIXELS_PER_METER = 8;
 
 const server = http.createServer(async (request, response) => {
   const url = new URL(request.url, `http://${request.headers.host || "localhost"}`);
+
+  if (await handlePlaceReviews(request, response, url)) return;
 
   if (request.method === "GET" && url.pathname === "/api/health") {
     sendJson(response, 200, {
