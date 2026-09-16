@@ -21,6 +21,9 @@ const handlePlaceReviews = createPlaceReviews({
     read: firebaseMirror.readPlaceReviews,
     save: firebaseMirror.savePlaceReview,
     remove: firebaseMirror.removePlaceReview,
+    readModeration: firebaseMirror.readReviewModeration,
+    report: firebaseMirror.reportPlaceReview,
+    moderate: firebaseMirror.moderatePlaceReview,
   },
 });
 
@@ -56,6 +59,11 @@ const server = http.createServer(async (request, response) => {
 
   if (request.method === "GET" && url.pathname === "/admin") {
     sendFile(response, path.join(__dirname, "public", "admin.html"), "text/html; charset=utf-8");
+    return;
+  }
+
+  if (request.method === "GET" && url.pathname === "/admin/reviews") {
+    sendFile(response, path.join(__dirname, "public", "review-admin.html"), "text/html; charset=utf-8");
     return;
   }
 

@@ -191,6 +191,7 @@
     <h1>地下街室內導航系統後台</h1>
     <div id="healthInfo" class="muted">後端：檢查中</div>
     <div id="adminNotice" class="muted">待命</div>
+    <a href="/admin/reviews">店家評論管理</a>
     <a href="#userReports" id="reportsLink">使用者回報</a>
   </header>
   <main>
@@ -2451,7 +2452,7 @@
     }
 
     function statusText(value) {
-      return { open: "營業中", closed: "休息中", suspended: "暫停服務", unset: "未設定" }[value] || "未設定";
+      return { open: "營業中", closed: "休息中", suspended: "暫停服務", unset: "未設定（店家依營業時間）" }[value] || "未設定";
     }
 
     function adminPointId(prefix, x, y) {

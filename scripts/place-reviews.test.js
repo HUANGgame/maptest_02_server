@@ -17,6 +17,7 @@ test("reviews persist by owner and place, aggregate, paginate, and fail honestly
     async remove(key, owner) { if (unavailable) throw new Error("unavailable"); delete (records[key] || {})[owner]; },
   };
   const handle = createPlaceReviews({
+    networkLimit: 200,
     readPlaces: () => [
       { mapId: "a", id: "shop", category: "店家" },
       { mapId: "b", id: "shop", category: " 商家 " },

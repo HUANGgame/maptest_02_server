@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>店家評論管理</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#f5f7f8;color:#24313a;font:16px system-ui,sans-serif}header{background:#fff;border-bottom:1px solid #d5dce0;padding:18px 24px;display:flex;align-items:center;justify-content:space-between}h1{font-size:22px;margin:0}main{max-width:1100px;margin:auto;padding:24px}label{display:block;font-size:14px;margin-bottom:6px}input,select,button{font:inherit;min-height:44px;padding:9px 12px;border:1px solid #bbc9cd;border-radius:6px;max-width:100%}button{cursor:pointer;background:#fff;color:#245f58}button.primary{background:#306f66;color:#fff}button:disabled{opacity:.5;cursor:wait}a{color:#245f58}.toolbar{display:flex;align-items:end;gap:12px;flex-wrap:wrap;border-bottom:1px solid #d5dce0;padding-bottom:20px}.field{flex:1;min-width:180px}.field input,.field select{width:100%}#notice{min-height:28px;margin:16px 0;color:#535f68}article{padding:20px 0;border-bottom:1px solid #d5dce0}h2{font-size:17px;margin:0 0 8px}.text{white-space:pre-wrap;overflow-wrap:anywhere}.muted{color:#60717a;font-size:14px}.reports{border-left:3px solid #d98618;padding-left:12px;margin:12px 0}.actions{display:flex;gap:8px;margin-top:12px}.hidden{color:#a02d27}.status{font-weight:600}dialog{width:min(460px,calc(100% - 24px));border:1px solid #cbd5dc;border-radius:8px;padding:24px}dialog::backdrop{background:#0005}textarea{width:100%;min-height:90px;font:inherit;padding:10px}#more{margin-top:20px}#logout{white-space:nowrap}@media(max-width:600px){main{padding:16px}header{padding:16px;gap:12px}h1{font-size:19px}.field{min-width:100%}}
+</style>
+</head>
+<body>
+<header><h1>店家評論管理</h1><a href="/admin">返回地圖後台</a></header>
+<main>
+<section class="toolbar">
+<div class="field"><label for="key">管理金鑰</label><input id="key" type="password" autocomplete="off" spellcheck="false"></div>
+<div class="field"><label for="shop">店家</label><select id="shop" aria-label="店家"></select></div>
+<button id="load" class="primary">讀取評論</button><button id="queue">查看全部待處理檢舉</button><button id="logout">清除金鑰</button>
+</section>
+<p id="notice" role="status" aria-live="polite">正在載入店家。</p>
+<div id="list"></div><button id="more" hidden>載入更多</button>
+</main>
+<dialog id="decision"><form method="dialog"><h2 id="decisionTitle"></h2><label for="reason">處理原因</label><textarea id="reason" maxlength="200" required></textarea><p id="decisionError" role="alert"></p><div class="actions"><button value="cancel" formnovalidate>取消</button><button id="confirm" value="save" class="primary">確認</button></div></form></dialog>
+<script>
+const $ = id => document.getElementById(id);
+const reasons = {advertising:'廣告或洗版',abuse:'辱罵或不當內容',misinformation:'不實或無關內容',privacy:'洩露個人資料',other:'其他'};
+let shops = [], nextOffset = null, busy = false, queued = false;
+function text(tag, value, cls='') { const e=document.createElement(tag);e.textContent=value;e.className=cls;return e; }
+function credentials() { const key=$('key').value.trim();if(!/^[a-f0-9]{64}$/.test(key))throw new Error('請輸入有效的管理金鑰。');return key; }
+async function request(place, offset=0, body) {
+  const q=new URLSearchParams({mapId:place.mapId,placeId:place.id,offset:String(offset)});
+  const r=await fetch('/api/place-reviews/moderation?'+q,{method:body?'POST':'GET',headers:{Authorization:'Bearer '+credentials(),'Content-Type':'application/json'},body:body?JSON.stringify(body):undefined});
+  const data=await r.json();if(!r.ok)throw new Error(data.message||'讀取失敗');return data;
+}
+function controls(value) {busy=value;for(const id of ['load','queue','more','shop'])$(id).disabled=value;}
+function addReview(place, review) {
+  const item=document.createElement('article');
+  item.append(text('h2',place.name+' · '+review.displayName+' · '+review.rating+' 星'));
+  item.append(text('p',review.text||'（只有星級）','text'));
+  item.append(text('p',new Date(review.updatedAt).toLocaleString('zh-TW'),'muted'));
+  item.append(text('span',review.decision?.hidden?'已隱藏，不列入星級':'公開中','status '+(review.decision?.hidden?'hidden':'')));
+  if(review.decision)item.append(text('p','上次處理：'+review.decision.reason,'muted'));
+  if(review.reports.length){
+    const reports=document.createElement('div');reports.className='reports';
+    reports.append(text('strong',review.reports.length+' 筆檢舉'));
+    review.reports.forEach(r=>reports.append(text('p',(reasons[r.reason]||r.reason)+(r.detail?'：'+r.detail:'')+' · '+new Date(r.createdAt).toLocaleString('zh-TW'),'text')));
+    item.append(reports);
+  }
+  const actions=document.createElement('div');actions.className='actions';
+  const change=text('button',review.decision?.hidden?'恢復公開':'隱藏評論');
+  change.onclick=()=>decide(place,review,!review.decision?.hidden);actions.append(change);
+  if(review.reports.length&&!review.decision?.hidden){const keep=text('button','維持公開並結案');keep.onclick=()=>decide(place,review,false);actions.append(keep);}
+  item.append(actions);$('list').append(item);
+}
+async function load(append=false) {
+  if(busy)return;controls(true);$('notice').textContent='讀取中…';
+  try{
+    const place=shops.find(p=>p.id===$('shop').value);if(!place)throw new Error('尚無可管理的店家。');
+    const data=await request(place,append?nextOffset:0);if(!append)$('list').replaceChildren();
+    queued=false;data.reviews.forEach(r=>addReview(place,r));nextOffset=data.nextOffset;
+    $('more').hidden=nextOffset===null;$('notice').textContent=place.name+'：'+data.count+' 筆評論（包含隱藏）。';
+  }catch(e){$('notice').textContent=e.message;}finally{controls(false);}
+}
+async function queue() {
+  if(busy)return;controls(true);$('list').replaceChildren();$('more').hidden=true;let count=0;
+  try{
+    credentials();queued=true;
+    for(let i=0;i<shops.length;i++){
+      $('notice').textContent='檢查店家 '+(i+1)+' / '+shops.length;
+      let offset=0;
+      do{const data=await request(shops[i],offset);for(const r of data.reviews){
+        if(r.reports.some(report=>!r.decision||report.createdAt>r.decision.updatedAt)){addReview(shops[i],r);count++;}
+      }offset=data.nextOffset;}while(offset!==null);
+    }
+    $('notice').textContent=count?'共有 '+count+' 則評論待處理。':'目前沒有待處理檢舉。';
+  }catch(e){$('notice').textContent=e.message+'；已讀取的項目保留。';}finally{controls(false);}
+}
+function decide(place, review, hidden) {
+  $('decisionTitle').textContent=hidden?'隱藏評論':'恢復／維持公開';$('reason').value='';$('decisionError').textContent='';
+  $('confirm').onclick=async e=>{
+    e.preventDefault();const reason=$('reason').value.trim();if(!reason){$('decisionError').textContent='請填寫處理原因。';return;}
+    $('confirm').disabled=true;
+    try{await request(place,0,{reviewId:review.id,hidden,reason});$('decision').close();if(queued)await queue();else await load();}
+    catch(error){$('decisionError').textContent=error.message;}finally{$('confirm').disabled=false;}
+  };$('decision').showModal();
+}
+$('load').onclick=()=>load();$('queue').onclick=queue;$('more').onclick=()=>load(true);
+$('shop').onchange=()=>{nextOffset=null;$('more').hidden=true;$('list').replaceChildren();$('notice').textContent='按讀取評論查看所選店家。';};
+$('logout').onclick=()=>{$('key').value='';$('list').replaceChildren();$('more').hidden=true;$('notice').textContent='管理金鑰已清除。';};
+fetch('/api/places').then(r=>{if(!r.ok)throw Error('無法取得店家');return r.json();}).then(data=>{
+  shops=data.filter(p=>['店家','商家'].includes(String(p.category||'').trim()));
+  shops.forEach(p=>{const o=document.createElement('option');o.value=p.id;o.textContent=p.name+' / '+(p.floorName||p.floorId);$('shop').append(o);});
+  $('notice').textContent='請輸入管理金鑰，再讀取評論。';
+}).catch(e=>{$('notice').textContent=e.message;});
+</script>
+</body></html>
