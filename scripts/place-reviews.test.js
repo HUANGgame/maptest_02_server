@@ -17,7 +17,13 @@ test("reviews persist by owner and place, aggregate, paginate, and fail honestly
     async remove(key, owner) { if (unavailable) throw new Error("unavailable"); delete (records[key] || {})[owner]; },
   };
   const handle = createPlaceReviews({
-    readPlaces: () => [{ mapId: "a", id: "shop" }, { mapId: "b", id: "shop" }], storage,
+    readPlaces: () => [
+      { mapId: "a", id: "shop", category: "店家" },
+      { mapId: "b", id: "shop", category: " 商家 " },
+      { mapId: "a", id: "stairs", category: "手扶梯" },
+      { mapId: "a", id: "other", category: "其他店家設施" },
+      { mapId: "a", id: "unset" },
+    ], storage,
     async readBody(request) {
       let data = "";
       for await (const chunk of request) data += chunk;
@@ -41,6 +47,14 @@ test("reviews persist by owner and place, aggregate, paginate, and fail honestly
   }
   try {
     assert.equal((await call()).data.average, null);
+    assert.equal((await call("PUT", input, other, "mapId=b&placeId=shop")).status, 200);
+    assert.equal((await call("DELETE", undefined, other, "mapId=b&placeId=shop")).status, 200);
+    for (const id of ["stairs", "other", "unset"]) {
+      for (const method of ["GET", "PUT", "DELETE"]) {
+        assert.equal((await call(method, method === "PUT" ? { ...input, category: "店家" } : undefined,
+          token, `mapId=a&placeId=${id}`)).status, 403);
+      }
+    }
     assert.equal((await call("PUT", input, "")).status, 401);
     for (const rating of [0, 6, 1.5, "5", null]) assert.equal((await call("PUT", { ...input, rating })).status, 400);
     assert.equal((await call("PUT", { ...input, text: "x".repeat(1001) })).status, 400);

@@ -18,6 +18,7 @@ https://taipei-station-indoor-navigation.onrender.com
 
 ## 店家評論
 
+只有分類為「店家」或「商家」的地點提供星級、評論及導航後的評論邀請；後端依已儲存的分類檢查資格。
 評論使用現有 Firebase Realtime Database，存於 `place_reviews`，不需 Google Places API。
 `GET /api/place-reviews?mapId=...&placeId=...` 提供平均分數、評分筆數及最新評論，每頁 20 筆。
 `PUT` 與 `DELETE` 使用手機產生的隨機識別金鑰，更新或刪除該安裝實例自己的評論。這不是實名帳號或到訪認證；重新安裝可能產生新的識別。
