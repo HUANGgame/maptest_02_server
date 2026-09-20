@@ -53,12 +53,12 @@ try {
   assert(admin.includes("loadSupplementalDashboard(mapId, floorId, loadVersion)"), "slow management panels must load after primary map data");
   assert(admin.includes("Promise.allSettled(["), "supplemental panel failures must be isolated");
   const collectorActivity = fs.readFileSync(path.join(__dirname, "../android/IndoorNavigation/app/src/main/java/com/example/wififingerprintcollector/MainActivity.kt"), "utf8");
-  const apMenu = collectorActivity.slice(collectorActivity.indexOf("private fun showApCalibrationMenu()"), collectorActivity.indexOf("private fun showApCalibrationInstructions()"));
-  assert(apMenu.includes('"1. 自動建立候選基地台"'), "collector AP calibration menu must expose candidate generation");
+  const apMenu = collectorActivity.slice(collectorActivity.indexOf("private fun showApCalibrationMenu()"), collectorActivity.indexOf("private fun buildApCalibrationCandidates()"));
+  assert(apMenu.includes('"1. 找候選基地台"'), "collector AP survey menu must expose candidate generation");
+  assert(apMenu.includes('"2. 選擇基地台並開始測量"'), "collector AP survey menu must expose guided measurement");
   assert(!apMenu.includes(".setMessage("), "Android list dialogs must not replace the AP calibration choices with a message");
-  const apConfirmation = collectorActivity.slice(collectorActivity.indexOf("private fun confirmApAtCurrentPoint()"), collectorActivity.indexOf("private fun verifyApCalibration("));
-  assert(apConfirmation.includes(".setSingleChoiceItems("), "collector AP confirmation must expose candidate choices");
-  assert(!apConfirmation.includes(".setMessage("), "Android choice dialogs must not replace AP candidates with a message");
+  assert(collectorActivity.includes("captureApSurveyMeasurement(x, y)"), "collector must capture temporary AP survey points from the map");
+  assert(collectorActivity.includes('status = if (verified) "VERIFIED" else "CANDIDATE"'), "collector must gate verified AP status on survey quality");
   console.log("PASS: status/hours survive editing, coordinates preserved, keyword/notes ranking, recency bounds, progressive admin loading, category picker and syntax");
 } finally {
   fs.rmSync(directory, { recursive: true, force: true });

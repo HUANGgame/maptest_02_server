@@ -100,12 +100,13 @@ async function main() {
     ));
     checks.push(assert(await request("POST", "/api/wifi-aps/update", {
       calibrationId: "smoke-ap-1",
+      ssid: "Managed Demo AP",
       category: "infrastructure",
       managementStatus: "review",
       x: 181,
       y: 619,
       notes: "smoke correction",
-    }), (body) => body.success === true && body.item?.positionManaged === true, "wifi AP correction"));
+    }), (body) => body.success === true && body.item?.positionManaged === true && body.item?.ssid === "Managed Demo AP", "wifi AP correction"));
     const olderCalibration = wifiAp("smoke-ap-1", "aa:aa:aa:aa:aa:01", 180, 620);
     olderCalibration.collectorUpdatedAt = "2025-01-01T00:00:00.000Z";
     checks.push(assert(await request("POST", "/api/wifi-aps/bulk", {
@@ -113,8 +114,25 @@ async function main() {
     }), (body) => body.accepted === true, "wifi AP repeat upload"));
     checks.push(assert(
       await request("GET", "/api/wifi-aps?mapId=tkut-demo&floorId=tkut-demo-ground"),
-      (body) => body.items?.find((item) => item.calibrationId === "smoke-ap-1")?.x === 181,
+      (body) => {
+        const item = body.items?.find((entry) => entry.calibrationId === "smoke-ap-1");
+        return item?.x === 181 && item?.ssid === "Managed Demo AP";
+      },
       "wifi AP manual correction preserved"
+    ));
+    const newerCalibration = wifiAp("smoke-ap-1", "aa:aa:aa:aa:aa:01", 184, 616);
+    newerCalibration.ssid = "Collector Updated AP";
+    newerCalibration.collectorUpdatedAt = new Date(Date.now() + 60_000).toISOString();
+    checks.push(assert(await request("POST", "/api/wifi-aps/bulk", {
+      calibrations: [newerCalibration],
+    }), (body) => body.accepted === true, "newer collector AP update"));
+    checks.push(assert(
+      await request("GET", "/api/wifi-aps?mapId=tkut-demo&floorId=tkut-demo-ground"),
+      (body) => {
+        const item = body.items?.find((entry) => entry.calibrationId === "smoke-ap-1");
+        return item?.x === 184 && item?.ssid === "Collector Updated AP";
+      },
+      "newer collector AP update applied"
     ));
     checks.push(assert(await request("POST", "/api/models/train", {
       mapId: "tkut-demo",
@@ -344,6 +362,8 @@ function wifiAp(calibrationId, bssid, x, y) {
     rmse: 4,
     samplePointCount: 6,
     observationCount: 30,
+    surveyPointCount: 3,
+    uncertaintyMeters: 4.5,
     calibrationStatus: "verified",
     source: "field_confirmed",
     collectorUpdatedAt: new Date().toISOString(),

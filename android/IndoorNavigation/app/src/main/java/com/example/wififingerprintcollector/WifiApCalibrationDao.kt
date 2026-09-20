@@ -16,6 +16,18 @@ interface WifiApCalibrationDao {
     @Query("SELECT * FROM wifi_ap_calibrations ORDER BY mapId, floor, status DESC, rmse ASC")
     suspend fun getAll(): List<WifiApCalibration>
 
+    @Insert
+    suspend fun insertSurveyMeasurement(measurement: WifiApSurveyMeasurement)
+
+    @Query("SELECT * FROM wifi_ap_survey_measurements WHERE calibrationId = :calibrationId ORDER BY measuredAt")
+    suspend fun getSurveyMeasurements(calibrationId: String): List<WifiApSurveyMeasurement>
+
+    @Query("DELETE FROM wifi_ap_survey_measurements WHERE calibrationId = :calibrationId")
+    suspend fun deleteSurveyMeasurements(calibrationId: String): Int
+
+    @Query("DELETE FROM wifi_ap_calibrations WHERE calibrationId = :calibrationId")
+    suspend fun deleteCalibration(calibrationId: String): Int
+
     @Query(
         """
         SELECT LOWER(bssid) AS bssid,

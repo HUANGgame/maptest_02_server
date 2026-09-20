@@ -30,6 +30,9 @@ class MapSamplingView @JvmOverloads constructor(
 
     private val points = mutableListOf<SamplingPoint>()
     private val anchors = mutableListOf<AnchorRecord>()
+    private val wifiApCalibrations = mutableListOf<WifiApCalibration>()
+    private val wifiApSurveyMeasurements = mutableListOf<WifiApSurveyMeasurement>()
+    private var activeWifiApCalibrationId: String? = null
     private val calibrationPoints = mutableListOf<Pair<Float, Float>>()
     private var currentPointId: String? = null
     private var mapBitmap: Bitmap?
@@ -120,6 +123,23 @@ class MapSamplingView @JvmOverloads constructor(
     }
     private val anchorPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = Color.rgb(245, 158, 11)
+        style = Paint.Style.FILL
+    }
+    private val wifiApRangePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.argb(42, 245, 158, 11)
+        style = Paint.Style.FILL
+    }
+    private val wifiApRangeStrokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.rgb(217, 119, 6)
+        strokeWidth = 4f
+        style = Paint.Style.STROKE
+    }
+    private val verifiedWifiApPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.rgb(37, 99, 235)
+        style = Paint.Style.FILL
+    }
+    private val wifiApSurveyPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.rgb(249, 115, 22)
         style = Paint.Style.FILL
     }
     private val calibrationPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -220,6 +240,7 @@ class MapSamplingView @JvmOverloads constructor(
         drawMeasuredArea(canvas)
         drawNavigationRoute(canvas)
         drawAnchors(canvas)
+        drawWifiApCalibrations(canvas)
         drawCalibrationPoints(canvas)
         drawHeadingArrow(canvas)
         drawRealtimeValidationMarker(canvas)
@@ -287,6 +308,42 @@ class MapSamplingView @JvmOverloads constructor(
         canvas.drawPath(diamond, pointPaint)
         textPaint.color = Color.rgb(157, 23, 77)
         canvas.drawText("\u5373\u6642\u9a57\u8b49", x + 24f, y - 20f, textPaint)
+    }
+
+    private fun drawWifiApCalibrations(canvas: Canvas) {
+        val activeId = activeWifiApCalibrationId
+        wifiApCalibrations.forEach { calibration ->
+            val x = toScreenX(calibration.x)
+            val y = toScreenY(calibration.y)
+            if (calibration.calibrationId == activeId && calibration.status != "VERIFIED") {
+                val radiusPixels = calibration.uncertaintyMeters.coerceAtLeast(4f) /
+                    (metersPerPixel?.takeIf { it > 0f } ?: 0.125f)
+                val screenRadius = kotlin.math.abs(toScreenX(calibration.x + radiusPixels) - x)
+                    .coerceAtLeast(28f)
+                canvas.drawCircle(x, y, screenRadius, wifiApRangePaint)
+                canvas.drawCircle(x, y, screenRadius, wifiApRangeStrokePaint)
+            }
+            if (calibration.status == "VERIFIED") {
+                canvas.drawCircle(x, y, 17f, verifiedWifiApPaint)
+                pointPaint.style = Paint.Style.STROKE
+                pointPaint.strokeWidth = 3f
+                pointPaint.color = Color.WHITE
+                canvas.drawCircle(x, y, 17f, pointPaint)
+                textPaint.color = Color.rgb(30, 64, 175)
+                canvas.drawText(calibration.ssid.ifBlank { "Wi-Fi 基地台" }, x + 22f, y - 14f, textPaint)
+            }
+        }
+        wifiApSurveyMeasurements.forEachIndexed { index, measurement ->
+            val x = toScreenX(measurement.x)
+            val y = toScreenY(measurement.y)
+            canvas.drawCircle(x, y, 12f, wifiApSurveyPaint)
+            pointPaint.style = Paint.Style.STROKE
+            pointPaint.strokeWidth = 2f
+            pointPaint.color = Color.WHITE
+            canvas.drawCircle(x, y, 12f, pointPaint)
+            smallTextPaint.color = Color.rgb(154, 52, 18)
+            canvas.drawText("${index + 1}", x + 15f, y - 10f, smallTextPaint)
+        }
     }
 
     private fun drawNavigationRoute(canvas: Canvas) {
@@ -679,6 +736,35 @@ class MapSamplingView @JvmOverloads constructor(
     fun setAnchors(records: List<AnchorRecord>) {
         anchors.clear()
         anchors.addAll(records)
+        invalidate()
+    }
+
+    fun setWifiApCalibrations(
+        records: List<WifiApCalibration>,
+        activeCalibrationId: String?,
+        surveyMeasurements: List<WifiApSurveyMeasurement>
+    ) {
+        wifiApCalibrations.clear()
+        wifiApCalibrations.addAll(records)
+        activeWifiApCalibrationId = activeCalibrationId
+        wifiApSurveyMeasurements.clear()
+        wifiApSurveyMeasurements.addAll(surveyMeasurements)
+        invalidate()
+    }
+
+    fun focusOnPoint(point: SamplingPoint, minimumZoom: Float = 2.5f) {
+        currentPointId = point.pointId
+        if (width <= 0 || height <= 0 || !hasBitmapMap) {
+            invalidate()
+            return
+        }
+        zoomScale = maxOf(zoomScale, minimumZoom.coerceIn(1f, 6f))
+        panX = 0f
+        panY = 0f
+        updateContentRect()
+        panX = width / 2f - pixelXToScreen(point.x)
+        panY = height / 2f - pixelYToScreen(point.y)
+        clampPan()
         invalidate()
     }
 

@@ -8,8 +8,8 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
-    entities = [WifiScanRecord::class, AnchorRecord::class, MapMetadataEntity::class, WifiApCalibration::class],
-    version = 9,
+    entities = [WifiScanRecord::class, AnchorRecord::class, MapMetadataEntity::class, WifiApCalibration::class, WifiApSurveyMeasurement::class],
+    version = 10,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -38,6 +38,7 @@ abstract class AppDatabase : RoomDatabase() {
                     .addMigrations(MIGRATION_6_7)
                     .addMigrations(MIGRATION_7_8)
                     .addMigrations(MIGRATION_8_9)
+                    .addMigrations(MIGRATION_9_10)
                     .build()
                     .also { INSTANCE = it }
             }
@@ -153,6 +154,29 @@ abstract class AppDatabase : RoomDatabase() {
                     )
                     """.trimIndent()
                 )
+            }
+        }
+
+        private val MIGRATION_9_10 = object : Migration(9, 10) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL("ALTER TABLE wifi_ap_calibrations ADD COLUMN surveyPointCount INTEGER NOT NULL DEFAULT 0")
+                database.execSQL("ALTER TABLE wifi_ap_calibrations ADD COLUMN uncertaintyMeters REAL NOT NULL DEFAULT 0")
+                database.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS wifi_ap_survey_measurements (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        calibrationId TEXT NOT NULL,
+                        bssid TEXT NOT NULL,
+                        mapId TEXT NOT NULL,
+                        floor INTEGER NOT NULL,
+                        x REAL NOT NULL,
+                        y REAL NOT NULL,
+                        rssi INTEGER NOT NULL,
+                        measuredAt INTEGER NOT NULL
+                    )
+                    """.trimIndent()
+                )
+                database.execSQL("CREATE INDEX IF NOT EXISTS index_wifi_ap_survey_measurements_calibrationId ON wifi_ap_survey_measurements(calibrationId)")
             }
         }
     }
