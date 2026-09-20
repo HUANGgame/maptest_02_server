@@ -58,6 +58,10 @@ try {
   assert(apMenu.includes('"2. 選擇基地台並開始測量"'), "collector AP survey menu must expose guided measurement");
   assert(!apMenu.includes(".setMessage("), "Android list dialogs must not replace the AP calibration choices with a message");
   assert(collectorActivity.includes("captureApSurveyMeasurement(x, y)"), "collector must capture temporary AP survey points from the map");
+  assert(collectorActivity.includes("撤銷上一個橘色臨時點"), "collector must allow the latest temporary AP survey point to be undone");
+  assert(collectorActivity.includes("清除本次橘色臨時點"), "collector must allow the active AP survey points to be cleared");
+  assert(collectorActivity.includes("stepsSinceLastMeasurement < 3"), "collector must reject repeated AP survey points without detected movement");
+  assert(collectorActivity.includes("deleteSurveyMeasurement(latest.id)"), "collector must delete the selected temporary AP survey point from Room");
   assert(collectorActivity.includes('status = if (verified) "VERIFIED" else "CANDIDATE"'), "collector must gate verified AP status on survey quality");
   console.log("PASS: status/hours survive editing, coordinates preserved, keyword/notes ranking, recency bounds, progressive admin loading, category picker and syntax");
 } finally {

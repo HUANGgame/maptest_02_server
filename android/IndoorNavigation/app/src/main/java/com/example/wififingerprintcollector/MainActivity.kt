@@ -103,6 +103,8 @@ class MainActivity : AppCompatActivity() {
     private var pointEditMode: String? = null
     private var backendPlacesByPoint: Map<String, BackendPlace> = emptyMap()
     private var activeApSurveyCalibrationId: String? = null
+    private var apSurveySteps = 0
+    private var apSurveyStepsAtLastMeasurement = 0
     private var advancedOperationsExpanded = false
     private var autoScanJob: Job? = null
     private var walkAutoScanJob: Job? = null
@@ -584,6 +586,9 @@ class MainActivity : AppCompatActivity() {
 
     private fun setupPdr() {
         pdrManager = PdrManager(this) { steps, distance ->
+            if (activeApSurveyCalibrationId != null) {
+                apSurveySteps = steps
+            }
             if (!isWalkAutoSampling) return@PdrManager
             walkSteps = steps
             walkDistanceMeters = distance
@@ -4332,17 +4337,21 @@ class MainActivity : AppCompatActivity() {
                 arrayOf(
                     "1. 找候選基地台",
                     "2. 選擇基地台並開始測量",
-                    "3. 查看測量進度",
-                    "4. 管理基地台",
-                    "5. 上傳完成資料"
+                    "3. 撤銷上一個橘色臨時點",
+                    "4. 清除本次橘色臨時點",
+                    "5. 查看測量進度",
+                    "6. 管理基地台",
+                    "7. 上傳完成資料"
                 )
             ) { _, index ->
                 when (index) {
                     0 -> buildApCalibrationCandidates()
                     1 -> showApCandidatePicker()
-                    2 -> showApCalibrationSummary()
-                    3 -> showApManagementPicker()
-                    4 -> uploadPendingWifiScans()
+                    2 -> undoLastApSurveyMeasurement()
+                    3 -> confirmClearActiveApSurveyMeasurements()
+                    4 -> showApCalibrationSummary()
+                    5 -> showApManagementPicker()
+                    6 -> uploadPendingWifiScans()
                 }
             }
             .setNeutralButton("結束測量") { _, _ -> stopApSurveyMode() }
@@ -4437,7 +4446,26 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun activateApSurvey(calibration: WifiApCalibration) {
+        if (isAutoSampling || isAutoForwardSampling || isWalkAutoSampling) {
+            showMessage("請先停止目前的自動採樣，再開始基地台測量")
+            return
+        }
+        if (!pdrManager.isAvailable) {
+            showMessage("此手機無法偵測步行，不能建立可靠的基地台臨時點")
+            return
+        }
+        if (!hasActivityRecognitionPermission()) {
+            showMessage("請允許身體活動權限，系統才能確認你已走到下一個測量位置")
+            requestRequiredPermissions()
+            return
+        }
+        if (activeApSurveyCalibrationId != null) {
+            pdrManager.stop()
+        }
         activeApSurveyCalibrationId = calibration.calibrationId
+        apSurveySteps = 0
+        apSurveyStepsAtLastMeasurement = 0
+        pdrManager.start(stepLengthMeters = 0.75f)
         val suggestedPoint = binding.mapSamplingView.getPoints()
             .firstOrNull { it.pointId == calibration.suggestedPointId }
         if (suggestedPoint != null) {
@@ -4450,7 +4478,7 @@ class MainActivity : AppCompatActivity() {
             ?: calibration.suggestedPointId.ifBlank { "橘色預測範圍" }
         updateStatus(
             "正在測量 ${calibration.ssid.ifBlank { "隱藏 Wi-Fi" }}。\n" +
-                "先前往 $pointName，再站到橘色範圍附近的不同位置；每到一處，點一下地圖上的實際站立位置。"
+                "先前往 $pointName，再站到橘色範圍附近的不同位置；每到一處，點一下地圖上的實際站立位置。第二點起須先走至少 3 步。"
         )
         showMessage("已跳到 $pointName。請在周圍選至少 3 個分散位置，每到一處就點地圖一次。")
     }
@@ -4469,6 +4497,11 @@ class MainActivity : AppCompatActivity() {
             val scale = effectiveMetersPerPixel()
             if (previous.any { kotlin.math.hypot(it.x - x, it.y - y) * scale < 2.5f }) {
                 showMessage("這個位置離上一個測量點太近，請至少移動 2.5 公尺")
+                return@launch
+            }
+            val stepsSinceLastMeasurement = apSurveySteps - apSurveyStepsAtLastMeasurement
+            if (previous.isNotEmpty() && stepsSinceLastMeasurement < 3) {
+                showMessage("尚未偵測到實際移動。請拿著手機走至少 3 步，到達新位置後再點地圖")
                 return@launch
             }
             updateStatus("正在掃描 ${calibration.ssid.ifBlank { "Wi-Fi 基地台" }}...")
@@ -4494,6 +4527,7 @@ class MainActivity : AppCompatActivity() {
                     measuredAt = System.currentTimeMillis()
                 )
             )
+            apSurveyStepsAtLastMeasurement = apSurveySteps
             refineApCalibration(calibration)
         }
     }
@@ -4539,6 +4573,11 @@ class MainActivity : AppCompatActivity() {
         wifiApCalibrationDao.upsert(updated)
         refreshWifiApCalibrationOverlay()
         if (verified) {
+            activeApSurveyCalibrationId = null
+            pdrManager.stop()
+            apSurveySteps = 0
+            apSurveyStepsAtLastMeasurement = 0
+            refreshWifiApCalibrationOverlay()
             updateStatus("${updated.ssid.ifBlank { "Wi-Fi 基地台" }} 已完成多點校正，地圖已顯示藍色基地台標點。請上傳完成資料。")
             showMessage("校正完成：藍色標點代表多點測量已通過，目前推算範圍約 ${uncertainty.format1()} 公尺。")
         } else {
@@ -4568,8 +4607,87 @@ class MainActivity : AppCompatActivity() {
 
     private fun stopApSurveyMode() {
         activeApSurveyCalibrationId = null
+        apSurveySteps = 0
+        apSurveyStepsAtLastMeasurement = 0
+        if (!isWalkAutoSampling && ::pdrManager.isInitialized) pdrManager.stop()
         lifecycleScope.launch { refreshWifiApCalibrationOverlay() }
         updateStatus("基地台測量已結束")
+    }
+
+    private fun undoLastApSurveyMeasurement() {
+        val calibrationId = activeApSurveyCalibrationId
+        if (calibrationId == null) {
+            showMessage("請先選擇正在測量的基地台")
+            return
+        }
+        lifecycleScope.launch {
+            val calibration = wifiApCalibrationDao.getForScope(activeSamplingMapId(), activeSamplingFloor() ?: return@launch)
+                .firstOrNull { it.calibrationId == calibrationId }
+            val latest = wifiApCalibrationDao.getSurveyMeasurements(calibrationId).lastOrNull()
+            if (calibration == null || latest == null) {
+                showMessage("目前沒有可撤銷的橘色臨時點")
+                return@launch
+            }
+            wifiApCalibrationDao.deleteSurveyMeasurement(latest.id)
+            apSurveyStepsAtLastMeasurement = apSurveySteps
+            refreshApCalibrationAfterMeasurementRemoval(calibration)
+            updateStatus("已撤銷上一個橘色臨時點，請走到正確位置後再測量")
+        }
+    }
+
+    private fun confirmClearActiveApSurveyMeasurements() {
+        val calibrationId = activeApSurveyCalibrationId
+        if (calibrationId == null) {
+            showMessage("請先選擇正在測量的基地台")
+            return
+        }
+        AlertDialog.Builder(this)
+            .setTitle("清除本次測量")
+            .setMessage("將刪除此基地台的所有橘色臨時點，保留原始指紋推算位置。")
+            .setPositiveButton("清除") { _, _ ->
+                lifecycleScope.launch {
+                    val calibration = wifiApCalibrationDao.getForScope(activeSamplingMapId(), activeSamplingFloor() ?: return@launch)
+                        .firstOrNull { it.calibrationId == calibrationId }
+                    if (calibration == null) {
+                        showMessage("找不到目前基地台資料")
+                        return@launch
+                    }
+                    wifiApCalibrationDao.deleteSurveyMeasurements(calibrationId)
+                    apSurveyStepsAtLastMeasurement = apSurveySteps
+                    refreshApCalibrationAfterMeasurementRemoval(calibration)
+                    updateStatus("本次橘色臨時點已全部清除，可以重新測量")
+                }
+            }
+            .setNegativeButton("取消", null)
+            .show()
+    }
+
+    private suspend fun refreshApCalibrationAfterMeasurementRemoval(calibration: WifiApCalibration) {
+        val remaining = wifiApCalibrationDao.getSurveyMeasurements(calibration.calibrationId)
+        if (remaining.isNotEmpty()) {
+            refineApCalibration(calibration.copy(status = "CANDIDATE"))
+            return
+        }
+        val historical = wifiApCalibrationDao.getObservations(calibration.mapId, calibration.floor, calibration.bssid)
+        val estimate = WifiApCalibrator().estimate(historical, effectiveMetersPerPixel())
+        val reset = calibration.copy(
+            x = estimate?.x ?: calibration.x,
+            y = estimate?.y ?: calibration.y,
+            referenceRssi = estimate?.referenceRssi ?: calibration.referenceRssi,
+            pathLossExponent = estimate?.pathLossExponent ?: calibration.pathLossExponent,
+            rmse = estimate?.rmse ?: calibration.rmse,
+            samplePointCount = estimate?.samplePointCount ?: calibration.samplePointCount,
+            observationCount = estimate?.observationCount ?: calibration.observationCount,
+            surveyPointCount = 0,
+            uncertaintyMeters = estimate?.rmse?.times(1.2f)?.coerceIn(5f, 18f)
+                ?: maxOf(calibration.uncertaintyMeters, 5f),
+            suggestedPointId = estimate?.suggestedPointId ?: calibration.suggestedPointId,
+            status = "CANDIDATE",
+            source = "FINGERPRINT_ESTIMATE",
+            updatedAt = System.currentTimeMillis()
+        )
+        wifiApCalibrationDao.upsert(reset)
+        refreshWifiApCalibrationOverlay()
     }
 
     private fun showApCalibrationSummary() {

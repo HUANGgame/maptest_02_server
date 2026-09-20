@@ -25,6 +25,9 @@ interface WifiApCalibrationDao {
     @Query("DELETE FROM wifi_ap_survey_measurements WHERE calibrationId = :calibrationId")
     suspend fun deleteSurveyMeasurements(calibrationId: String): Int
 
+    @Query("DELETE FROM wifi_ap_survey_measurements WHERE id = :measurementId")
+    suspend fun deleteSurveyMeasurement(measurementId: Long): Int
+
     @Query("DELETE FROM wifi_ap_calibrations WHERE calibrationId = :calibrationId")
     suspend fun deleteCalibration(calibrationId: String): Int
 
