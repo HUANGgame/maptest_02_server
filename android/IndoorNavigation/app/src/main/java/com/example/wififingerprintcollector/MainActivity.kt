@@ -4319,7 +4319,7 @@ class MainActivity : AppCompatActivity() {
             .setTitle("AP 三邊定位校正")
             .setItems(
                 arrayOf(
-                    "操作步驟",
+                    "操作步驟（先看）",
                     "1. 自動建立候選基地台",
                     "2. 在目前點位確認基地台",
                     "3. 查看校正結果",
@@ -4340,10 +4340,6 @@ class MainActivity : AppCompatActivity() {
                     5 -> uploadPendingWifiScans()
                 }
             }
-            .setMessage(
-                "先用現有指紋推算候選位置，再到候選位置附近掃描並確認。" +
-                    "完成一台後可用相同步驟確認下一台；至少三台已確認且位置不共線，才可供三邊定位使用。"
-            )
             .setNegativeButton("關閉", null)
             .show()
     }

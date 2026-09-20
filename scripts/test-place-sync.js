@@ -52,6 +52,10 @@ try {
   assert(dashboardBlock.indexOf('loadStorageStatus().catch') > dashboardBlock.indexOf('地圖與點位已載入'), "storage status must be deferred until after primary rendering");
   assert(admin.includes("loadSupplementalDashboard(mapId, floorId, loadVersion)"), "slow management panels must load after primary map data");
   assert(admin.includes("Promise.allSettled(["), "supplemental panel failures must be isolated");
+  const collectorActivity = fs.readFileSync(path.join(__dirname, "../android/IndoorNavigation/app/src/main/java/com/example/wififingerprintcollector/MainActivity.kt"), "utf8");
+  const apMenu = collectorActivity.slice(collectorActivity.indexOf("private fun showApCalibrationMenu()"), collectorActivity.indexOf("private fun showApCalibrationInstructions()"));
+  assert(apMenu.includes('"1. 自動建立候選基地台"'), "collector AP calibration menu must expose candidate generation");
+  assert(!apMenu.includes(".setMessage("), "Android list dialogs must not replace the AP calibration choices with a message");
   console.log("PASS: status/hours survive editing, coordinates preserved, keyword/notes ranking, recency bounds, progressive admin loading, category picker and syntax");
 } finally {
   fs.rmSync(directory, { recursive: true, force: true });
