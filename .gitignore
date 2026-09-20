@@ -15,5 +15,6 @@ tools/
 .vscode/
 
 data/state.json
+backups/
 
 __pycache__/
