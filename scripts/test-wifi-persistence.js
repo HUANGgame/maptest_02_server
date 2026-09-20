@@ -9,12 +9,14 @@ const src = fs.readFileSync(path.join(__dirname, '../server.js'), 'utf8');
 const begin = src.indexOf('  if (request.method === "POST" && url.pathname === "/api/wifi-scans")');
 const end = src.indexOf('  if (request.method === "GET" && url.pathname === "/api/wifi-scans/summary")', begin);
 const AsyncFunction = Object.getPrototypeOf(async function(){}).constructor;
-const handler = new AsyncFunction('request','url','readJsonBody','normalizeWifiScanPayload','validateWifiScanRecords','appendScans','firebaseMirror','mysqlMirror','sendJson','response',src.slice(begin,end));
+const handler = new AsyncFunction('request','url','readJsonBody','normalizeWifiScanPayload','validateWifiScanRecords','appendScans','firebaseMirror','mysqlMirror','sqlServerStore','activeStorageName','process','sendJson','response',src.slice(begin,end));
 const records = [{sampleId:'s1', pointId:'p1', mapId:'test', floorId:'f1', x:12, y:13, bssid:'ab:cd', rssi:-55, scannedAt:'2026-09-13T00:00:00Z'}];
 async function run(firebase) {
   let result;
+  const mysql = {isEnabled:()=>false,mirrorWifiScans:async()=>{}};
+  const azureSql = {isEnabled:()=>false,mirrorWifiScans:async()=>{}};
   await handler({method:'POST'},{pathname:'/api/wifi-scans'},async()=>records,x=>x,()=>[],appendScans,firebase,
-    {mirrorWifiScans:async()=>{}},(_,code,body)=>{result={code,body}},{});
+    mysql,azureSql,()=>firebase.isEnabled()?'firebase-rtdb':'json',{env:{}},(_,code,body)=>{result={code,body}},{});
   return result;
 }
 (async()=>{

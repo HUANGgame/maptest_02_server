@@ -6,11 +6,13 @@
   "scripts": {
     "start": "node server.js",
     "import:android-wifi": "node scripts/import-android-wifi-csv.js",
+    "migrate:azure-sql": "node scripts/migrate-firebase-to-azure-sql.js",
+    "quality": "node scripts/project-quality-audit.js",
     "smoke": "node scripts/smoke-test.js"
   },
   "dependencies": {
-    "firebase-admin": "^12.7.0",
-    "mysql2": "^3.11.5"
+    "firebase-admin": "^14.4.0",
+    "mssql": "^11.0.2",
+    "mysql2": "^3.24.4"
   }
 }
-

@@ -681,6 +681,7 @@ class MainActivity : AppCompatActivity() {
         binding.buttonAutoUniformForward.setOnClickListener { startAutoScan() }
         binding.buttonAutoScan.setOnClickListener { startAutoScan() }
         binding.buttonStopAutoScan.setOnClickListener { stopAutoScan() }
+        binding.buttonFieldReadinessCheck.setOnClickListener { runFieldReadinessCheck() }
         binding.buttonWalkAutoSample.setOnClickListener { startAutoScan() }
         binding.buttonStopWalkAuto.setOnClickListener { stopWalkAutoSampling() }
         binding.buttonLockHeading.setOnClickListener { toggleHeadingLock() }
@@ -783,7 +784,7 @@ class MainActivity : AppCompatActivity() {
         binding.mapPanel.isVisible = isCompassMode || isMapMode
         binding.mainOperationPanel.isVisible = isCompassMode || isMapMode
         binding.currentPointPanel.isVisible = isCompassMode || isMapMode
-        binding.compassPanel.isVisible = isCompassMode
+        binding.compassPanel.isVisible = advancedOperationsExpanded && isCompassMode
         binding.advancedCorrectionPanel.isVisible = false
         binding.manualInputPanel.isVisible = isManualMode
 
@@ -807,7 +808,46 @@ class MainActivity : AppCompatActivity() {
         binding.layoutAdvancedOperationInlineRow.isVisible =
             advancedOperationsExpanded && currentMode == SamplingMode.COMPASS_FORWARD
         binding.layoutAdvancedOperations.isVisible = advancedOperationsExpanded
+        binding.buttonImportMap.isVisible = advancedOperationsExpanded
+        binding.buttonCalibrateMapBoth.isVisible = advancedOperationsExpanded
+        binding.buttonToggleMapCompactDisplay.isVisible = advancedOperationsExpanded
+        binding.compassPanel.isVisible = advancedOperationsExpanded && currentMode == SamplingMode.COMPASS_FORWARD
+        binding.samplingModePanel.isVisible = advancedOperationsExpanded
+        binding.destructiveActionsPanel.isVisible = advancedOperationsExpanded
+        binding.buttonResetUploadMarks.isVisible = advancedOperationsExpanded
         binding.buttonToggleAdvancedOperations.text = if (advancedOperationsExpanded) "收起操作" else "更多操作"
+    }
+
+    private fun runFieldReadinessCheck() {
+        lifecycleScope.launch {
+            val issues = mutableListOf<String>()
+            if (!hasRequiredPermissions()) issues += "Wi-Fi、定位或活動辨識權限尚未完成"
+            if (!wifiManager.isWifiEnabled) issues += "Wi-Fi 尚未開啟"
+            if (backendMapId.isBlank() || backendFloorId.isBlank()) issues += "尚未選擇後端地圖與樓層"
+            if (binding.mapSamplingView.width <= 0 || binding.mapSamplingView.height <= 0) issues += "地圖尚未完成載入"
+            if (currentPoint == null) issues += "尚未選擇要測量的點位"
+
+            val pendingCount = withContext(Dispatchers.IO) { dao.getPendingUploadRecords().size }
+            val title = if (issues.isEmpty()) "可以開始測量" else "尚有 ${issues.size} 項需要處理"
+            val message = buildString {
+                append("範圍：")
+                append(backendMapName.ifBlank { backendMapId.ifBlank { "未選擇" } })
+                append(" / ")
+                append(backendFloorName.ifBlank { backendFloorId.ifBlank { "未選擇" } })
+                append("\n目前點位：")
+                append(currentPoint?.displayLabel?.ifBlank { currentPoint?.pointId.orEmpty() } ?: "未選擇")
+                append("\n待上傳：${pendingCount} 筆")
+                if (issues.isNotEmpty()) {
+                    append("\n\n")
+                    append(issues.joinToString("\n") { "- $it" })
+                }
+            }
+            AlertDialog.Builder(this@MainActivity)
+                .setTitle(title)
+                .setMessage(message)
+                .setPositiveButton("確定", null)
+                .show()
+        }
     }
 
     private fun togglePointEditMode(mode: String) {

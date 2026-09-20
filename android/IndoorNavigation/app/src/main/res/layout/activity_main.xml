@@ -122,7 +122,8 @@
                     android:layout_marginStart="8dp"
                     android:background="@drawable/bg_button_outline"
                     android:text="@string/import_map"
-                    android:textColor="@color/text_primary" />
+                    android:textColor="@color/text_primary"
+                    android:visibility="gone" />
 
                 <Button
                     android:id="@+id/buttonCalibrateMapBoth"
@@ -132,7 +133,8 @@
                     android:layout_marginStart="8dp"
                     android:background="@drawable/bg_button_secondary"
                     android:text="@string/two_point_calibration"
-                    android:textColor="@color/primary_blue_dark" />
+                    android:textColor="@color/primary_blue_dark"
+                    android:visibility="gone" />
 
                 <Button
                     android:id="@+id/buttonToggleMapCompactDisplay"
@@ -142,7 +144,8 @@
                     android:layout_marginStart="8dp"
                     android:background="@drawable/bg_button_outline"
                     android:text="@string/point_text"
-                    android:textColor="@color/text_primary" />
+                    android:textColor="@color/text_primary"
+                    android:visibility="gone" />
 
                 <Button
                     android:id="@+id/buttonPlanNavigation"
@@ -340,6 +343,16 @@
                     android:text="@string/stop_auto_sample"
                     android:textColor="@color/text_primary" />
             </LinearLayout>
+
+            <Button
+                android:id="@+id/buttonFieldReadinessCheck"
+                style="@style/ToolButton"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:background="@drawable/bg_button_outline"
+                android:text="測量前檢查"
+                android:textColor="@color/text_primary" />
 
             <Button
                 android:id="@+id/buttonToggleAdvancedOperations"
@@ -605,6 +618,7 @@
         </LinearLayout>
 
         <LinearLayout
+            android:id="@+id/syncPanel"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="12dp"
@@ -978,7 +992,7 @@
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="@string/export_analysis_csv"
+                android:text="同步與上傳"
                 android:textColor="@color/text_primary"
                 android:textSize="15sp"
                 android:textStyle="bold" />
@@ -987,7 +1001,8 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="8dp"
-                android:orientation="horizontal">
+                android:orientation="horizontal"
+                android:visibility="gone">
 
                 <Button
                     android:id="@+id/buttonExportCsv"
@@ -1021,7 +1036,8 @@
                 android:inputType="textUri"
                 android:minHeight="44dp"
                 android:singleLine="true"
-                android:text="https://maptest-02-server.onrender.com" />
+                android:text="https://maptest-02-server.onrender.com"
+                android:visibility="gone" />
 
             <Button
                 android:id="@+id/buttonSelectBackendScope"
@@ -1063,7 +1079,8 @@
                 android:layout_marginTop="8dp"
                 android:background="@drawable/bg_button_outline"
                 android:text="@string/reset_upload_marks"
-                android:textColor="@color/text_primary" />
+                android:textColor="@color/text_primary"
+                android:visibility="gone" />
 
             <TextView
                 android:id="@+id/textSyncStatus"
@@ -1092,12 +1109,14 @@
         </LinearLayout>
 
         <LinearLayout
+            android:id="@+id/samplingModePanel"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="12dp"
             android:background="@drawable/bg_card"
             android:orientation="vertical"
-            android:padding="12dp">
+            android:padding="12dp"
+            android:visibility="gone">
 
             <TextView
                 android:layout_width="match_parent"
@@ -1144,12 +1163,14 @@
         </LinearLayout>
 
         <LinearLayout
+            android:id="@+id/destructiveActionsPanel"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="12dp"
             android:background="@drawable/bg_card"
             android:orientation="vertical"
-            android:padding="12dp">
+            android:padding="12dp"
+            android:visibility="gone">
 
             <TextView
                 android:layout_width="match_parent"

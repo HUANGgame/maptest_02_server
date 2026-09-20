@@ -10,13 +10,15 @@ const source = fs.readFileSync(path.join(__dirname, '../server.js'), 'utf8');
 const start = source.indexOf('  if (request.method === "POST" && url.pathname === "/api/user-reports")');
 const end = source.indexOf('  if (request.method === "GET" && url.pathname === "/api/user-reports")', start);
 const AsyncFunction = Object.getPrototypeOf(async function(){}).constructor;
-const handler = new AsyncFunction('request', 'url', 'readJsonBody', 'appendReport', 'firebaseMirror', 'sendJson', 'response', source.slice(start, end));
+const handler = new AsyncFunction('request', 'url', 'readJsonBody', 'appendReport', 'sqlServerStore', 'firebaseMirror', 'process', 'mirrorDocumentFiles', 'activeStorageName', 'sendJson', 'response', source.slice(start, end));
 async function run(mirror) {
   let result;
   await handler({ method: 'POST' }, { pathname: '/api/user-reports' }, async () => ({
     clientReportId: 'retry-1', anonymousUserId: 'test-user', mapId: 'm', floorId: 'f',
     reportType: 'obstacle', description: 'TEST ONLY', x: 12, y: 20
-  }), appendReport, mirror, (_, code, body) => { result = { code, body }; }, {});
+  }), appendReport, { isEnabled: () => false }, mirror, { env: {} },
+  (files) => mirror.mirrorJsonFiles(files), () => mirror.isEnabled() ? 'firebase-rtdb' : 'json',
+  (_, code, body) => { result = { code, body }; }, {});
   return result;
 }
 (async () => {

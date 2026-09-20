@@ -14,6 +14,7 @@ const { createTrainingJob, readTrainingJobs } = require("./lib/trainingJobStore"
 const { appendScans, readScans } = require("./lib/jsonStore");
 const firebaseMirror = require("./lib/firebaseMirror");
 const mysqlMirror = require("./lib/mysqlMirror");
+const sqlServerStore = require("./lib/sqlServerStore");
 const { createPlaceReviews } = require("./lib/placeReviews");
 const handlePlaceReviews = createPlaceReviews({
   readPlaces, readBody: readJsonBody, sendJson,
@@ -42,7 +43,7 @@ const server = http.createServer(async (request, response) => {
       project: "地下街室內導航系統",
       demoVenue: "K區地下街往機捷",
       phase: "formal-navigation-ready",
-      storage: firebaseMirror.isEnabled() ? "firebase-rtdb" : mysqlMirror.isEnabled() ? "mysql" : "json",
+      storage: activeStorageName(),
     });
     return;
   }
@@ -204,17 +205,25 @@ const server = http.createServer(async (request, response) => {
         });
         return;
       }
-      if (!firebaseMirror.isEnabled()) throw new Error("Firebase storage unavailable; retain scans for retry");
+      const allowJsonWrites = process.env.ALLOW_JSON_WRITES === "true";
+      if (!sqlServerStore.isEnabled() && !firebaseMirror.isEnabled() && !mysqlMirror.isEnabled() && !allowJsonWrites) {
+        throw new Error("External storage unavailable; retain scans for retry");
+      }
       const saved = appendScans(records, true);
-      await firebaseMirror.mirrorWifiScans(saved);
-      mysqlMirror.mirrorWifiScans(saved).catch((error) => console.error("MySQL Wi-Fi mirror failed:", error.message));
+      if (sqlServerStore.isEnabled()) {
+        await sqlServerStore.mirrorWifiScans(saved);
+      } else if (firebaseMirror.isEnabled()) {
+        await firebaseMirror.mirrorWifiScans(saved);
+      } else if (mysqlMirror.isEnabled()) {
+        await mysqlMirror.mirrorWifiScans(saved);
+      }
       sendJson(response, 201, {
         success: true,
         accepted: true,
         savedCount: saved.length,
         persisted: true,
         persistedCount: records.length,
-        storage: "firebase-rtdb",
+        storage: activeStorageName(),
         uploadedAt: saved[0]?.uploadedAt || new Date().toISOString(),
       });
     } catch (error) {
@@ -231,7 +240,9 @@ const server = http.createServer(async (request, response) => {
   if (request.method === "GET" && url.pathname === "/api/wifi-scans/summary") {
     const mapId = url.searchParams.get("mapId") || "";
     const floorId = url.searchParams.get("floorId") || "";
-    const indexedSummary = await firebaseMirror.readWifiScanIndexSummary(mapId, floorId);
+    const indexedSummary = sqlServerStore.isEnabled()
+      ? await sqlServerStore.readWifiScanIndexSummary(mapId, floorId)
+      : await firebaseMirror.readWifiScanIndexSummary(mapId, floorId);
     if (indexedSummary) {
       sendJson(response, 200, indexedSummary);
       return;
@@ -309,7 +320,8 @@ const server = http.createServer(async (request, response) => {
         sendJson(response, 400, { success: false, message: "confirm must be DELETE_WIFI_POINT_DATE_RANGE" });
         return;
       }
-      const result = await firebaseMirror.deleteWifiScansByPointAndDate({
+      const store = sqlServerStore.isEnabled() ? sqlServerStore : firebaseMirror;
+      const result = await store.deleteWifiScansByPointAndDate({
         mapId: String(body.mapId || ""),
         floorId: String(body.floorId || ""),
         pointId: String(body.pointId || ""),
@@ -329,13 +341,15 @@ const server = http.createServer(async (request, response) => {
   if (request.method === "GET" && url.pathname === "/api/wifi-scans/points") {
     const mapId = url.searchParams.get("mapId") || "";
     const floorId = url.searchParams.get("floorId") || "";
-    const indexedPoints = await firebaseMirror.readWifiScanIndexPoints(mapId, floorId);
+    const indexedPoints = sqlServerStore.isEnabled()
+      ? await sqlServerStore.readWifiScanIndexPoints(mapId, floorId)
+      : await firebaseMirror.readWifiScanIndexPoints(mapId, floorId);
     if (Array.isArray(indexedPoints)) {
       sendJson(response, 200, {
         mapId: mapId || null,
         floorId: floorId || null,
         points: indexedPoints,
-        source: "firebase-rtdb-index",
+        source: sqlServerStore.isEnabled() ? "azure-sql" : "firebase-rtdb-index",
       });
       return;
     }
@@ -397,7 +411,9 @@ const server = http.createServer(async (request, response) => {
         sendJson(response, 400, { success: false, message: "第一版只允許 KNN 主模型與 Random Forest 比較模型。" });
         return;
       }
-      const indexedSummary = await firebaseMirror.readWifiScanIndexSummary(mapId, floorId);
+      const indexedSummary = sqlServerStore.isEnabled()
+        ? await sqlServerStore.readWifiScanIndexSummary(mapId, floorId)
+        : await firebaseMirror.readWifiScanIndexSummary(mapId, floorId);
       if (indexedSummary && algorithm === "knn") {
         const model = createModelVersion({
           mapId,
@@ -407,10 +423,10 @@ const server = http.createServer(async (request, response) => {
           averageError: null,
           isActive: body.activate !== false,
           isComparisonOnly: false,
-          notes: "Live positioning uses Firebase fingerprint profile index.",
+          notes: `Live positioning uses ${indexedSummary.source} fingerprint data.`,
         });
         mysqlMirror.mirrorModels([model]).catch((error) => console.error("MySQL model mirror failed:", error.message));
-        firebaseMirror.mirrorJsonFiles(["model_versions.json", "model_training_jobs.json"]).catch((error) => console.error("Firebase model mirror failed:", error.message));
+        mirrorDocumentFiles(["model_versions.json", "model_training_jobs.json"]).catch((error) => console.error("Model mirror failed:", error.message));
         sendJson(response, 201, { success: true, model, source: indexedSummary.source });
         return;
       }
@@ -441,7 +457,7 @@ const server = http.createServer(async (request, response) => {
         versionName: algorithm === "randomForest" ? `RF-comparison-${new Date().toISOString()}` : undefined,
       });
       mysqlMirror.mirrorModels([model]).catch((error) => console.error("MySQL model mirror failed:", error.message));
-      firebaseMirror.mirrorJsonFiles(["model_versions.json", "model_training_jobs.json"]).catch((error) => console.error("Firebase model mirror failed:", error.message));
+      mirrorDocumentFiles(["model_versions.json", "model_training_jobs.json"]).catch((error) => console.error("Model mirror failed:", error.message));
       sendJson(response, 201, { success: true, model });
     } catch (error) {
       sendJson(response, 400, { success: false, message: error.message });
@@ -479,7 +495,7 @@ const server = http.createServer(async (request, response) => {
       }
       const model = activateModel(modelId);
       if (model) mysqlMirror.mirrorModels(readModels()).catch((error) => console.error("MySQL model mirror failed:", error.message));
-      if (model) firebaseMirror.mirrorJsonFiles(["model_versions.json"]).catch((error) => console.error("Firebase model mirror failed:", error.message));
+      if (model) mirrorDocumentFiles(["model_versions.json"]).catch((error) => console.error("Model mirror failed:", error.message));
       sendJson(response, model ? 200 : 404, model ? { success: true, model } : { success: false, message: "找不到模型版本。" });
     } catch (error) {
       sendJson(response, 400, { success: false, message: error.message });
@@ -546,13 +562,17 @@ const server = http.createServer(async (request, response) => {
     try {
       const mysql = await mysqlMirror.statusSummary();
       const firebase = await firebaseMirror.statusSummary();
+      const azureSql = await sqlServerStore.statusSummary();
       sendJson(response, 200, {
-        enabled: mysql.enabled || firebase.enabled,
-        storage: firebase.enabled ? "firebase-rtdb" : mysql.enabled ? "mysql" : "json",
+        enabled: azureSql.enabled || mysql.enabled || firebase.enabled,
+        storage: activeStorageName(),
+        azureSql,
         mysql,
         firebase,
         jsonFallback: true,
-        note: firebase.enabled
+        note: azureSql.enabled
+          ? "Azure SQL is the active store; JSON files are local runtime cache."
+          : firebase.enabled
           ? "Firebase Realtime Database is the active store; JSON files are local runtime cache."
           : mysql.enabled
             ? "MySQL mirror is active; JSON files are local cache."
@@ -567,12 +587,15 @@ const server = http.createServer(async (request, response) => {
   if (request.method === "POST" && url.pathname === "/api/storage/sync") {
     try {
       const mysqlEnabled = await mirrorFullAdminSnapshot();
-      const firebaseEnabled = await firebaseMirror.mirrorJsonFiles();
+      const azureSqlEnabled = sqlServerStore.isEnabled() ? await sqlServerStore.mirrorJsonFiles() : false;
+      const firebaseEnabled = !azureSqlEnabled && firebaseMirror.isEnabled() ? await firebaseMirror.mirrorJsonFiles() : false;
       sendJson(response, 200, {
         success: true,
+        azureSqlEnabled,
         mysqlEnabled,
         firebaseEnabled,
         status: {
+          azureSql: await sqlServerStore.statusSummary(),
           mysql: await mysqlMirror.statusSummary(),
           firebase: await firebaseMirror.statusSummary(),
         },
@@ -725,7 +748,7 @@ const server = http.createServer(async (request, response) => {
         return;
       }
       appendFeedback(normalized);
-      firebaseMirror.mirrorJsonFiles(["navigation_feedback.json"]).catch((error) => console.error("Firebase feedback mirror failed:", error.message));
+      mirrorDocumentFiles(["navigation_feedback.json"]).catch((error) => console.error("Feedback mirror failed:", error.message));
       sendJson(response, 201, { success: true, accepted: true, reason: "已匿名接收，等待品質篩選。" });
     } catch (error) {
       sendJson(response, 400, { success: false, accepted: false, reason: error.message });
@@ -749,7 +772,7 @@ const server = http.createServer(async (request, response) => {
     const records = readFeedback();
     const evaluated = records.map((record) => record.qualityStatus === "pending" ? { ...record, qualityStatus: evaluateFeedbackQuality(record) } : record);
     writeFeedback(evaluated);
-    firebaseMirror.mirrorJsonFiles(["navigation_feedback.json"]).catch((error) => console.error("Firebase feedback mirror failed:", error.message));
+    mirrorDocumentFiles(["navigation_feedback.json"]).catch((error) => console.error("Feedback mirror failed:", error.message));
     sendJson(response, 200, {
       evaluatedCount: evaluated.length,
       ...feedbackQualitySummary(evaluated),
@@ -815,7 +838,7 @@ const server = http.createServer(async (request, response) => {
         status: "completed",
         resultSummary: `使用人工指紋 ${manualRecords.length} 筆與高可信匿名回饋 ${highConfidence.length} 筆建立模型版本。`,
       });
-      firebaseMirror.mirrorJsonFiles(["navigation_feedback.json", "model_versions.json", "model_training_jobs.json"]).catch((error) => console.error("Firebase model mirror failed:", error.message));
+      mirrorDocumentFiles(["navigation_feedback.json", "model_versions.json", "model_training_jobs.json"]).catch((error) => console.error("Model mirror failed:", error.message));
       sendJson(response, 201, { success: true, model, job });
     } catch (error) {
       sendJson(response, 400, { success: false, message: error.message });
@@ -931,7 +954,7 @@ const server = http.createServer(async (request, response) => {
         startY: Number(body.startY || 0),
         startFloorId: String(body.startFloorId || body.floorId || ""),
       });
-      firebaseMirror.mirrorJsonFiles(["navigation_history.json"]).catch((error) => console.error("Firebase history mirror failed:", error.message));
+      mirrorDocumentFiles(["navigation_history.json"]).catch((error) => console.error("History mirror failed:", error.message));
       sendJson(response, 201, { success: true, record });
     } catch (error) {
       sendJson(response, 400, { success: false, message: error.message });
@@ -944,7 +967,7 @@ const server = http.createServer(async (request, response) => {
     sendJson(response, userId ? 200 : 400, userId
       ? { success: true, deletedCount: clearHistory(userId) }
       : { success: false, message: "userId 不可空白。" });
-    if (userId) firebaseMirror.mirrorJsonFiles(["navigation_history.json"]).catch((error) => console.error("Firebase history mirror failed:", error.message));
+    if (userId) mirrorDocumentFiles(["navigation_history.json"]).catch((error) => console.error("History mirror failed:", error.message));
     return;
   }
 
@@ -965,7 +988,7 @@ const server = http.createServer(async (request, response) => {
         y: Number(body.y || 0),
         type: String(body.type || "custom"),
       });
-      firebaseMirror.mirrorJsonFiles(["saved_locations.json"]).catch((error) => console.error("Firebase saved-location mirror failed:", error.message));
+      mirrorDocumentFiles(["saved_locations.json"]).catch((error) => console.error("Saved-location mirror failed:", error.message));
       sendJson(response, 201, { success: true, record });
     } catch (error) {
       sendJson(response, 400, { success: false, message: error.message });
@@ -978,7 +1001,7 @@ const server = http.createServer(async (request, response) => {
     sendJson(response, userId ? 200 : 400, userId
       ? { success: true, deletedCount: clearSavedLocations(userId) }
       : { success: false, message: "userId 不可空白。" });
-    if (userId) firebaseMirror.mirrorJsonFiles(["saved_locations.json"]).catch((error) => console.error("Firebase saved-location mirror failed:", error.message));
+    if (userId) mirrorDocumentFiles(["saved_locations.json"]).catch((error) => console.error("Saved-location mirror failed:", error.message));
     return;
   }
 
@@ -1013,9 +1036,11 @@ const server = http.createServer(async (request, response) => {
           ? body.notificationEmails.map((item) => String(item)).filter(Boolean).slice(0, 10)
           : [],
       });
-      if (!firebaseMirror.isEnabled()) throw new Error("Firebase report storage is unavailable");
-      await firebaseMirror.mirrorJsonFiles(["user_reports.json"]);
-      sendJson(response, 201, { success: true, storage: "firebase-rtdb", persisted: true, report });
+      if (!sqlServerStore.isEnabled() && !firebaseMirror.isEnabled() && process.env.ALLOW_JSON_WRITES !== "true") {
+        throw new Error("External report storage is unavailable");
+      }
+      await mirrorDocumentFiles(["user_reports.json"]);
+      sendJson(response, 201, { success: true, storage: activeStorageName(), persisted: true, report });
     } catch (error) {
       sendJson(response, 400, { success: false, message: error.message });
     }
@@ -1036,7 +1061,7 @@ const server = http.createServer(async (request, response) => {
       clientReportId: url.searchParams.get("clientReportId") || "",
     });
     if (deletedCount > 0) {
-      firebaseMirror.mirrorJsonFiles(["user_reports.json"]).catch((error) => console.error("Firebase report mirror failed:", error.message));
+      mirrorDocumentFiles(["user_reports.json"]).catch((error) => console.error("Report mirror failed:", error.message));
     }
     sendJson(response, deletedCount > 0 ? 200 : 404, { success: deletedCount > 0, deletedCount });
     return;
@@ -1048,28 +1073,31 @@ const server = http.createServer(async (request, response) => {
   });
 });
 
-Promise.allSettled([mysqlMirror.startMirror(), firebaseMirror.startMirror()])
-  .then((results) => {
-    const mysqlEnabled = results[0].status === "fulfilled" && results[0].value === true;
-    const firebaseEnabled = results[1].status === "fulfilled" && results[1].value === true;
-    if (results[1].status === "rejected" && (process.env.FIREBASE_DATABASE_URL || process.env.FIREBASE_RTDB_URL)) {
-      console.error("Firebase restore failed; admin remains online, writable Firebase-only endpoints will reject writes.");
-    }
-    results.forEach((result, index) => {
-      if (result.status === "rejected") {
-        console.error(`${index === 0 ? "MySQL" : "Firebase"} startup failed:`, result.reason.message);
-      }
-    });
-    server.listen(port, () => {
-      console.log(`Navigation backend listening on http://localhost:${port} (${firebaseEnabled ? "firebase-rtdb" : mysqlEnabled ? "mysql" : "json"} storage)`);
-    });
-  })
-  .catch((error) => {
-    console.error("External database startup failed, falling back to JSON storage:", error.message);
-    server.listen(port, () => {
-      console.log(`Navigation backend listening on http://localhost:${port} (json storage)`);
-    });
+startExternalStores().then(({ azureSqlEnabled, mysqlEnabled, firebaseEnabled }) => {
+  server.listen(port, () => {
+    console.log(`Navigation backend listening on http://localhost:${port} (${azureSqlEnabled ? "azure-sql" : firebaseEnabled ? "firebase-rtdb" : mysqlEnabled ? "mysql" : "json"} storage)`);
   });
+});
+
+async function startExternalStores() {
+  const azureResult = await Promise.allSettled([sqlServerStore.startStore()]);
+  const azureSqlEnabled = azureResult[0].status === "fulfilled" && azureResult[0].value === true;
+  if (azureResult[0].status === "rejected") {
+    console.error("Azure SQL startup failed:", azureResult[0].reason.message);
+  }
+
+  const [mysqlResult, firebaseResult] = await Promise.allSettled([
+    mysqlMirror.startMirror(),
+    firebaseMirror.startMirror({ skipCacheSync: azureSqlEnabled }),
+  ]);
+  const mysqlEnabled = mysqlResult.status === "fulfilled" && mysqlResult.value === true;
+  const firebaseEnabled = firebaseResult.status === "fulfilled" && firebaseResult.value === true;
+  if (mysqlResult.status === "rejected") console.error("MySQL startup failed:", mysqlResult.reason.message);
+  if (firebaseResult.status === "rejected") {
+    console.error("Firebase startup failed:", firebaseResult.reason.message);
+  }
+  return { azureSqlEnabled, mysqlEnabled, firebaseEnabled };
+}
 
 function mirrorFullAdminSnapshot() {
   const snapshot = {
@@ -1083,9 +1111,22 @@ function mirrorFullAdminSnapshot() {
     policyLogs: readPolicyLogs(),
   };
   return Promise.all([
-    firebaseMirror.mirrorJsonFiles(["catalog_records.json", "place_overrides.json", "route_graph_records.json", "route_edge_overrides.json", "strategy_training_runs.json", "navigation_policy_logs.json"]),
+    mirrorDocumentFiles(["catalog_records.json", "place_overrides.json", "route_graph_records.json", "route_edge_overrides.json", "strategy_training_runs.json", "navigation_policy_logs.json"]),
     mysqlMirror.mirrorAdminData(snapshot),
   ]);
+}
+
+function activeStorageName() {
+  if (sqlServerStore.isEnabled()) return "azure-sql";
+  if (firebaseMirror.isEnabled()) return "firebase-rtdb";
+  if (mysqlMirror.isEnabled()) return "mysql";
+  return "json";
+}
+
+function mirrorDocumentFiles(fileNames) {
+  if (sqlServerStore.isEnabled()) return sqlServerStore.mirrorJsonFiles(fileNames);
+  if (firebaseMirror.isEnabled()) return firebaseMirror.mirrorJsonFiles(fileNames);
+  return Promise.resolve(false);
 }
 
 function sendJson(response, statusCode, body) {
@@ -1279,6 +1320,9 @@ function filterByScope(records, mapId, floorId) {
 }
 
 async function wifiScansForScope(mapId, floorId) {
+  if (sqlServerStore.isEnabled()) {
+    return sqlServerStore.readWifiScansByScope(mapId, floorId);
+  }
   return filterByScope(readScans(), mapId, floorId);
 }
 
@@ -1435,7 +1479,9 @@ async function estimateLocation(body) {
   if (!model) return null;
   const currentVector = wifiVector(wifiList);
   if (currentVector.size < 1) return null;
-  const indexedProfiles = await firebaseMirror.readWifiFingerprintProfiles(model.mapId, model.floorId);
+  const indexedProfiles = sqlServerStore.isEnabled()
+    ? null
+    : await firebaseMirror.readWifiFingerprintProfiles(model.mapId, model.floorId);
   const profiles = Array.isArray(indexedProfiles) && indexedProfiles.length > 0
     ? indexedProfiles.map((profile) => ({ ...profile, vector: new Map(profile.vectorEntries || []) }))
     : buildPointProfiles(await wifiScansForScope(model.mapId, model.floorId));
