@@ -39,7 +39,9 @@ android/IndoorNavigation/app/src/main/java/com/example/indoornavigation/MainActi
 
 ## APK
 
-public/TaipeiStation_IndoorNavigation_FINAL.apk
+正式導航 App：`GET /download/navigator-apk`
+
+Wi-Fi 指紋採集 App：`GET /download/apk`
 
 ## GitHub
 

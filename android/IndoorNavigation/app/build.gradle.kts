@@ -22,15 +22,15 @@ android {
         create("collector") {
             dimension = "mode"
             applicationId = "com.example.wififingerprintcollector"
-            versionCode = 14
-            versionName = "1.0.14"
+            versionCode = 15
+            versionName = "1.0.15"
             manifestPlaceholders["appLabel"] = "Wi-Fi 指紋採樣工具"
         }
         create("navigator") {
             dimension = "mode"
             applicationId = "com.example.indoor.navigator"
-            versionCode = 53
-            versionName = "1.0.53"
+            versionCode = 54
+            versionName = "1.0.54"
             manifestPlaceholders["appLabel"] = "智慧地下街Wi-Fi室內定位導航系統"
         }
     }

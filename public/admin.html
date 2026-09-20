@@ -88,6 +88,11 @@
       border-collapse: collapse;
       font-size: 14px;
     }
+    .table-scroll { overflow-x: auto; }
+    .ap-table { min-width: 1080px; }
+    .ap-table select, .ap-table input { min-width: 120px; }
+    .ap-table td:nth-child(3) { min-width: 230px; }
+    .ap-table td:last-child button { min-width: 72px; }
     th, td {
       border-bottom: 1px solid var(--line);
       padding: 8px;
@@ -118,6 +123,18 @@
     .muted { color: var(--muted); }
     .warn { color: var(--warn); }
     .bad { color: var(--bad); }
+    .status-badge {
+      display: inline-block;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 2px 8px;
+      white-space: nowrap;
+      font-size: 12px;
+      font-weight: 600;
+    }
+    .status-stable { color: var(--accent); border-color: var(--accent); }
+    .status-moved_suspected, .status-offline_suspected { color: var(--bad); border-color: var(--bad); }
+    .status-candidate, .status-verified { color: var(--warn); border-color: var(--warn); }
     .full { grid-column: 1 / -1; }
     .map-editor {
       display: grid;
@@ -282,6 +299,21 @@
           <tbody id="pointsBody"></tbody>
         </table>
       </section>
+      <section class="full">
+        <h2>Wi-Fi 基地台管理</h2>
+        <div class="metric">
+          <div><span class="muted">已建檔</span><strong id="wifiApTotal">0</strong></div>
+          <div><span class="muted">穩定</span><strong id="wifiApStable">0</strong></div>
+          <div><span class="muted">需處理</span><strong id="wifiApAttention">0</strong></div>
+        </div>
+        <div class="muted" style="margin-bottom:8px">疑似停止只會在同樓層已有足夠的新測量、且該基地台持續未出現時成立。</div>
+        <div class="table-scroll">
+        <table class="ap-table">
+          <thead><tr><th>基地台</th><th>分類</th><th>健康狀態</th><th>管理狀態</th><th>座標</th><th>備註</th><th>操作</th></tr></thead>
+          <tbody id="wifiApsBody"></tbody>
+        </table>
+        </div>
+      </section>
       <section>
         <h2>資料品質</h2>
         <table>
@@ -435,6 +467,7 @@
     let allPlaces = [];
     let currentFloors = [];
     let currentPoints = [];
+    let currentWifiAps = [];
     let currentRouteEdges = [];
     let currentRouteNodes = [];
     let currentRouteZones = [];
@@ -739,12 +772,13 @@
       const mapId = mapSelect.value;
       const floorId = floorSelect.value;
       loadStorageStatus().catch(() => {});
-      const [places, allMapPlaces, summary, points, quality, routeEdges, routeNodes, routeZones, allNodes, transitions, feedback, models, jobs, policyRuns, policyLogs, reports] = await Promise.all([
+      const [places, allMapPlaces, summary, points, quality, wifiAps, routeEdges, routeNodes, routeZones, allNodes, transitions, feedback, models, jobs, policyRuns, policyLogs, reports] = await Promise.all([
         getJson(`/api/places?mapId=${encodeURIComponent(mapId)}&floorId=${encodeURIComponent(floorId)}`),
         getJson(`/api/places?mapId=${encodeURIComponent(mapId)}`),
         getJson(`/api/wifi-scans/summary?mapId=${encodeURIComponent(mapId)}&floorId=${encodeURIComponent(floorId)}`),
         getJson(`/api/wifi-scans/points?mapId=${encodeURIComponent(mapId)}&floorId=${encodeURIComponent(floorId)}`),
         getJson(`/api/wifi-scans/quality?mapId=${encodeURIComponent(mapId)}&floorId=${encodeURIComponent(floorId)}`),
+        getJson(`/api/wifi-aps?mapId=${encodeURIComponent(mapId)}&floorId=${encodeURIComponent(floorId)}`),
         getJson(`/api/route-edges?mapId=${encodeURIComponent(mapId)}&floorId=${encodeURIComponent(floorId)}`),
         getJson(`/api/route-nodes?mapId=${encodeURIComponent(mapId)}&floorId=${encodeURIComponent(floorId)}`),
         getJson(`/api/route-zones?mapId=${encodeURIComponent(mapId)}&floorId=${encodeURIComponent(floorId)}`),
@@ -761,6 +795,7 @@
       allPlaces = allMapPlaces;
       renderPlaceCategoryOptions();
       currentPoints = Array.isArray(points.points) ? points.points : [];
+      currentWifiAps = Array.isArray(wifiAps.items) ? wifiAps.items : [];
       currentRouteEdges = routeEdges;
       currentRouteNodes = routeNodes;
       currentRouteZones = Array.isArray(routeZones) ? routeZones : [];
@@ -829,6 +864,37 @@
           <td>${point.bssidCount}</td>
         </tr>
       `).join("") || `<tr><td colspan="4" class="muted">目前沒有 Wi-Fi 採樣點</td></tr>`;
+
+      document.querySelector("#wifiApTotal").textContent = wifiAps.summary?.total || 0;
+      document.querySelector("#wifiApStable").textContent = wifiAps.summary?.stable || 0;
+      document.querySelector("#wifiApAttention").textContent = (wifiAps.summary?.moved_suspected || 0) + (wifiAps.summary?.offline_suspected || 0);
+      document.querySelector("#wifiApsBody").innerHTML = currentWifiAps.map(item => `
+        <tr>
+          <td><strong>${escapeHtml(item.ssid || "隱藏 SSID")}</strong><br><span class="muted">${escapeHtml(item.bssid)}</span></td>
+          <td><select data-ap-category="${escapeHtml(item.calibrationId)}">${["infrastructure", "public", "store", "unknown"].map(value => `<option value="${value}" ${item.category === value ? "selected" : ""}>${wifiApCategoryText(value)}</option>`).join("")}</select></td>
+          <td><span class="status-badge status-${escapeHtml(item.healthStatus)}">${wifiApHealthText(item.healthStatus)}</span><br><span class="muted">${escapeHtml(item.healthReason || "-")}</span><br><span class="muted">最後看到：${formatAdminDate(item.lastSeenAt)}</span></td>
+          <td><select data-ap-management="${escapeHtml(item.calibrationId)}">${["active", "review", "disabled"].map(value => `<option value="${value}" ${item.managementStatus === value ? "selected" : ""}>${wifiApManagementText(value)}</option>`).join("")}</select></td>
+          <td><input data-ap-x="${escapeHtml(item.calibrationId)}" type="number" step="0.1" value="${Number(item.x).toFixed(1)}"><input data-ap-y="${escapeHtml(item.calibrationId)}" type="number" step="0.1" value="${Number(item.y).toFixed(1)}"></td>
+          <td><input data-ap-notes="${escapeHtml(item.calibrationId)}" value="${escapeHtml(item.notes || "")}" placeholder="維護紀錄"></td>
+          <td><button data-ap-save="${escapeHtml(item.calibrationId)}">儲存</button></td>
+        </tr>
+      `).join("") || `<tr><td colspan="7" class="muted">尚未從採集 App 上傳基地台校正資料</td></tr>`;
+      document.querySelectorAll("[data-ap-save]").forEach(button => {
+        button.addEventListener("click", async () => {
+          const id = button.getAttribute("data-ap-save");
+          await runAdminAction("基地台資料已儲存", async () => {
+            await postJson("/api/wifi-aps/update", {
+              calibrationId: id,
+              category: document.querySelector(`[data-ap-category="${cssEscape(id)}"]`).value,
+              managementStatus: document.querySelector(`[data-ap-management="${cssEscape(id)}"]`).value,
+              x: Number(document.querySelector(`[data-ap-x="${cssEscape(id)}"]`).value),
+              y: Number(document.querySelector(`[data-ap-y="${cssEscape(id)}"]`).value),
+              notes: document.querySelector(`[data-ap-notes="${cssEscape(id)}"]`).value.trim(),
+            });
+            await loadDashboard();
+          });
+        });
+      });
 
       document.querySelector("#qualityBody").innerHTML = quality.items.map(item => `
         <tr>
@@ -2453,6 +2519,35 @@
 
     function statusText(value) {
       return { open: "營業中", closed: "休息中", suspended: "暫停服務", unset: "未設定（店家依營業時間）" }[value] || "未設定";
+    }
+
+    function wifiApCategoryText(value) {
+      return { infrastructure: "場域設備", public: "公共網路", store: "店家設備", unknown: "未分類" }[value] || "未分類";
+    }
+
+    function wifiApHealthText(value) {
+      return {
+        candidate: "候選",
+        verified: "已確認",
+        stable: "穩定",
+        moved_suspected: "疑似位移",
+        offline_suspected: "疑似停止",
+        disabled: "已停用",
+      }[value] || value;
+    }
+
+    function wifiApManagementText(value) {
+      return { active: "啟用", review: "待複查", disabled: "停用" }[value] || value;
+    }
+
+    function formatAdminDate(value) {
+      if (!value) return "尚無紀錄";
+      const date = new Date(value);
+      return Number.isNaN(date.getTime()) ? "尚無紀錄" : date.toLocaleString("zh-TW", { hour12: false });
+    }
+
+    function cssEscape(value) {
+      return window.CSS?.escape ? window.CSS.escape(value) : String(value).replace(/[^a-zA-Z0-9_-]/g, "\\$&");
     }
 
     function adminPointId(prefix, x, y) {

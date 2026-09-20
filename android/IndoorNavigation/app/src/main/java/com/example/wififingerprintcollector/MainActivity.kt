@@ -3604,8 +3604,14 @@ class MainActivity : AppCompatActivity() {
     private fun uploadPendingWifiScans() {
         lifecycleScope.launch {
             val pendingRecords = dao.getPendingUploadRecords()
-            if (pendingRecords.isEmpty()) {
-                binding.textSyncStatus.text = "同步狀態：目前沒有待上傳 Wi-Fi 指紋資料。"
+            val calibrationFloor = activeSamplingFloor()
+            val apCalibrations = if (calibrationFloor == null) {
+                emptyList()
+            } else {
+                wifiApCalibrationDao.getForScope(activeSamplingMapId(), calibrationFloor)
+            }
+            if (pendingRecords.isEmpty() && apCalibrations.isEmpty()) {
+                binding.textSyncStatus.text = "同步狀態：目前沒有待上傳的指紋或基地台資料。"
                 showMessage("目前沒有待上傳資料")
                 return@launch
             }
@@ -3630,7 +3636,7 @@ class MainActivity : AppCompatActivity() {
             val batches = recordsByScope.flatMap { (scope, records) ->
                 records.chunked(WIFI_UPLOAD_BATCH_SIZE).map { scope to it }
             }
-            binding.textSyncStatus.text = "同步狀態：準備分批上傳 ${pendingRecords.size} 筆 Wi-Fi 指紋資料..."
+            binding.textSyncStatus.text = "同步狀態：準備上傳 ${pendingRecords.size} 筆指紋、${apCalibrations.size} 台基地台..."
 
             var uploadedCount = 0
             var acceptedCount = 0
@@ -3689,6 +3695,23 @@ class MainActivity : AppCompatActivity() {
                 uploadedCount += batch.size
             }
 
+            var uploadedApCount = 0
+            if (apCalibrations.isNotEmpty()) {
+                val response = runCatching {
+                    withContext(Dispatchers.IO) {
+                        postWifiApCalibrations("$backendUrl/api/wifi-aps/bulk", apCalibrations)
+                    }
+                }.getOrElse { error ->
+                    binding.textSyncStatus.text = "同步狀態：指紋已處理，但基地台資料上傳失敗\n${error.message ?: error.javaClass.simpleName}"
+                    return@launch
+                }
+                if (response.statusCode !in 200..299 || !response.accepted) {
+                    binding.textSyncStatus.text = "同步狀態：基地台資料未確認儲存\nHTTP：${response.statusCode}\n${response.message.ifBlank { response.rawBody.take(180) }}"
+                    return@launch
+                }
+                uploadedApCount = response.savedCount
+            }
+
             var retrainedCount = 0
             if (acceptedCount > 0) {
                 uploadedScopes.forEach { (mapId, floorId) ->
@@ -3707,6 +3730,7 @@ class MainActivity : AppCompatActivity() {
                 append("同步狀態：上傳完成\n")
                 append("本次上傳：$uploadedCount 筆\n")
                 append("後端接受：$acceptedCount 筆\n")
+                append("基地台同步：$uploadedApCount 台\n")
                 if (retainedPendingCount > 0) {
                     append("保留待重傳：$retainedPendingCount 筆\n")
                 }
@@ -3808,7 +3832,6 @@ class MainActivity : AppCompatActivity() {
                 statusCode = statusCode,
                 accepted = json?.optBoolean("accepted", false) == true &&
                     json.optBoolean("persisted", false) &&
-                    json.optString("storage") == "firebase-rtdb" &&
                     json.optInt("persistedCount", -1) == records.size,
                 savedCount = json?.optInt("savedCount", 0) ?: 0,
                 message = json?.optString("message").orEmpty(),
@@ -3816,6 +3839,65 @@ class MainActivity : AppCompatActivity() {
             )
         } finally {
             connection.disconnect()
+        }
+    }
+
+    private fun postWifiApCalibrations(endpoint: String, calibrations: List<WifiApCalibration>): UploadResponse {
+        val body = JSONObject().put("calibrations", JSONArray().apply {
+            calibrations.forEach { item ->
+                put(JSONObject().apply {
+                    put("calibrationId", item.calibrationId)
+                    put("bssid", item.bssid)
+                    put("ssid", item.ssid)
+                    put("mapId", item.mapId)
+                    put("floorId", floorIdForApCalibration(item))
+                    put("x", item.x)
+                    put("y", item.y)
+                    put("referenceRssi", item.referenceRssi)
+                    put("pathLossExponent", item.pathLossExponent)
+                    put("rmse", item.rmse)
+                    put("samplePointCount", item.samplePointCount)
+                    put("observationCount", item.observationCount)
+                    put("suggestedPointId", item.suggestedPointId)
+                    put("calibrationStatus", item.status)
+                    put("source", item.source)
+                    put("collectorUpdatedAt", isoDateTime(item.updatedAt))
+                })
+            }
+        }).toString()
+        val connection = (URL(endpoint).openConnection() as HttpURLConnection).apply {
+            requestMethod = "POST"
+            connectTimeout = 8000
+            readTimeout = 30000
+            doOutput = true
+            setRequestProperty("Content-Type", "application/json; charset=utf-8")
+        }
+        return try {
+            connection.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
+            val statusCode = connection.responseCode
+            val stream = if (statusCode in 200..299) connection.inputStream else connection.errorStream
+            val raw = stream?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }.orEmpty()
+            val json = raw.takeIf { it.isNotBlank() }?.let { JSONObject(it) }
+            UploadResponse(
+                statusCode = statusCode,
+                accepted = json?.optBoolean("accepted", false) == true && json.optBoolean("persisted", false),
+                savedCount = json?.optInt("savedCount", 0) ?: 0,
+                message = json?.optString("message").orEmpty(),
+                rawBody = raw
+            )
+        } finally {
+            connection.disconnect()
+        }
+    }
+
+    private fun floorIdForApCalibration(calibration: WifiApCalibration): String {
+        if (calibration.mapId == backendMapId && calibration.floor == activeSamplingFloor() && backendFloorId.isNotBlank()) {
+            return backendFloorId
+        }
+        return if (calibration.mapId == "k-area-airport") {
+            "k-area-airport-${calibration.floor}f"
+        } else {
+            calibration.floor.toString()
         }
     }
 
@@ -4149,7 +4231,8 @@ class MainActivity : AppCompatActivity() {
                     "1. 自動建立候選基地台",
                     "2. 在目前點位確認基地台",
                     "3. 查看校正結果",
-                    "4. 匯出基地台 CSV"
+                    "4. 匯出基地台 CSV",
+                    "5. 上傳基地台資料"
                 )
             ) { _, index ->
                 when (index) {
@@ -4162,6 +4245,7 @@ class MainActivity : AppCompatActivity() {
                         updateStatus("基地台資料已匯出：${file.absolutePath}")
                         showMessage("已匯出 ${file.name}")
                     }
+                    5 -> uploadPendingWifiScans()
                 }
             }
             .setMessage(

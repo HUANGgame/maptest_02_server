@@ -70,6 +70,36 @@ async function main() {
       (body) => Array.isArray(body.items) && body.items.some((item) => item.name === "常見 AP 缺漏") && body.items.every((item) => typeof item.action === "string"),
       "wifi quality actions"
     ));
+    checks.push(assert(await request("POST", "/api/wifi-aps/bulk", {
+      calibrations: [
+        wifiAp("smoke-ap-1", "aa:aa:aa:aa:aa:01", 180, 620),
+        wifiAp("smoke-ap-2", "aa:aa:aa:aa:aa:02", 520, 330),
+        wifiAp("smoke-ap-3", "aa:aa:aa:aa:aa:03", 520, 620),
+      ],
+    }), (body) => body.accepted === true && body.persisted === true && body.savedCount === 3, "wifi AP calibration upload"));
+    checks.push(assert(
+      await request("GET", "/api/wifi-aps?mapId=tkut-demo&floorId=tkut-demo-ground"),
+      (body) => body.summary?.total === 3 && body.items?.every((item) => item.calibrationStatus === "verified"),
+      "wifi AP management list"
+    ));
+    checks.push(assert(await request("POST", "/api/wifi-aps/update", {
+      calibrationId: "smoke-ap-1",
+      category: "infrastructure",
+      managementStatus: "review",
+      x: 181,
+      y: 619,
+      notes: "smoke correction",
+    }), (body) => body.success === true && body.item?.positionManaged === true, "wifi AP correction"));
+    const olderCalibration = wifiAp("smoke-ap-1", "aa:aa:aa:aa:aa:01", 180, 620);
+    olderCalibration.collectorUpdatedAt = "2025-01-01T00:00:00.000Z";
+    checks.push(assert(await request("POST", "/api/wifi-aps/bulk", {
+      calibrations: [olderCalibration],
+    }), (body) => body.accepted === true, "wifi AP repeat upload"));
+    checks.push(assert(
+      await request("GET", "/api/wifi-aps?mapId=tkut-demo&floorId=tkut-demo-ground"),
+      (body) => body.items?.find((item) => item.calibrationId === "smoke-ap-1")?.x === 181,
+      "wifi AP manual correction preserved"
+    ));
     checks.push(assert(await request("POST", "/api/models/train", {
       mapId: "tkut-demo",
       floorId: "tkut-demo-ground",
@@ -281,6 +311,26 @@ function wifiRecord(pointId, x, y, bssid, rssi) {
     rssi,
     deviceInfo: "smoke-test",
     scannedAt: new Date().toISOString(),
+  };
+}
+
+function wifiAp(calibrationId, bssid, x, y) {
+  return {
+    calibrationId,
+    bssid,
+    ssid: "Demo AP",
+    mapId: "tkut-demo",
+    floorId: "tkut-demo-ground",
+    x,
+    y,
+    referenceRssi: -43,
+    pathLossExponent: 2.4,
+    rmse: 4,
+    samplePointCount: 6,
+    observationCount: 30,
+    calibrationStatus: "verified",
+    source: "field_confirmed",
+    collectorUpdatedAt: new Date().toISOString(),
   };
 }
 

@@ -12,6 +12,7 @@ const { appendReport, deleteReports, readReports } = require("./lib/reportStore"
 const { clearRouteGraphForFloor, createFloorTransition, createRouteNode, createRouteSegment, createRouteZone, deleteFloorTransition, deleteRouteEdge, deleteRouteNode, deleteRouteZone, readFloorTransitions, readRouteEdges, readRouteNodes, readRouteZones, restoreLastDeleted, setRouteEdgeBlocked, updateRouteZone } = require("./lib/routeEdgeStore");
 const { createTrainingJob, readTrainingJobs } = require("./lib/trainingJobStore");
 const { appendScans, readScans } = require("./lib/jsonStore");
+const { analyzeWifiAps, estimateWifiApPosition, readWifiAps, updateWifiAp, upsertWifiAps } = require("./lib/wifiApStore");
 const firebaseMirror = require("./lib/firebaseMirror");
 const mysqlMirror = require("./lib/mysqlMirror");
 const sqlServerStore = require("./lib/sqlServerStore");
@@ -76,9 +77,19 @@ const server = http.createServer(async (request, response) => {
   if (request.method === "GET" && url.pathname === "/download/apk") {
     sendDownload(
       response,
-      path.join(__dirname, "..", "dist", "地下街室內導航-WiFi指紋蒐集-demo.apk"),
+      path.join(__dirname, "public", "WifiFingerprintCollector_LATEST.apk"),
       "application/vnd.android.package-archive",
-      "indoor-navigation-wifi-demo.apk"
+      "fingerprint-collector-latest-debug.apk"
+    );
+    return;
+  }
+
+  if (request.method === "GET" && url.pathname === "/download/navigator-apk") {
+    sendDownload(
+      response,
+      path.join(__dirname, "public", "TaipeiStation_IndoorNavigation_FINAL.apk"),
+      "application/vnd.android.package-archive",
+      "navigator-latest-debug.apk"
     );
     return;
   }
@@ -382,6 +393,59 @@ const server = http.createServer(async (request, response) => {
     const floorId = url.searchParams.get("floorId") || "";
     const records = await wifiScansForScope(mapId, floorId);
     sendJson(response, 200, buildWifiQuality(records));
+    return;
+  }
+
+  if (request.method === "GET" && url.pathname === "/api/wifi-aps") {
+    const mapId = url.searchParams.get("mapId") || "";
+    const floorId = url.searchParams.get("floorId") || "";
+    const calibrations = readWifiAps({ mapId, floorId });
+    const scans = await wifiScansForScope(mapId, floorId);
+    sendJson(response, 200, analyzeWifiAps(calibrations, scans));
+    return;
+  }
+
+  if (request.method === "POST" && url.pathname === "/api/wifi-aps/bulk") {
+    try {
+      const body = await readJsonBody(request);
+      const records = Array.isArray(body.calibrations) ? body.calibrations : [];
+      if (!records.length) throw new Error("calibrations 不可空白。");
+      if (!sqlServerStore.isEnabled() && !firebaseMirror.isEnabled() && process.env.ALLOW_JSON_WRITES !== "true") {
+        throw new Error("External storage unavailable; retain AP calibrations for retry");
+      }
+      const saved = upsertWifiAps(records);
+      await mirrorDocumentFiles(["wifi_ap_calibrations.json"]);
+      sendJson(response, 201, {
+        success: true,
+        accepted: true,
+        persisted: true,
+        savedCount: saved.length,
+        storage: activeStorageName(),
+      });
+    } catch (error) {
+      sendJson(response, 400, { success: false, accepted: false, message: error.message });
+    }
+    return;
+  }
+
+  if (request.method === "POST" && url.pathname === "/api/wifi-aps/update") {
+    try {
+      const body = await readJsonBody(request);
+      const calibrationId = String(body.calibrationId || "").trim();
+      if (!calibrationId) throw new Error("calibrationId 不可空白。");
+      if (!sqlServerStore.isEnabled() && !firebaseMirror.isEnabled() && process.env.ALLOW_JSON_WRITES !== "true") {
+        throw new Error("External storage unavailable; AP update was not applied");
+      }
+      const item = updateWifiAp(calibrationId, body);
+      if (!item) {
+        sendJson(response, 404, { success: false, message: "找不到基地台資料。" });
+        return;
+      }
+      await mirrorDocumentFiles(["wifi_ap_calibrations.json"]);
+      sendJson(response, 200, { success: true, item });
+    } catch (error) {
+      sendJson(response, 400, { success: false, message: error.message });
+    }
     return;
   }
 
@@ -1111,7 +1175,7 @@ function mirrorFullAdminSnapshot() {
     policyLogs: readPolicyLogs(),
   };
   return Promise.all([
-    mirrorDocumentFiles(["catalog_records.json", "place_overrides.json", "route_graph_records.json", "route_edge_overrides.json", "strategy_training_runs.json", "navigation_policy_logs.json"]),
+    mirrorDocumentFiles(["catalog_records.json", "place_overrides.json", "route_graph_records.json", "route_edge_overrides.json", "strategy_training_runs.json", "navigation_policy_logs.json", "wifi_ap_calibrations.json"]),
     mysqlMirror.mirrorAdminData(snapshot),
   ]);
 }
@@ -1244,6 +1308,7 @@ function buildScopedExport(mapId, floorId) {
       return true;
     }),
     wifiScanRecords: readScans().filter(scopeMatches),
+    wifiAccessPoints: readWifiAps({ mapId, floorId }),
     modelVersions: readModels().filter(scopeMatches),
     modelTrainingJobs: readTrainingJobs().filter(scopeMatches),
     navigationFeedbackRecords: readFeedback().filter(scopeMatches),
@@ -1479,19 +1544,20 @@ async function estimateLocation(body) {
   if (!model) return null;
   const currentVector = wifiVector(wifiList);
   if (currentVector.size < 1) return null;
+  let scopeRecords = null;
   const indexedProfiles = sqlServerStore.isEnabled()
-    ? null
+    ? await sqlServerStore.readWifiFingerprintProfiles(model.mapId, model.floorId)
     : await firebaseMirror.readWifiFingerprintProfiles(model.mapId, model.floorId);
   const profiles = Array.isArray(indexedProfiles) && indexedProfiles.length > 0
     ? indexedProfiles.map((profile) => ({ ...profile, vector: new Map(profile.vectorEntries || []) }))
-    : buildPointProfiles(await wifiScansForScope(model.mapId, model.floorId));
+    : buildPointProfiles(scopeRecords = await wifiScansForScope(model.mapId, model.floorId));
   const candidates = rankKnnProfiles(profiles, currentVector, "", motionContextFromBody(body, model)).slice(0, 5);
   if (candidates.length === 0) return null;
 
   const weights = candidates.map((candidate) => 1 / Math.max(candidate.score, 0.001) ** 2);
   const weightSum = weights.reduce((sum, value) => sum + value, 0);
-  const x = candidates.reduce((sum, candidate, index) => sum + candidate.x * weights[index], 0) / weightSum;
-  const y = candidates.reduce((sum, candidate, index) => sum + candidate.y * weights[index], 0) / weightSum;
+  let x = candidates.reduce((sum, candidate, index) => sum + candidate.x * weights[index], 0) / weightSum;
+  let y = candidates.reduce((sum, candidate, index) => sum + candidate.y * weights[index], 0) / weightSum;
   const best = candidates[0];
   const second = candidates[1];
   const commonApCount = best.commonApCount;
@@ -1511,9 +1577,25 @@ async function estimateLocation(body) {
   ), 5, 95);
   const neighborSpreadMeters = weightedNeighborSpreadMeters(candidates, x, y, model.mapId, model.floorId);
   const signalError = Math.max(1, best.distance / 6);
-  const estimatedError = [neighborSpreadMeters, signalError]
+  let estimatedError = [neighborSpreadMeters, signalError]
     .filter(Number.isFinite)
     .reduce((max, value) => Math.max(max, value), 1);
+  let apEstimate = null;
+  const apCalibrations = readWifiAps({ mapId: model.mapId, floorId: model.floorId });
+  if (apCalibrations.length >= 3) {
+    apEstimate = estimateWifiApPosition(apCalibrations.map((item) => ({ ...item, healthStatus: "verified" })), wifiList);
+    if (apEstimate) {
+      const agreementMeters = Math.hypot(apEstimate.x - x, apEstimate.y - y) / DEFAULT_PIXELS_PER_METER;
+      if (agreementMeters <= 20) {
+        const apWeight = clamp((apEstimate.confidence - 20) / 200, 0.1, 0.34);
+        x = x * (1 - apWeight) + apEstimate.x * apWeight;
+        y = y * (1 - apWeight) + apEstimate.y * apWeight;
+        estimatedError = Math.max(1, Math.min(estimatedError, apEstimate.estimatedError + agreementMeters * 0.25));
+      } else {
+        apEstimate = null;
+      }
+    }
+  }
 
   return {
     mapId: model.mapId,
@@ -1529,6 +1611,8 @@ async function estimateLocation(body) {
     keyApBoost: Math.round((best.keyApBoost || 0) * 100) / 100,
     matchedPointCount: candidates.length,
     stableApCount: best.stableApCount || 0,
+    trilaterationApCount: apEstimate?.matchedApCount || 0,
+    positioningSource: apEstimate ? "wifi-fingerprint+ap-trilateration" : "wifi-fingerprint",
     trainingSamplesAtPoint: best.sampleCount || 0,
     accuracyTarget: confidence >= 70 && estimatedError <= 5 ? "3-5mCandidate" : "needsMoreCalibration",
   };
