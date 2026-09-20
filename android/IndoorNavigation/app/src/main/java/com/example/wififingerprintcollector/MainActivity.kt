@@ -1465,6 +1465,37 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private fun getBackendFingerprintPoints(baseUrl: String, mapId: String, floorId: String): List<BackendFingerprintPoint> {
+        val endpoint = "$baseUrl/api/wifi-scans/points?mapId=${mapId.urlEncode()}&floorId=${floorId.urlEncode()}"
+        val connection = (URL(endpoint).openConnection() as HttpURLConnection).apply {
+            requestMethod = "GET"
+            connectTimeout = 8000
+            readTimeout = 12000
+        }
+        return try {
+            val statusCode = connection.responseCode
+            val stream = if (statusCode in 200..299) connection.inputStream else connection.errorStream
+            val raw = stream?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }.orEmpty()
+            if (statusCode !in 200..299) throw IOException(raw.ifBlank { "HTTP $statusCode" })
+            val items = JSONObject(raw).optJSONArray("points") ?: JSONArray()
+            (0 until items.length()).mapNotNull { index ->
+                val item = items.optJSONObject(index) ?: return@mapNotNull null
+                val pointId = item.optString("pointId").trim()
+                val x = item.optDouble("x", Double.NaN)
+                val y = item.optDouble("y", Double.NaN)
+                if (pointId.isBlank() || x.isNaN() || y.isNaN()) return@mapNotNull null
+                BackendFingerprintPoint(
+                    pointId = pointId,
+                    x = x.toFloat(),
+                    y = y.toFloat(),
+                    scanCount = item.optInt("scanCount", 0)
+                )
+            }
+        } finally {
+            connection.disconnect()
+        }
+    }
+
     private fun postBackendRouteNode(baseUrl: String, node: BackendRouteNode) {
         val body = JSONObject()
             .put("id", node.id)
@@ -1860,7 +1891,7 @@ class MainActivity : AppCompatActivity() {
         val backendPoints = if (mapId.isNotBlank() && floorId.isNotBlank()) {
             runCatching {
                 withContext(Dispatchers.IO) {
-                    getBackendPlaces(backendUrl, mapId, floorId).mapIndexed { index, place ->
+                    val placePoints = getBackendPlaces(backendUrl, mapId, floorId).mapIndexed { index, place ->
                         val pointId = backendPlacePointId(place, index)
                         restoredPlaces[pointId] = place
                         val sampleCount = dao.getSampleCountByPointScope(pointId, listOf(mapId), floor)
@@ -1882,6 +1913,31 @@ class MainActivity : AppCompatActivity() {
                             backendNodeId = place.routeNodeId
                         )
                     }
+                    val existingIds = placePoints.map { it.pointId }.toSet()
+                    val missingFingerprintPoints = getBackendFingerprintPoints(backendUrl, mapId, floorId)
+                        .filter { fingerprint ->
+                            fingerprint.pointId !in existingIds && placePoints.none { place ->
+                                kotlin.math.abs(place.x - fingerprint.x) <= 3f &&
+                                    kotlin.math.abs(place.y - fingerprint.y) <= 3f
+                            }
+                        }
+                        .mapIndexed { index, fingerprint ->
+                            SamplingPoint(
+                                pointId = fingerprint.pointId,
+                                x = fingerprint.x,
+                                y = fingerprint.y,
+                                floor = floor,
+                                note = "既有指紋點；${fingerprint.scanCount} 筆掃描",
+                                sourceMode = "BACKEND_FINGERPRINT",
+                                moveDirection = "BACKEND_FINGERPRINT",
+                                intervalMeters = 0f,
+                                azimuth = safeAzimuth(),
+                                isStart = placePoints.isEmpty() && index == 0,
+                                sampled = fingerprint.scanCount > 0,
+                                displayLabel = fingerprint.pointId
+                            )
+                        }
+                    placePoints + missingFingerprintPoints
                 }
             }.getOrElse {
                 updateStatus("點位同步失敗：${it.message}，請重新整理地圖後再採集。")
@@ -4039,6 +4095,13 @@ class MainActivity : AppCompatActivity() {
         val routeNodeId: String = "",
         val x: Float,
         val y: Float
+    )
+
+    private data class BackendFingerprintPoint(
+        val pointId: String,
+        val x: Float,
+        val y: Float,
+        val scanCount: Int
     )
 
     private data class ImageSize(val width: Int, val height: Int) {

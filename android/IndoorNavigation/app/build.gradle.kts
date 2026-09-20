@@ -22,8 +22,8 @@ android {
         create("collector") {
             dimension = "mode"
             applicationId = "com.example.wififingerprintcollector"
-            versionCode = 15
-            versionName = "1.0.15"
+            versionCode = 16
+            versionName = "1.0.16"
             manifestPlaceholders["appLabel"] = "Wi-Fi 指紋採樣工具"
         }
         create("navigator") {
