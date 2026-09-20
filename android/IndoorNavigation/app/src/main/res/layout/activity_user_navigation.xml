@@ -1,0 +1,375 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/app_bg"
+    android:fitsSystemWindows="true"
+    android:orientation="vertical">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingHorizontal="12dp"
+        android:paddingTop="16dp"
+        android:paddingBottom="8dp">
+
+        <EditText
+            android:id="@+id/editSearch"
+            android:layout_width="0dp"
+            android:layout_height="44dp"
+            android:layout_weight="1"
+            android:background="@drawable/bg_input"
+            android:hint="搜尋地點、設施或類別"
+            android:imeOptions="actionSearch"
+            android:inputType="text"
+            android:paddingHorizontal="12dp"
+            android:singleLine="true" />
+
+        <Button
+            android:id="@+id/buttonSearch"
+            style="@style/ToolButton"
+            android:layout_width="68dp"
+            android:layout_height="44dp"
+            android:layout_marginStart="8dp"
+            android:background="@drawable/bg_button_primary"
+            android:text="搜尋"
+            android:textColor="@android:color/white" />
+    </LinearLayout>
+
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1">
+
+        <com.example.wififingerprintcollector.DemoNavigationMapView
+            android:id="@+id/navigationMapView"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent" />
+
+        <TextView
+            android:id="@+id/textWifiSignalStatus"
+            android:layout_width="48dp"
+            android:layout_height="32dp"
+            android:layout_gravity="end|top"
+            android:layout_marginTop="10dp"
+            android:layout_marginEnd="12dp"
+            android:background="@drawable/bg_card"
+            android:gravity="center"
+            android:text="WiFi"
+            android:textColor="@android:color/white"
+            android:textSize="11sp"
+            android:textStyle="bold" />
+
+        <LinearLayout
+            android:layout_width="56dp"
+            android:layout_height="wrap_content"
+            android:layout_gravity="start|center_vertical"
+            android:layout_marginStart="10dp"
+            android:background="@drawable/bg_card"
+            android:orientation="vertical"
+            android:padding="6dp">
+
+            <Button
+                android:id="@+id/buttonFloorGround"
+                style="@style/ToolButton"
+                android:layout_width="match_parent"
+                android:layout_height="40dp"
+                android:background="@drawable/bg_button_secondary"
+                android:text="1F"
+                android:textColor="@color/primary_blue_dark" />
+
+            <Button
+                android:id="@+id/buttonFloorSecond"
+                style="@style/ToolButton"
+                android:layout_width="match_parent"
+                android:layout_height="40dp"
+                android:layout_marginTop="6dp"
+                android:background="@drawable/bg_button_outline"
+                android:text="2F"
+                android:textColor="@color/text_primary" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="48dp"
+            android:layout_height="wrap_content"
+            android:layout_gravity="end|center_vertical"
+            android:layout_marginEnd="10dp"
+            android:background="@drawable/bg_card"
+            android:orientation="vertical"
+            android:padding="6dp">
+
+            <Button
+                android:id="@+id/buttonRelocate"
+                style="@style/ToolButton"
+                android:layout_width="match_parent"
+                android:layout_height="40dp"
+                android:background="@drawable/bg_button_outline"
+                android:text="定位"
+                android:textColor="@color/text_primary" />
+
+            <Button
+                android:id="@+id/buttonMapRotation"
+                style="@style/ToolButton"
+                android:layout_width="match_parent"
+                android:layout_height="40dp"
+                android:layout_marginTop="6dp"
+                android:background="@drawable/bg_button_outline"
+                android:text="固定"
+                android:textColor="@color/text_primary"
+                android:textSize="11sp" />
+
+            <Button
+                android:id="@+id/buttonZoomIn"
+                style="@style/ToolButton"
+                android:layout_width="match_parent"
+                android:layout_height="40dp"
+                android:layout_marginTop="6dp"
+                android:background="@drawable/bg_button_outline"
+                android:text="+"
+                android:textColor="@color/text_primary" />
+
+            <Button
+                android:id="@+id/buttonZoomOut"
+                style="@style/ToolButton"
+                android:layout_width="match_parent"
+                android:layout_height="40dp"
+                android:layout_marginTop="6dp"
+                android:background="@drawable/bg_button_outline"
+                android:text="-"
+                android:textColor="@color/text_primary" />
+
+            <Button
+                android:id="@+id/buttonResetMap"
+                style="@style/ToolButton"
+                android:layout_width="match_parent"
+                android:layout_height="40dp"
+                android:layout_marginTop="6dp"
+                android:background="@drawable/bg_button_outline"
+                android:text="2D"
+                android:textColor="@color/text_primary"
+                android:visibility="gone" />
+        </LinearLayout>
+    </FrameLayout>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="@drawable/bg_card"
+        android:orientation="vertical"
+        android:padding="12dp">
+
+        <TextView
+            android:id="@+id/textNextStep"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="請搜尋或選擇目的地。"
+            android:textColor="@color/text_primary"
+            android:textSize="16sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/textSensorAssist"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:text="輔助定位：等待方向與步數資料"
+            android:textColor="@color/text_secondary"
+            android:textSize="13sp"
+            android:visibility="gone" />
+
+        <TextView
+            android:id="@+id/textBackendStatus"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:text="資料狀態：使用本機 Demo 資料"
+            android:textColor="@color/text_secondary"
+            android:textSize="13sp"
+            android:visibility="gone" />
+
+        <TextView
+            android:id="@+id/textModelStatus"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:text="定位模型：尚未檢查"
+            android:textColor="@color/text_secondary"
+            android:textSize="13sp"
+            android:visibility="gone" />
+
+        <TextView
+            android:id="@+id/textRecentNavigation"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:text="最近導航：尚無紀錄"
+            android:textColor="@color/text_secondary"
+            android:textSize="13sp"
+            android:visibility="gone" />
+
+        <Switch
+            android:id="@+id/switchImproveLocation"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:text="協助改善定位：未啟用"
+            android:textColor="@color/text_secondary"
+            android:textSize="13sp"
+            android:visibility="gone" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:orientation="horizontal">
+
+            <TextView
+                android:id="@+id/textDestination"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="目的地：尚未選擇"
+                android:textColor="@color/text_secondary"
+                android:textSize="14sp" />
+
+            <TextView
+                android:id="@+id/textDistance"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="-- 公尺"
+                android:textColor="@color/text_primary"
+                android:textSize="14sp" />
+
+            <TextView
+                android:id="@+id/textEstimatedTime"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="12dp"
+                android:text="-- 分鐘"
+                android:textColor="@color/text_primary"
+                android:textSize="14sp" />
+        </LinearLayout>
+
+        <HorizontalScrollView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:scrollbars="none">
+
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal">
+
+                <Button
+                    android:id="@+id/buttonShowRoute"
+                    style="@style/ToolButton"
+                    android:layout_width="104dp"
+                    android:layout_height="44dp"
+                    android:background="@drawable/bg_button_outline"
+                    android:text="顯示路線"
+                    android:textColor="@color/text_primary" />
+
+                <Button
+                    android:id="@+id/buttonStartNavigation"
+                    style="@style/ToolButton"
+                    android:layout_width="104dp"
+                    android:layout_height="44dp"
+                    android:layout_marginStart="8dp"
+                    android:background="@drawable/bg_button_primary"
+                    android:text="開始導航"
+                    android:textColor="@android:color/white" />
+
+                <Button
+                    android:id="@+id/buttonEndNavigation"
+                    style="@style/ToolButton"
+                    android:layout_width="104dp"
+                    android:layout_height="44dp"
+                    android:layout_marginStart="8dp"
+                    android:background="@drawable/bg_button_outline"
+                    android:text="結束導航"
+                    android:textColor="@color/text_primary" />
+
+                <Button
+                    android:id="@+id/buttonSaveLocation"
+                    style="@style/ToolButton"
+                    android:layout_width="104dp"
+                    android:layout_height="44dp"
+                    android:layout_marginStart="8dp"
+                    android:background="@drawable/bg_button_outline"
+                    android:text="儲存位置"
+                    android:textColor="@color/text_primary"
+                    android:visibility="gone" />
+
+                <Button
+                    android:id="@+id/buttonReturnOrigin"
+                    style="@style/ToolButton"
+                    android:layout_width="104dp"
+                    android:layout_height="44dp"
+                    android:layout_marginStart="8dp"
+                    android:background="@drawable/bg_button_outline"
+                    android:text="回到原位"
+                    android:textColor="@color/text_primary"
+                    android:visibility="gone" />
+
+                <Button
+                    android:id="@+id/buttonReport"
+                    style="@style/ToolButton"
+                    android:layout_width="104dp"
+                    android:layout_height="44dp"
+                    android:layout_marginStart="8dp"
+                    android:background="@drawable/bg_button_outline"
+                    android:text="回報問題"
+                    android:textColor="@color/text_primary"
+                    android:visibility="gone" />
+
+                <Button
+                    android:id="@+id/buttonClearHistory"
+                    style="@style/ToolButton"
+                    android:layout_width="104dp"
+                    android:layout_height="44dp"
+                    android:layout_marginStart="8dp"
+                    android:background="@drawable/bg_button_outline"
+                    android:text="刪除紀錄"
+                    android:textColor="@color/text_primary"
+                    android:visibility="gone" />
+
+                <Button
+                    android:id="@+id/buttonAdminMode"
+                    style="@style/ToolButton"
+                    android:layout_width="72dp"
+                    android:layout_height="44dp"
+                    android:layout_marginStart="8dp"
+                    android:background="@drawable/bg_button_outline"
+                    android:text="設定"
+                    android:textColor="@color/text_secondary" />
+
+                <Button
+                    android:id="@+id/buttonSos"
+                    style="@style/ToolButton"
+                    android:layout_width="72dp"
+                    android:layout_height="44dp"
+                    android:layout_marginStart="8dp"
+                    android:background="@drawable/bg_button_danger"
+                    android:text="SOS"
+                    android:textColor="@android:color/white"
+                    android:textStyle="bold" />
+            </LinearLayout>
+        </HorizontalScrollView>
+
+        <HorizontalScrollView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:scrollbars="none">
+
+            <LinearLayout
+                android:id="@+id/layoutSearchResults"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal" />
+        </HorizontalScrollView>
+    </LinearLayout>
+</LinearLayout>

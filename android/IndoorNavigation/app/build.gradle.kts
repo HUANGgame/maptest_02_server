@@ -1,43 +1,63 @@
 plugins {
-    alias(libs.plugins.android.application)
+    id("com.android.application")
+    id("org.jetbrains.kotlin.android")
+    id("com.google.devtools.ksp")
 }
 
 android {
-    namespace = "com.example.indoornavigation"
-    compileSdk {
-        version = release(37)
-    }
+    namespace = "com.example.wififingerprintcollector"
+    compileSdk = 36
 
     defaultConfig {
-        applicationId = "com.example.indoornavigation"
+        applicationId = "com.example.wififingerprintcollector"
         minSdk = 26
-        targetSdk = 37
-        versionCode = 1
-        versionName = "1.0"
-
-        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        targetSdk = 36
+        versionCode = 5
+        versionName = "1.0.5"
+        manifestPlaceholders["appLabel"] = "Wi-Fi 指紋採樣工具"
     }
 
-    buildTypes {
-        release {
-            optimization {
-                enable = false
-            }
+    flavorDimensions += "mode"
+    productFlavors {
+        create("collector") {
+            dimension = "mode"
+            applicationId = "com.example.wififingerprintcollector"
+            versionCode = 8
+            versionName = "1.0.8"
+            manifestPlaceholders["appLabel"] = "Wi-Fi 指紋採樣工具"
+        }
+        create("navigator") {
+            dimension = "mode"
+            applicationId = "com.example.indoor.navigator"
+            versionCode = 52
+            versionName = "1.0.52"
+            manifestPlaceholders["appLabel"] = "智慧地下街Wi-Fi室內定位導航系統"
         }
     }
+
+    buildFeatures {
+        viewBinding = true
+    }
+
     compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_11
-        targetCompatibility = JavaVersion.VERSION_11
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+
+    kotlinOptions {
+        jvmTarget = "17"
     }
 }
 
 dependencies {
-    implementation(libs.androidx.activity.ktx)
-    implementation(libs.androidx.appcompat)
-    implementation(libs.androidx.constraintlayout)
-    implementation(libs.androidx.core.ktx)
-    implementation(libs.material)
-    testImplementation(libs.junit)
-    androidTestImplementation(libs.androidx.espresso.core)
-    androidTestImplementation(libs.androidx.junit)
+    testImplementation("junit:junit:4.13.2")
+    implementation("androidx.core:core-ktx:1.15.0")
+    implementation("androidx.appcompat:appcompat:1.7.0")
+    implementation("androidx.activity:activity-ktx:1.9.3")
+    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.7")
+    implementation("androidx.recyclerview:recyclerview:1.3.2")
+
+    implementation("androidx.room:room-runtime:2.6.1")
+    implementation("androidx.room:room-ktx:2.6.1")
+    ksp("androidx.room:room-compiler:2.6.1")
 }
