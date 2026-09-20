@@ -32,3 +32,13 @@ The current local dataset contains about 51,000 Wi-Fi observations. Azure SQL is
 The migration is complete only after the Azure record count, scope count, point count, and newest timestamp match the source. Keep a JSON export before removing any source records.
 
 Do not remove Firebase credentials until reviews and remaining small compatibility collections have been moved and verified.
+
+## Import the checked local cache
+
+If Firebase credentials are unavailable, import the checked-in local snapshot without storing the SQL password:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/run-azure-sql-seed.ps1
+```
+
+The prompt keeps the password only in the current process. The import is idempotent and verifies that Azure SQL contains at least all local fingerprint records before reporting success.
