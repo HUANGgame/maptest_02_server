@@ -45,7 +45,11 @@ try {
   assert(admin.includes('id="newPlaceCategoryOptions"'), "admin needs independent category checkboxes");
   assert(admin.includes('input[type="checkbox"]:checked'), "admin must preserve all checked categories");
   assert(!admin.includes('id="newPlaceCategory" multiple'), "native multiple select is not an acceptable category picker");
-  console.log("PASS: status/hours survive editing, coordinates preserved, keyword/notes ranking, recency bounds, admin category picker and syntax");
+  const initBlock = admin.slice(admin.indexOf("async function init()"), admin.indexOf("function sortMapsForAdmin"));
+  assert(!initBlock.includes('await loadStorageStatus();'), "slow storage status must not block the map dashboard");
+  assert(admin.includes("loadSupplementalDashboard(mapId, floorId, loadVersion)"), "slow management panels must load after primary map data");
+  assert(admin.includes("Promise.allSettled(["), "supplemental panel failures must be isolated");
+  console.log("PASS: status/hours survive editing, coordinates preserved, keyword/notes ranking, recency bounds, progressive admin loading, category picker and syntax");
 } finally {
   fs.rmSync(directory, { recursive: true, force: true });
 }

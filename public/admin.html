@@ -553,6 +553,7 @@
     let zoneResizeState = null;
     let showPlaceMarkersOnMap = false;
     let showWifiPointsOnMap = false;
+    let dashboardLoadVersion = 0;
     const defaultPlaceCategories = ["店家", "商家", "手扶梯", "樓梯", "電梯", "出口", "廁所", "販賣機", "置物櫃", "服務台", "廣場", "停車場", "地下停車場", "售票機", "ATM", "重要設施", "未分類"];
     clearRouteZoneBackups();
     reloadButton.addEventListener("click", loadDashboard);
@@ -788,7 +789,7 @@
       mapSelect.innerHTML = maps.map(map => `<option value="${escapeHtml(map.id)}">${escapeHtml(map.name)}</option>`).join("");
       await loadFloors();
       await loadHealth();
-      await loadStorageStatus();
+      loadStorageStatus().catch(() => {});
       await loadDashboard();
     }
 
@@ -838,31 +839,25 @@
     async function loadDashboard() {
       const mapId = mapSelect.value;
       const floorId = floorSelect.value;
+      const loadVersion = ++dashboardLoadVersion;
+      document.querySelector("#adminNotice").textContent = "載入地圖與點位中";
       loadStorageStatus().catch(() => {});
-      const [places, allMapPlaces, summary, points, quality, wifiAps, routeEdges, routeNodes, routeZones, allNodes, transitions, feedback, models, jobs, policyRuns, policyLogs, reports] = await Promise.all([
+      const [places, allMapPlaces, summary, points, routeEdges, routeNodes, routeZones, allNodes, transitions] = await Promise.all([
         getJson(`/api/places?mapId=${encodeURIComponent(mapId)}&floorId=${encodeURIComponent(floorId)}`),
         getJson(`/api/places?mapId=${encodeURIComponent(mapId)}`),
         getJson(`/api/wifi-scans/summary?mapId=${encodeURIComponent(mapId)}&floorId=${encodeURIComponent(floorId)}`),
         getJson(`/api/wifi-scans/points?mapId=${encodeURIComponent(mapId)}&floorId=${encodeURIComponent(floorId)}`),
-        getJson(`/api/wifi-scans/quality?mapId=${encodeURIComponent(mapId)}&floorId=${encodeURIComponent(floorId)}`),
-        getJson(`/api/wifi-aps?mapId=${encodeURIComponent(mapId)}&floorId=${encodeURIComponent(floorId)}`),
         getJson(`/api/route-edges?mapId=${encodeURIComponent(mapId)}&floorId=${encodeURIComponent(floorId)}`),
         getJson(`/api/route-nodes?mapId=${encodeURIComponent(mapId)}&floorId=${encodeURIComponent(floorId)}`),
         getJson(`/api/route-zones?mapId=${encodeURIComponent(mapId)}&floorId=${encodeURIComponent(floorId)}`),
         getJson(`/api/route-nodes?mapId=${encodeURIComponent(mapId)}`),
         getJson(`/api/floor-transitions?mapId=${encodeURIComponent(mapId)}&floorId=${encodeURIComponent(floorId)}`),
-        getJson(`/api/navigation-feedback/quality-summary?mapId=${encodeURIComponent(mapId)}&floorId=${encodeURIComponent(floorId)}`),
-        getJson(`/api/models?mapId=${encodeURIComponent(mapId)}&floorId=${encodeURIComponent(floorId)}`),
-        getJson(`/api/model-training-jobs?mapId=${encodeURIComponent(mapId)}&floorId=${encodeURIComponent(floorId)}`),
-        getJson(`/api/navigation-policy/runs?mapId=${encodeURIComponent(mapId)}&floorId=${encodeURIComponent(floorId)}`),
-        getJson(`/api/navigation-policy/logs?mapId=${encodeURIComponent(mapId)}&floorId=${encodeURIComponent(floorId)}`),
-        getJson(`/api/user-reports`),
       ]);
+      if (loadVersion !== dashboardLoadVersion) return;
       currentPlaces = places;
       allPlaces = allMapPlaces;
       renderPlaceCategoryOptions();
       currentPoints = Array.isArray(points.points) ? points.points : [];
-      currentWifiAps = Array.isArray(wifiAps.items) ? wifiAps.items : [];
       currentRouteEdges = routeEdges;
       currentRouteNodes = routeNodes;
       currentRouteZones = Array.isArray(routeZones) ? routeZones : [];
@@ -932,44 +927,8 @@
         </tr>
       `).join("") || `<tr><td colspan="4" class="muted">目前沒有 Wi-Fi 採樣點</td></tr>`;
 
-      document.querySelector("#wifiApTotal").textContent = wifiAps.summary?.total || 0;
-      document.querySelector("#wifiApStable").textContent = wifiAps.summary?.stable || 0;
-      document.querySelector("#wifiApAttention").textContent = (wifiAps.summary?.moved_suspected || 0) + (wifiAps.summary?.offline_suspected || 0);
-      document.querySelector("#wifiApsBody").innerHTML = currentWifiAps.map(item => `
-        <tr>
-          <td><strong>${escapeHtml(item.ssid || "隱藏 SSID")}</strong><br><span class="muted">${escapeHtml(item.bssid)}</span></td>
-          <td><select data-ap-category="${escapeHtml(item.calibrationId)}">${["infrastructure", "public", "store", "unknown"].map(value => `<option value="${value}" ${item.category === value ? "selected" : ""}>${wifiApCategoryText(value)}</option>`).join("")}</select></td>
-          <td><span class="status-badge status-${escapeHtml(item.healthStatus)}">${wifiApHealthText(item.healthStatus)}</span><br><span class="muted">${escapeHtml(item.healthReason || "-")}</span><br><span class="muted">最後看到：${formatAdminDate(item.lastSeenAt)}</span></td>
-          <td><select data-ap-management="${escapeHtml(item.calibrationId)}">${["active", "review", "disabled"].map(value => `<option value="${value}" ${item.managementStatus === value ? "selected" : ""}>${wifiApManagementText(value)}</option>`).join("")}</select></td>
-          <td><input data-ap-x="${escapeHtml(item.calibrationId)}" type="number" step="0.1" value="${Number(item.x).toFixed(1)}"><input data-ap-y="${escapeHtml(item.calibrationId)}" type="number" step="0.1" value="${Number(item.y).toFixed(1)}"></td>
-          <td><input data-ap-notes="${escapeHtml(item.calibrationId)}" value="${escapeHtml(item.notes || "")}" placeholder="維護紀錄"></td>
-          <td><button data-ap-save="${escapeHtml(item.calibrationId)}">儲存</button></td>
-        </tr>
-      `).join("") || `<tr><td colspan="7" class="muted">尚未從採集 App 上傳基地台校正資料</td></tr>`;
-      document.querySelectorAll("[data-ap-save]").forEach(button => {
-        button.addEventListener("click", async () => {
-          const id = button.getAttribute("data-ap-save");
-          await runAdminAction("基地台資料已儲存", async () => {
-            await postJson("/api/wifi-aps/update", {
-              calibrationId: id,
-              category: document.querySelector(`[data-ap-category="${cssEscape(id)}"]`).value,
-              managementStatus: document.querySelector(`[data-ap-management="${cssEscape(id)}"]`).value,
-              x: Number(document.querySelector(`[data-ap-x="${cssEscape(id)}"]`).value),
-              y: Number(document.querySelector(`[data-ap-y="${cssEscape(id)}"]`).value),
-              notes: document.querySelector(`[data-ap-notes="${cssEscape(id)}"]`).value.trim(),
-            });
-            await loadDashboard();
-          });
-        });
-      });
-
-      document.querySelector("#qualityBody").innerHTML = quality.items.map(item => `
-        <tr>
-          <td>${escapeHtml(item.name)}</td>
-          <td class="${item.level === "bad" ? "bad" : item.level === "warn" ? "warn" : ""}">${escapeHtml(item.message)}</td>
-          <td>${escapeHtml(item.action || "-")}</td>
-        </tr>
-      `).join("");
+      document.querySelector("#wifiApsBody").innerHTML = `<tr><td colspan="7" class="muted">基地台資料背景載入中</td></tr>`;
+      document.querySelector("#qualityBody").innerHTML = `<tr><td colspan="3" class="muted">資料品質背景載入中</td></tr>`;
 
       document.querySelector("#routeEdgesBody").innerHTML = routeEdges.map(edge => `
         <tr>
@@ -1017,6 +976,72 @@
       });
 
       document.querySelector("#scopeInfo").textContent = `地圖：${mapId}，樓層：${floorId}`;
+      document.querySelector("#adminNotice").textContent = "地圖與點位已載入，其他管理資料背景載入中";
+      loadSupplementalDashboard(mapId, floorId, loadVersion);
+    }
+
+    async function loadSupplementalDashboard(mapId, floorId, loadVersion) {
+      const scope = `mapId=${encodeURIComponent(mapId)}&floorId=${encodeURIComponent(floorId)}`;
+      const results = await Promise.allSettled([
+        getJson(`/api/wifi-scans/quality?${scope}`),
+        getJson(`/api/wifi-aps?${scope}`),
+        getJson(`/api/navigation-feedback/quality-summary?${scope}`),
+        getJson(`/api/models?${scope}`),
+        getJson(`/api/model-training-jobs?${scope}`),
+        getJson(`/api/navigation-policy/runs?${scope}`),
+        getJson(`/api/navigation-policy/logs?${scope}`),
+      ]);
+      if (loadVersion !== dashboardLoadVersion) return;
+
+      const resultValue = (index, fallback) => results[index].status === "fulfilled" ? results[index].value : fallback;
+      const quality = resultValue(0, { items: [] });
+      const wifiAps = resultValue(1, { items: [], summary: {} });
+      const feedback = resultValue(2, { pendingCount: 0, highConfidenceCount: 0, rejectedCount: 0 });
+      const models = resultValue(3, []);
+      const jobs = resultValue(4, []);
+      const policyRuns = resultValue(5, []);
+      const policyLogs = resultValue(6, []);
+
+      currentWifiAps = Array.isArray(wifiAps.items) ? wifiAps.items : [];
+      document.querySelector("#wifiApTotal").textContent = wifiAps.summary?.total || 0;
+      document.querySelector("#wifiApStable").textContent = wifiAps.summary?.stable || 0;
+      document.querySelector("#wifiApAttention").textContent = (wifiAps.summary?.moved_suspected || 0) + (wifiAps.summary?.offline_suspected || 0);
+      document.querySelector("#wifiApsBody").innerHTML = currentWifiAps.map(item => `
+        <tr>
+          <td><strong>${escapeHtml(item.ssid || "隱藏 SSID")}</strong><br><span class="muted">${escapeHtml(item.bssid)}</span></td>
+          <td><select data-ap-category="${escapeHtml(item.calibrationId)}">${["infrastructure", "public", "store", "unknown"].map(value => `<option value="${value}" ${item.category === value ? "selected" : ""}>${wifiApCategoryText(value)}</option>`).join("")}</select></td>
+          <td><span class="status-badge status-${escapeHtml(item.healthStatus)}">${wifiApHealthText(item.healthStatus)}</span><br><span class="muted">${escapeHtml(item.healthReason || "-")}</span><br><span class="muted">最後看到：${formatAdminDate(item.lastSeenAt)}</span></td>
+          <td><select data-ap-management="${escapeHtml(item.calibrationId)}">${["active", "review", "disabled"].map(value => `<option value="${value}" ${item.managementStatus === value ? "selected" : ""}>${wifiApManagementText(value)}</option>`).join("")}</select></td>
+          <td><input data-ap-x="${escapeHtml(item.calibrationId)}" type="number" step="0.1" value="${Number(item.x).toFixed(1)}"><input data-ap-y="${escapeHtml(item.calibrationId)}" type="number" step="0.1" value="${Number(item.y).toFixed(1)}"></td>
+          <td><input data-ap-notes="${escapeHtml(item.calibrationId)}" value="${escapeHtml(item.notes || "")}" placeholder="維護紀錄"></td>
+          <td><button data-ap-save="${escapeHtml(item.calibrationId)}">儲存</button></td>
+        </tr>
+      `).join("") || `<tr><td colspan="7" class="muted">尚未從採集 App 上傳基地台校正資料</td></tr>`;
+      document.querySelectorAll("[data-ap-save]").forEach(button => {
+        button.addEventListener("click", async () => {
+          const id = button.getAttribute("data-ap-save");
+          await runAdminAction("基地台資料已儲存", async () => {
+            await postJson("/api/wifi-aps/update", {
+              calibrationId: id,
+              category: document.querySelector(`[data-ap-category="${cssEscape(id)}"]`).value,
+              managementStatus: document.querySelector(`[data-ap-management="${cssEscape(id)}"]`).value,
+              x: Number(document.querySelector(`[data-ap-x="${cssEscape(id)}"]`).value),
+              y: Number(document.querySelector(`[data-ap-y="${cssEscape(id)}"]`).value),
+              notes: document.querySelector(`[data-ap-notes="${cssEscape(id)}"]`).value.trim(),
+            });
+            await loadDashboard();
+          });
+        });
+      });
+
+      document.querySelector("#qualityBody").innerHTML = quality.items.map(item => `
+        <tr>
+          <td>${escapeHtml(item.name)}</td>
+          <td class="${item.level === "bad" ? "bad" : item.level === "warn" ? "warn" : ""}">${escapeHtml(item.message)}</td>
+          <td>${escapeHtml(item.action || "-")}</td>
+        </tr>
+      `).join("") || `<tr><td colspan="3" class="muted">目前沒有品質檢查資料</td></tr>`;
+
       document.querySelector("#pendingFeedback").textContent = feedback.pendingCount;
       document.querySelector("#highFeedback").textContent = feedback.highConfidenceCount;
       document.querySelector("#rejectedFeedback").textContent = feedback.rejectedCount;
@@ -1061,7 +1086,11 @@
           <td>${log.isOffRoute ? "偏離路線" : log.obstacleNearby ? "有障礙" : "一般"}</td>
         </tr>
       `).join("") || `<tr><td colspan="3" class="muted">目前沒有策略決策紀錄</td></tr>`;
-      renderReports(reports);
+
+      const failedCount = results.filter(result => result.status === "rejected").length;
+      const notice = document.querySelector("#adminNotice");
+      notice.textContent = failedCount ? `主要資料已載入，${failedCount} 項管理資料暫時無法取得` : "全部資料已載入";
+      notice.className = failedCount ? "warn" : "muted";
     }
 
     function renderReports(reports) {
