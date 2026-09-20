@@ -789,7 +789,6 @@
       mapSelect.innerHTML = maps.map(map => `<option value="${escapeHtml(map.id)}">${escapeHtml(map.name)}</option>`).join("");
       await loadFloors();
       await loadHealth();
-      loadStorageStatus().catch(() => {});
       await loadDashboard();
     }
 
@@ -841,7 +840,6 @@
       const floorId = floorSelect.value;
       const loadVersion = ++dashboardLoadVersion;
       document.querySelector("#adminNotice").textContent = "載入地圖與點位中";
-      loadStorageStatus().catch(() => {});
       const [places, allMapPlaces, summary, points, routeEdges, routeNodes, routeZones, allNodes, transitions] = await Promise.all([
         getJson(`/api/places?mapId=${encodeURIComponent(mapId)}&floorId=${encodeURIComponent(floorId)}`),
         getJson(`/api/places?mapId=${encodeURIComponent(mapId)}`),
@@ -977,6 +975,7 @@
 
       document.querySelector("#scopeInfo").textContent = `地圖：${mapId}，樓層：${floorId}`;
       document.querySelector("#adminNotice").textContent = "地圖與點位已載入，其他管理資料背景載入中";
+      loadStorageStatus().catch(() => {});
       loadSupplementalDashboard(mapId, floorId, loadVersion);
     }
 

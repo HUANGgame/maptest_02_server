@@ -47,6 +47,9 @@ try {
   assert(!admin.includes('id="newPlaceCategory" multiple'), "native multiple select is not an acceptable category picker");
   const initBlock = admin.slice(admin.indexOf("async function init()"), admin.indexOf("function sortMapsForAdmin"));
   assert(!initBlock.includes('await loadStorageStatus();'), "slow storage status must not block the map dashboard");
+  assert(!initBlock.includes('loadStorageStatus().catch'), "storage status must start after primary map data is visible");
+  const dashboardBlock = admin.slice(admin.indexOf("async function loadDashboard()"), admin.indexOf("async function loadSupplementalDashboard"));
+  assert(dashboardBlock.indexOf('loadStorageStatus().catch') > dashboardBlock.indexOf('地圖與點位已載入'), "storage status must be deferred until after primary rendering");
   assert(admin.includes("loadSupplementalDashboard(mapId, floorId, loadVersion)"), "slow management panels must load after primary map data");
   assert(admin.includes("Promise.allSettled(["), "supplemental panel failures must be isolated");
   console.log("PASS: status/hours survive editing, coordinates preserved, keyword/notes ranking, recency bounds, progressive admin loading, category picker and syntax");
