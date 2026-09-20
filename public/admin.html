@@ -175,6 +175,66 @@
       margin-top: 4px;
       white-space: nowrap;
     }
+    .category-picker {
+      margin-top: 4px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: #fff;
+    }
+    .category-picker summary {
+      position: relative;
+      min-height: 42px;
+      padding: 9px 42px 9px 12px;
+      cursor: pointer;
+      color: var(--text);
+      list-style: none;
+    }
+    .category-picker summary::-webkit-details-marker { display: none; }
+    .category-picker summary::after {
+      content: "";
+      position: absolute;
+      right: 15px;
+      top: 14px;
+      width: 9px;
+      height: 9px;
+      border-right: 2px solid var(--text);
+      border-bottom: 2px solid var(--text);
+      transform: rotate(45deg);
+    }
+    .category-picker[open] summary {
+      border-bottom: 1px solid var(--line);
+    }
+    .category-picker[open] summary::after {
+      top: 19px;
+      transform: rotate(225deg);
+    }
+    .category-options {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 4px 12px;
+      max-height: 250px;
+      overflow-y: auto;
+      padding: 10px 12px;
+    }
+    .category-options label {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-height: 34px;
+      margin: 0;
+      color: var(--text);
+      font-size: 14px;
+      cursor: pointer;
+    }
+    .category-options input[type="checkbox"] {
+      flex: 0 0 20px;
+      width: 20px;
+      min-height: 20px;
+      height: 20px;
+      margin: 0;
+      padding: 0;
+      accent-color: var(--accent);
+    }
     button.secondary {
       background: #fff;
       color: var(--accent);
@@ -413,8 +473,11 @@
     <h2>標記資訊</h2>
     <label for="newPlaceName">名稱</label>
     <input id="newPlaceName" placeholder="例如 K12、電梯、店名">
-    <label for="newPlaceCategory">分類設施（可複選）</label>
-    <select id="newPlaceCategory" multiple size="6"></select>
+    <label id="newPlaceCategoryLabel">分類設施（可複選）</label>
+    <details id="newPlaceCategoryPicker" class="category-picker">
+      <summary id="newPlaceCategorySummary">未分類</summary>
+      <div id="newPlaceCategoryOptions" class="category-options" aria-labelledby="newPlaceCategoryLabel"></div>
+    </details>
     <div class="muted">可同時選擇多個分類，例如廁所與販賣機。</div>
     <div class="category-editor">
       <input id="newPlaceCategoryAdd" placeholder="新增分類，例如 ATM、售票機">
@@ -509,6 +572,7 @@
     document.querySelector("#deleteZoneModeButton").addEventListener("click", () => setEditorMode("deleteZone"));
     document.querySelector("#createTransitionButton").addEventListener("click", createSelectedTransition);
     document.querySelector("#addPlaceCategoryButton").addEventListener("click", addPlaceCategoryFromInput);
+    document.querySelector("#newPlaceCategoryOptions").addEventListener("change", syncPlaceCategorySummary);
     document.querySelector("#newPlaceIsTransition").addEventListener("change", syncPlaceTransitionFieldsVisibility);
     document.querySelector("#cancelPlaceButton").addEventListener("click", () => {
       document.querySelector("#placeEditorForm").close();
@@ -1821,6 +1885,7 @@
       document.querySelector("#newPlaceName").value = "";
       renderPlaceCategoryOptions(["未分類"]);
       document.querySelector("#newPlaceCategoryAdd").value = "";
+      document.querySelector("#newPlaceCategoryPicker").open = false;
       document.querySelector("#newPlaceKeywords").value = "";
       document.querySelector("#newPlaceDescription").value = "";
       document.querySelector("#newPlaceOpeningHours").value = "";
@@ -1862,23 +1927,29 @@
     }
 
     function selectedPlaceCategories() {
-      const select = document.querySelector("#newPlaceCategory");
-      const selected = [...select.selectedOptions].map(option => option.value.trim()).filter(Boolean);
+      const selected = [...document.querySelectorAll('#newPlaceCategoryOptions input[type="checkbox"]:checked')]
+        .map(input => input.value.trim())
+        .filter(Boolean);
       const unique = Array.from(new Set(selected));
       const meaningful = unique.filter(category => category !== "未分類");
       return meaningful.length ? meaningful : ["未分類"];
     }
 
     function renderPlaceCategoryOptions(selectedValues = selectedPlaceCategories()) {
-      const select = document.querySelector("#newPlaceCategory");
+      const options = document.querySelector("#newPlaceCategoryOptions");
       const values = placeCategoryValues();
       const selected = Array.isArray(selectedValues) ? selectedValues : [selectedValues];
       const normalized = Array.from(new Set(selected.map(value => String(value || "").trim()).filter(Boolean)));
       if (!normalized.length) normalized.push("未分類");
       normalized.forEach(value => { if (!values.includes(value)) values.push(value); });
-      select.innerHTML = values
-        .map(value => `<option value="${escapeHtml(value)}" ${normalized.includes(value) ? "selected" : ""}>${escapeHtml(value)}</option>`)
+      options.innerHTML = values
+        .map(value => `<label><input type="checkbox" value="${escapeHtml(value)}" ${normalized.includes(value) ? "checked" : ""}><span>${escapeHtml(value)}</span></label>`)
         .join("");
+      syncPlaceCategorySummary();
+    }
+
+    function syncPlaceCategorySummary() {
+      document.querySelector("#newPlaceCategorySummary").textContent = selectedPlaceCategories().join("、");
     }
 
     function setPlaceCategoryValue(value) {

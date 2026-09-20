@@ -42,7 +42,10 @@ try {
   assert.ok(weight({ scannedAt: "2099-01-01" }) <= 1);
   const admin = fs.readFileSync(path.join(__dirname, "../public/admin.html"), "utf8");
   for (const match of admin.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)) new vm.Script(match[1]);
-  console.log("PASS: status/hours survive editing, coordinates preserved, keyword/notes ranking, recency bounds, admin syntax");
+  assert(admin.includes('id="newPlaceCategoryOptions"'), "admin needs independent category checkboxes");
+  assert(admin.includes('input[type="checkbox"]:checked'), "admin must preserve all checked categories");
+  assert(!admin.includes('id="newPlaceCategory" multiple'), "native multiple select is not an acceptable category picker");
+  console.log("PASS: status/hours survive editing, coordinates preserved, keyword/notes ranking, recency bounds, admin category picker and syntax");
 } finally {
   fs.rmSync(directory, { recursive: true, force: true });
 }
