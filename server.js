@@ -1160,6 +1160,18 @@ async function startExternalStores() {
   if (firebaseResult.status === "rejected") {
     console.error("Firebase startup failed:", firebaseResult.reason.message);
   }
+  if (azureSqlEnabled && firebaseEnabled) {
+    try {
+      const documentFiles = firebaseMirror.DATA_FILES.filter((fileName) => fileName !== "wifi_scans.json");
+      const missingFiles = await sqlServerStore.missingDocumentNames(documentFiles);
+      if (missingFiles.length > 0) {
+        const documents = await firebaseMirror.readDocumentFiles(missingFiles);
+        await sqlServerStore.mirrorDocumentValues(documents);
+      }
+    } catch (error) {
+      console.error("Azure SQL document backfill failed:", error.message);
+    }
+  }
   return { azureSqlEnabled, mysqlEnabled, firebaseEnabled };
 }
 
