@@ -1310,6 +1310,7 @@ class MainActivity : AppCompatActivity() {
             binding.mapSamplingView.clearPoints()
             binding.mapSamplingView.clearNavigationRoute()
             clearRealtimeValidationMarkerNow()
+            clearNearbyApCandidatePanel()
             currentPoint = null
             pointIndex = 0
             lifecycleScope.launch { restoreCurrentMapPoints() }
@@ -1862,6 +1863,7 @@ class MainActivity : AppCompatActivity() {
         binding.mapSamplingView.clearPoints()
         binding.mapSamplingView.clearNavigationRoute()
         clearRealtimeValidationMarkerNow()
+        clearNearbyApCandidatePanel()
         currentPoint = null
         pointIndex = 0
         positioningHistory.clear()
@@ -1893,6 +1895,7 @@ class MainActivity : AppCompatActivity() {
                     binding.mapSamplingView.clearPoints()
                     binding.mapSamplingView.clearNavigationRoute()
                     clearRealtimeValidationMarkerNow()
+                    clearNearbyApCandidatePanel()
                     currentPoint = null
                     pointIndex = 0
                     updatePointPanel()
@@ -1907,6 +1910,7 @@ class MainActivity : AppCompatActivity() {
                     binding.mapSamplingView.clearPoints()
                     binding.mapSamplingView.clearNavigationRoute()
                     clearRealtimeValidationMarkerNow()
+                    clearNearbyApCandidatePanel()
                     currentPoint = null
                     pointIndex = 0
                     positioningHistory.clear()
@@ -2835,6 +2839,13 @@ class MainActivity : AppCompatActivity() {
         val floor: Int
     )
 
+    private data class RankedApCandidate(
+        val calibration: WifiApCalibration,
+        val score: Float,
+        val distanceMeters: Float,
+        val currentRssi: Int?
+    )
+
     private fun startPositioning() {
         if (autoScanJob?.isActive == true || walkAutoScanJob?.isActive == true || scanInProgress) {
             updateStatus("自動採樣中，請完成後再開始定位")
@@ -2848,6 +2859,7 @@ class MainActivity : AppCompatActivity() {
         }
         binding.buttonStartPositioning.isEnabled = false
         exitRealtimeFeedbackMode(clearMarker = true)
+        clearNearbyApCandidatePanel("正在定位，完成後會更新附近基地台名單...")
         lifecycleScope.launch {
           try {
             binding.textRealtimeValidationResult.text = "開始定位：掃描中..."
@@ -2921,6 +2933,7 @@ class MainActivity : AppCompatActivity() {
                 "定位完成：${result.pointId}，品質 ${result.qualityLabel}，信心 ${result.confidence}",
                 apCount = results.size
             )
+            refreshNearbyApCandidatePanel(result, results)
           } catch (error: Exception) {
             binding.textRealtimeValidationResult.text = "即時定位失敗：${error.message}"
           } finally {
@@ -4369,54 +4382,141 @@ class MainActivity : AppCompatActivity() {
         val scale = effectiveMetersPerPixel()
         updateStatus("正在分析 $mapId / ${floorCode(floor)} 的穩定基地台...")
         lifecycleScope.launch {
-            val candidates = wifiApCalibrationDao.getCandidates(mapId, floor)
-            if (candidates.isEmpty()) {
-                showMessage("目前沒有符合條件的基地台。每台至少需要 6 個不同點位與 24 筆訊號資料。")
-                return@launch
-            }
-            val calibrator = WifiApCalibrator()
-            val existingByBssid = wifiApCalibrationDao.getForScope(mapId, floor)
-                .associateBy { it.bssid.lowercase(Locale.US) }
-            var saved = 0
-            candidates.forEach { candidate ->
-                val existing = existingByBssid[candidate.bssid.lowercase(Locale.US)]
-                if (existing?.status == "VERIFIED" || (existing?.surveyPointCount ?: 0) > 0) return@forEach
-                val records = wifiApCalibrationDao.getObservations(mapId, floor, candidate.bssid)
-                val estimate = calibrator.estimate(records, scale) ?: return@forEach
-                if (estimate.rmse > 12f) return@forEach
-                wifiApCalibrationDao.upsert(
-                    WifiApCalibration(
-                        calibrationId = apCalibrationId(mapId, floor, candidate.bssid),
-                        bssid = candidate.bssid,
-                        ssid = candidate.ssid,
-                        mapId = mapId,
-                        floor = floor,
-                        x = estimate.x,
-                        y = estimate.y,
-                        referenceRssi = estimate.referenceRssi,
-                        pathLossExponent = estimate.pathLossExponent,
-                        rmse = estimate.rmse,
-                        samplePointCount = estimate.samplePointCount,
-                        observationCount = estimate.observationCount,
-                        surveyPointCount = existing?.surveyPointCount ?: 0,
-                        uncertaintyMeters = existing?.uncertaintyMeters?.takeIf { it > 0f }
-                            ?: (estimate.rmse * 1.2f).coerceIn(5f, 18f),
-                        suggestedPointId = estimate.suggestedPointId,
-                        status = "CANDIDATE",
-                        source = "FINGERPRINT_ESTIMATE",
-                        updatedAt = System.currentTimeMillis()
-                    )
-                )
-                saved += 1
-            }
+            val saved = prepareApCalibrationCandidates(mapId, floor, scale)
             if (saved == 0) {
-                showMessage("候選訊號波動過大，尚未產生可確認的基地台。請先補測不同方向的點位。")
+                val existing = wifiApCalibrationDao.getForScope(mapId, floor)
+                    .any { it.status != "DISABLED" }
+                if (!existing) {
+                    showMessage("目前沒有符合條件的基地台。每台至少需要 6 個不同點位與 24 筆訊號資料。")
+                    return@launch
+                }
             } else {
                 updateStatus("已找到 $saved 台候選基地台，請選擇一台開始測量。")
-                refreshWifiApCalibrationOverlay()
-                showApCandidatePicker()
             }
+            refreshWifiApCalibrationOverlay()
+            latestPositioningResult?.let { refreshNearbyApCandidatePanel(it, lastScanResults) }
+            showApCandidatePicker()
         }
+    }
+
+    private suspend fun prepareApCalibrationCandidates(mapId: String, floor: Int, scale: Float): Int {
+        val candidates = wifiApCalibrationDao.getCandidates(mapId, floor)
+        val calibrator = WifiApCalibrator()
+        val existingByBssid = wifiApCalibrationDao.getForScope(mapId, floor)
+            .associateBy { it.bssid.lowercase(Locale.US) }
+        var saved = 0
+        candidates.forEach { candidate ->
+            val existing = existingByBssid[candidate.bssid.lowercase(Locale.US)]
+            if (existing?.status == "VERIFIED" || (existing?.surveyPointCount ?: 0) > 0) return@forEach
+            if (existing != null &&
+                existing.observationCount == candidate.observationCount &&
+                existing.samplePointCount == candidate.samplePointCount
+            ) return@forEach
+            val records = wifiApCalibrationDao.getObservations(mapId, floor, candidate.bssid)
+            val estimate = calibrator.estimate(records, scale) ?: return@forEach
+            if (estimate.rmse > 12f) return@forEach
+            wifiApCalibrationDao.upsert(
+                WifiApCalibration(
+                    calibrationId = apCalibrationId(mapId, floor, candidate.bssid),
+                    bssid = candidate.bssid,
+                    ssid = candidate.ssid,
+                    mapId = mapId,
+                    floor = floor,
+                    x = estimate.x,
+                    y = estimate.y,
+                    referenceRssi = estimate.referenceRssi,
+                    pathLossExponent = estimate.pathLossExponent,
+                    rmse = estimate.rmse,
+                    samplePointCount = estimate.samplePointCount,
+                    observationCount = estimate.observationCount,
+                    surveyPointCount = existing?.surveyPointCount ?: 0,
+                    uncertaintyMeters = existing?.uncertaintyMeters?.takeIf { it > 0f }
+                        ?: (estimate.rmse * 1.2f).coerceIn(5f, 18f),
+                    suggestedPointId = estimate.suggestedPointId,
+                    status = "CANDIDATE",
+                    source = "FINGERPRINT_ESTIMATE",
+                    updatedAt = System.currentTimeMillis()
+                )
+            )
+            saved += 1
+        }
+        return saved
+    }
+
+    private suspend fun refreshNearbyApCandidatePanel(
+        position: FingerprintPositioningEngine.PositionResult,
+        wifiResults: List<WifiScanResultItem>
+    ) {
+        if (position.mapId !in localMapScopeIdsFor(activeSamplingMapId(), position.floor)) return
+        prepareApCalibrationCandidates(activeSamplingMapId(), position.floor, effectiveMetersPerPixel())
+        val candidates = rankApCandidates(
+            wifiApCalibrationDao.getForScope(activeSamplingMapId(), position.floor),
+            position,
+            wifiResults
+        ).filter { it.calibration.status != "VERIFIED" && it.currentRssi != null }
+            .take(6)
+
+        binding.layoutNearbyApCandidates.removeAllViews()
+        binding.scrollNearbyApCandidates.isVisible = candidates.isNotEmpty()
+        if (candidates.isEmpty()) {
+            binding.textNearbyApStatus.text =
+                "目前位置沒有掃到可補測的穩定基地台；候選需至少涵蓋 6 個點位、24 筆訊號。"
+            return
+        }
+        binding.textNearbyApStatus.text =
+            "附近需要補測的穩定基地台（由最可能到較低）：點選後查看橘色預測範圍"
+        candidates.forEachIndexed { index, item ->
+            val calibration = item.calibration
+            val chip = TextView(this).apply {
+                text = buildString {
+                    append("${index + 1}. ${calibration.ssid.ifBlank { "隱藏 Wi-Fi" }}")
+                    append("\n${item.currentRssi} dBm｜約 ${item.distanceMeters.format1()}m")
+                    append("｜${suggestedPointName(calibration)}")
+                }
+                textSize = 12f
+                setTextColor(ContextCompat.getColor(this@MainActivity, R.color.primary_blue_dark))
+                setBackgroundResource(R.drawable.bg_button_secondary)
+                setPadding(dp(12), dp(9), dp(12), dp(9))
+                setOnClickListener { activateApSurvey(calibration) }
+            }
+            val params = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply { marginEnd = dp(8) }
+            binding.layoutNearbyApCandidates.addView(chip, params)
+        }
+    }
+
+    private fun rankApCandidates(
+        calibrations: List<WifiApCalibration>,
+        position: FingerprintPositioningEngine.PositionResult?,
+        wifiResults: List<WifiScanResultItem>
+    ): List<RankedApCandidate> {
+        val signals = wifiResults.associateBy { it.bssid.lowercase(Locale.US) }
+        val scale = effectiveMetersPerPixel()
+        return calibrations.filter { it.status != "DISABLED" }.map { calibration ->
+            val signal = signals[calibration.bssid.lowercase(Locale.US)]?.rssi
+            val distance = position?.let {
+                kotlin.math.hypot(calibration.x - it.x, calibration.y - it.y) * scale
+            } ?: Float.POSITIVE_INFINITY
+            val signalScore = signal?.let { ((it + 100).coerceIn(0, 60) * 1.8f) } ?: 0f
+            val distanceScore = if (distance.isFinite()) (30f - distance.coerceAtMost(30f)) * 0.8f else 0f
+            val fitScore = (12f - calibration.rmse.coerceIn(0f, 12f)) * 3f
+            val coverageScore = calibration.samplePointCount.coerceAtMost(20).toFloat()
+            RankedApCandidate(calibration, signalScore + distanceScore + fitScore + coverageScore, distance, signal)
+        }.sortedWith(
+            compareByDescending<RankedApCandidate> { it.calibration.status != "VERIFIED" }
+                .thenByDescending { it.currentRssi != null }
+                .thenByDescending { it.score }
+        )
+    }
+
+    private fun clearNearbyApCandidatePanel(
+        message: String = "先按即時定位，系統會列出附近需要補測的穩定基地台"
+    ) {
+        binding.layoutNearbyApCandidates.removeAllViews()
+        binding.scrollNearbyApCandidates.isVisible = false
+        binding.textNearbyApStatus.text = message
     }
 
     private fun showApCandidatePicker() {
@@ -4432,14 +4532,17 @@ class MainActivity : AppCompatActivity() {
                 showMessage("目前沒有候選基地台，請先按「1. 找候選基地台」")
                 return@launch
             }
-            val labels = calibrations.map { calibration ->
+            val ranked = rankApCandidates(calibrations, latestPositioningResult, lastScanResults)
+            val labels = ranked.map { item ->
+                val calibration = item.calibration
                 val pointName = suggestedPointName(calibration)
                 val state = if (calibration.status == "VERIFIED") "藍色｜校正完成" else "橘色｜待測量"
-                "${calibration.ssid.ifBlank { "隱藏 Wi-Fi" }}\n$state｜前往 $pointName"
+                val nearby = item.currentRssi?.let { "｜目前 $it dBm｜約 ${item.distanceMeters.format1()}m" }.orEmpty()
+                "${calibration.ssid.ifBlank { "隱藏 Wi-Fi" }}\n$state$nearby｜前往 $pointName"
             }.toTypedArray()
             AlertDialog.Builder(this@MainActivity)
                 .setTitle("選擇要測量的基地台")
-                .setItems(labels) { _, index -> activateApSurvey(calibrations[index]) }
+                .setItems(labels) { _, index -> activateApSurvey(ranked[index].calibration) }
                 .setNegativeButton("取消", null)
                 .show()
         }

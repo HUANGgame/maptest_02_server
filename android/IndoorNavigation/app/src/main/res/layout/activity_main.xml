@@ -249,6 +249,34 @@
                 android:textColor="@color/text_secondary"
                 android:textSize="12sp" />
 
+            <TextView
+                android:id="@+id/textNearbyApStatus"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:background="@drawable/bg_status"
+                android:padding="8dp"
+                android:text="先按即時定位，系統會列出附近需要補測的穩定基地台"
+                android:textColor="@color/text_secondary"
+                android:textSize="12sp" />
+
+            <HorizontalScrollView
+                android:id="@+id/scrollNearbyApCandidates"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:fillViewport="false"
+                android:overScrollMode="never"
+                android:scrollbars="none"
+                android:visibility="gone">
+
+                <LinearLayout
+                    android:id="@+id/layoutNearbyApCandidates"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal" />
+            </HorizontalScrollView>
+
             <com.example.wififingerprintcollector.MapSamplingView
                 android:id="@+id/mapSamplingView"
                 android:layout_width="match_parent"

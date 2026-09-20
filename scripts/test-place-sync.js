@@ -53,6 +53,7 @@ try {
   assert(admin.includes("loadSupplementalDashboard(mapId, floorId, loadVersion)"), "slow management panels must load after primary map data");
   assert(admin.includes("Promise.allSettled(["), "supplemental panel failures must be isolated");
   const collectorActivity = fs.readFileSync(path.join(__dirname, "../android/IndoorNavigation/app/src/main/java/com/example/wififingerprintcollector/MainActivity.kt"), "utf8");
+  const layout = fs.readFileSync(path.join(__dirname, "../android/IndoorNavigation/app/src/main/res/layout/activity_main.xml"), "utf8");
   const apMenu = collectorActivity.slice(collectorActivity.indexOf("private fun showApCalibrationMenu()"), collectorActivity.indexOf("private fun buildApCalibrationCandidates()"));
   assert(apMenu.includes('"1. 找候選基地台"'), "collector AP survey menu must expose candidate generation");
   assert(apMenu.includes('"2. 選擇基地台並開始測量"'), "collector AP survey menu must expose guided measurement");
@@ -62,6 +63,9 @@ try {
   assert(collectorActivity.includes("清除本次橘色臨時點"), "collector must allow the active AP survey points to be cleared");
   assert(collectorActivity.includes("stepsSinceLastMeasurement < 3"), "collector must reject repeated AP survey points without detected movement");
   assert(collectorActivity.includes("deleteSurveyMeasurement(latest.id)"), "collector must delete the selected temporary AP survey point from Room");
+  assert(collectorActivity.includes("refreshNearbyApCandidatePanel(result, results)"), "realtime positioning must refresh nearby AP survey candidates");
+  assert(collectorActivity.includes("signalScore + distanceScore + fitScore + coverageScore"), "nearby AP candidates must combine current signal, distance, fit quality, and coverage");
+  assert(layout.includes('android:id="@+id/layoutNearbyApCandidates"'), "collector must show nearby AP candidates after realtime positioning");
   assert(collectorActivity.includes('status = if (verified) "VERIFIED" else "CANDIDATE"'), "collector must gate verified AP status on survey quality");
   console.log("PASS: status/hours survive editing, coordinates preserved, keyword/notes ranking, recency bounds, progressive admin loading, category picker and syntax");
 } finally {
