@@ -443,6 +443,16 @@
                 android:background="@drawable/bg_button_outline"
                 android:text="@string/add_anchor"
                 android:textColor="@color/text_primary" />
+
+            <Button
+                android:id="@+id/buttonApCalibration"
+                style="@style/ToolButton"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:background="@drawable/bg_button_secondary"
+                android:text="AP 三邊定位校正"
+                android:textColor="@color/primary_blue_dark" />
             </LinearLayout>
         </LinearLayout>
 

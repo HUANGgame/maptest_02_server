@@ -8,14 +8,15 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
-    entities = [WifiScanRecord::class, AnchorRecord::class, MapMetadataEntity::class],
-    version = 8,
+    entities = [WifiScanRecord::class, AnchorRecord::class, MapMetadataEntity::class, WifiApCalibration::class],
+    version = 9,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
     abstract fun wifiScanDao(): WifiScanDao
     abstract fun anchorDao(): AnchorDao
     abstract fun mapMetadataDao(): MapMetadataDao
+    abstract fun wifiApCalibrationDao(): WifiApCalibrationDao
 
     companion object {
         @Volatile
@@ -36,6 +37,7 @@ abstract class AppDatabase : RoomDatabase() {
                     .addMigrations(MIGRATION_3_6)
                     .addMigrations(MIGRATION_6_7)
                     .addMigrations(MIGRATION_7_8)
+                    .addMigrations(MIGRATION_8_9)
                     .build()
                     .also { INSTANCE = it }
             }
@@ -124,6 +126,33 @@ abstract class AppDatabase : RoomDatabase() {
         private val MIGRATION_7_8 = object : Migration(7, 8) {
             override fun migrate(database: SupportSQLiteDatabase) {
                 database.execSQL("ALTER TABLE wifi_scan_records ADD COLUMN uploadedAt INTEGER")
+            }
+        }
+
+        private val MIGRATION_8_9 = object : Migration(8, 9) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS wifi_ap_calibrations (
+                        calibrationId TEXT NOT NULL PRIMARY KEY,
+                        bssid TEXT NOT NULL,
+                        ssid TEXT NOT NULL,
+                        mapId TEXT NOT NULL,
+                        floor INTEGER NOT NULL,
+                        x REAL NOT NULL,
+                        y REAL NOT NULL,
+                        referenceRssi REAL NOT NULL,
+                        pathLossExponent REAL NOT NULL,
+                        rmse REAL NOT NULL,
+                        samplePointCount INTEGER NOT NULL,
+                        observationCount INTEGER NOT NULL,
+                        suggestedPointId TEXT NOT NULL,
+                        status TEXT NOT NULL,
+                        source TEXT NOT NULL,
+                        updatedAt INTEGER NOT NULL
+                    )
+                    """.trimIndent()
+                )
             }
         }
     }

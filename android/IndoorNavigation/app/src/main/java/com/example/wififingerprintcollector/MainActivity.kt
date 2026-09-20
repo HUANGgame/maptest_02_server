@@ -69,6 +69,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var dao: WifiScanDao
     private lateinit var anchorDao: AnchorDao
     private lateinit var mapMetadataDao: MapMetadataDao
+    private lateinit var wifiApCalibrationDao: WifiApCalibrationDao
     private lateinit var fingerprintRepository: FingerprintRepository
     private lateinit var csvImporter: CsvFingerprintImporter
     private val positioningEngine = FingerprintPositioningEngine()
@@ -191,6 +192,7 @@ class MainActivity : AppCompatActivity() {
         dao = database.wifiScanDao()
         anchorDao = database.anchorDao()
         mapMetadataDao = database.mapMetadataDao()
+        wifiApCalibrationDao = database.wifiApCalibrationDao()
         fingerprintRepository = FingerprintRepository(dao, anchorDao, mapMetadataDao)
         csvImporter = CsvFingerprintImporter(this, fingerprintRepository)
         adapter = WifiResultAdapter()
@@ -694,6 +696,7 @@ class MainActivity : AppCompatActivity() {
         binding.buttonUploadWifiScans.setOnClickListener { uploadPendingWifiScans() }
         binding.buttonResetUploadMarks.setOnClickListener { confirmResetUploadMarks() }
         binding.buttonAddAnchor.setOnClickListener { showAddAnchorDialog() }
+        binding.buttonApCalibration.setOnClickListener { showApCalibrationMenu() }
         binding.buttonClearDatabase.setOnClickListener { confirmClearDatabase() }
         binding.buttonImportMap.setOnClickListener { mapImportLauncher.launch("image/*") }
         binding.buttonApplyPointLayout.setOnClickListener { confirmApplyPointLayout() }
@@ -796,6 +799,7 @@ class MainActivity : AppCompatActivity() {
         binding.buttonLockHeading.isVisible = true
         binding.buttonUndoPoint.isVisible = isCompassMode || isMapMode
         binding.buttonAddAnchor.isVisible = isCompassMode || isMapMode
+        binding.buttonApCalibration.isVisible = isCompassMode || isMapMode
         updateAdvancedOperationsVisibility()
     }
 
@@ -4010,9 +4014,10 @@ class MainActivity : AppCompatActivity() {
                     }
                 }
                 exportAnchorsCsv()
+                exportApCalibrationsCsv()
                 exportMapMetadata()
                 latestExportPath = file.absolutePath
-                updateStatus("\u532f\u51fa\u6210\u529f\uff1a${file.absolutePath}\n\u9328\u9ede CSV\uff1a${File(outputDir, "wifi_anchor_records.csv").absolutePath}\n\u5730\u5716\u8cc7\u8a0a CSV\uff1a${File(outputDir, "map_metadata.csv").absolutePath}")
+                updateStatus("\u532f\u51fa\u6210\u529f\uff1a${file.absolutePath}\n\u9328\u9ede CSV\uff1a${File(outputDir, "wifi_anchor_records.csv").absolutePath}\nAP \u6821\u6b63 CSV\uff1a${File(outputDir, "wifi_ap_calibrations.csv").absolutePath}\n\u5730\u5716\u8cc7\u8a0a CSV\uff1a${File(outputDir, "map_metadata.csv").absolutePath}")
                 showMessage("\u532f\u51fa\u6210\u529f\uff1a${file.absolutePath}")
             } catch (ioException: IOException) {
                 latestError = "CSV 寫入失敗：${ioException.message}"
@@ -4066,6 +4071,7 @@ class MainActivity : AppCompatActivity() {
         val baseFiles = listOf(
             File(outputDir, "wifi_fingerprint_records.csv"),
             File(outputDir, "wifi_anchor_records.csv"),
+            File(outputDir, "wifi_ap_calibrations.csv"),
             File(outputDir, "map_metadata.csv")
         )
         val mapImages = outputDir.listFiles { file ->
@@ -4132,6 +4138,263 @@ class MainActivity : AppCompatActivity() {
                 )
             }
         }
+    }
+
+    private fun showApCalibrationMenu() {
+        AlertDialog.Builder(this)
+            .setTitle("AP 三邊定位校正")
+            .setItems(
+                arrayOf(
+                    "操作步驟",
+                    "1. 自動建立候選基地台",
+                    "2. 在目前點位確認基地台",
+                    "3. 查看校正結果",
+                    "4. 匯出基地台 CSV"
+                )
+            ) { _, index ->
+                when (index) {
+                    0 -> showApCalibrationInstructions()
+                    1 -> buildApCalibrationCandidates()
+                    2 -> confirmApAtCurrentPoint()
+                    3 -> showApCalibrationSummary()
+                    4 -> lifecycleScope.launch {
+                        val file = exportApCalibrationsCsv()
+                        updateStatus("基地台資料已匯出：${file.absolutePath}")
+                        showMessage("已匯出 ${file.name}")
+                    }
+                }
+            }
+            .setMessage(
+                "先用現有指紋推算候選位置，再到候選位置附近掃描並確認。" +
+                    "完成一台後可用相同步驟確認下一台；至少三台已確認且位置不共線，才可供三邊定位使用。"
+            )
+            .setNegativeButton("關閉", null)
+            .show()
+    }
+
+    private fun showApCalibrationInstructions() {
+        AlertDialog.Builder(this)
+            .setTitle("AP 校正操作步驟")
+            .setMessage(
+                "1. 選好地圖與樓層，先執行「自動建立候選基地台」。\n\n" +
+                    "2. 查看結果中的建議點位，走到該點附近。\n\n" +
+                    "3. 在地圖選取你實際站立的點位，按「掃描不儲存」。手機保持胸前直立。\n\n" +
+                    "4. 回到 AP 三邊定位校正，選「在目前點位確認基地台」。只有 -72 dBm 以上且符合歷史訊號的 AP 才能確認。\n\n" +
+                    "5. 對下一台重複第 2 至第 4 步。至少確認 3 台且位置不可排成一直線。\n\n" +
+                    "6. 查看結果顯示「可用」後匯出 CSV。每個樓層要分開完成。"
+            )
+            .setPositiveButton("知道了", null)
+            .show()
+    }
+
+    private fun buildApCalibrationCandidates() {
+        val mapId = activeSamplingMapId()
+        val floor = activeSamplingFloor()
+        if (mapId.isBlank() || floor == null) {
+            showMessage("請先選擇後端地圖與樓層")
+            return
+        }
+        val scale = effectiveMetersPerPixel()
+        updateStatus("正在分析 $mapId / ${floorCode(floor)} 的穩定基地台...")
+        lifecycleScope.launch {
+            val candidates = wifiApCalibrationDao.getCandidates(mapId, floor)
+            if (candidates.isEmpty()) {
+                showMessage("目前沒有符合條件的基地台。每台至少需要 6 個不同點位與 24 筆訊號資料。")
+                return@launch
+            }
+            val calibrator = WifiApCalibrator()
+            var saved = 0
+            candidates.forEach { candidate ->
+                val records = wifiApCalibrationDao.getObservations(mapId, floor, candidate.bssid)
+                val estimate = calibrator.estimate(records, scale) ?: return@forEach
+                if (estimate.rmse > 12f) return@forEach
+                wifiApCalibrationDao.upsert(
+                    WifiApCalibration(
+                        calibrationId = apCalibrationId(mapId, floor, candidate.bssid),
+                        bssid = candidate.bssid,
+                        ssid = candidate.ssid,
+                        mapId = mapId,
+                        floor = floor,
+                        x = estimate.x,
+                        y = estimate.y,
+                        referenceRssi = estimate.referenceRssi,
+                        pathLossExponent = estimate.pathLossExponent,
+                        rmse = estimate.rmse,
+                        samplePointCount = estimate.samplePointCount,
+                        observationCount = estimate.observationCount,
+                        suggestedPointId = estimate.suggestedPointId,
+                        status = "CANDIDATE",
+                        source = "FINGERPRINT_ESTIMATE",
+                        updatedAt = System.currentTimeMillis()
+                    )
+                )
+                saved += 1
+            }
+            if (saved == 0) {
+                showMessage("候選訊號波動過大，尚未產生可確認的基地台。請先補測不同方向的點位。")
+            } else {
+                updateStatus("已建立 $saved 台候選基地台。請到建議點位附近，掃描後按 AP 三邊定位校正，再選第 2 步確認。")
+                showApCalibrationSummary()
+            }
+        }
+    }
+
+    private fun confirmApAtCurrentPoint() {
+        val point = currentPoint
+        if (point == null) {
+            showMessage("請先在地圖上選取目前所在的已知點位")
+            return
+        }
+        if (lastScanResults.isEmpty()) {
+            showMessage("請先按掃描不儲存，取得目前 Wi-Fi 訊號")
+            return
+        }
+        val mapId = activeSamplingMapId()
+        val floor = activeSamplingFloor() ?: point.floor
+        lifecycleScope.launch {
+            val calibrations = wifiApCalibrationDao.getForScope(mapId, floor)
+                .filter { it.status != "VERIFIED" }
+                .sortedByDescending { calibration ->
+                    lastScanResults.firstOrNull { it.bssid.equals(calibration.bssid, true) }?.rssi ?: -120
+                }
+            if (calibrations.isEmpty()) {
+                showMessage("尚無待確認基地台，請先執行第 1 步建立候選基地台")
+                return@launch
+            }
+            val labels = calibrations.map { calibration ->
+                val liveRssi = lastScanResults.firstOrNull { it.bssid.equals(calibration.bssid, true) }?.rssi
+                val signal = liveRssi?.let { "$it dBm" } ?: "目前未掃到"
+                "${calibration.ssid.ifBlank { "隱藏 SSID" }}\n${calibration.bssid}｜$signal｜建議 ${calibration.suggestedPointId}"
+            }.toTypedArray()
+            AlertDialog.Builder(this@MainActivity)
+                .setTitle("確認目前位置的基地台")
+                .setSingleChoiceItems(labels, 0, null)
+                .setMessage("請站在基地台正下方或最近可到達位置，手機保持胸前直立。訊號必須達 -72 dBm 以上。")
+                .setPositiveButton("確認此基地台") { dialog, _ ->
+                    val selected = (dialog as AlertDialog).listView.checkedItemPosition.coerceAtLeast(0)
+                    verifyApCalibration(calibrations[selected], point)
+                }
+                .setNegativeButton("取消", null)
+                .show()
+        }
+    }
+
+    private fun verifyApCalibration(calibration: WifiApCalibration, point: SamplingPoint) {
+        val liveSignal = lastScanResults.firstOrNull { it.bssid.equals(calibration.bssid, true) }
+        if (liveSignal == null || liveSignal.rssi < -72) {
+            showMessage("目前訊號不足，請靠近建議點位 ${calibration.suggestedPointId} 後重新掃描。需要 -72 dBm 以上。")
+            return
+        }
+        lifecycleScope.launch {
+            val observations = wifiApCalibrationDao.getObservations(calibration.mapId, calibration.floor, calibration.bssid)
+            val estimate = WifiApCalibrator().fitAtKnownPosition(
+                observations,
+                point.x,
+                point.y,
+                effectiveMetersPerPixel()
+            )
+            if (estimate == null || estimate.rmse > 14f) {
+                showMessage("這個位置與歷史訊號不一致，請從另一方向靠近後再確認。")
+                return@launch
+            }
+            wifiApCalibrationDao.upsert(
+                calibration.copy(
+                    x = point.x,
+                    y = point.y,
+                    referenceRssi = estimate.referenceRssi,
+                    pathLossExponent = estimate.pathLossExponent,
+                    rmse = estimate.rmse,
+                    samplePointCount = estimate.samplePointCount,
+                    observationCount = estimate.observationCount,
+                    suggestedPointId = point.pointId,
+                    status = "VERIFIED",
+                    source = "FIELD_CONFIRMED",
+                    updatedAt = System.currentTimeMillis()
+                )
+            )
+            val remaining = wifiApCalibrationDao.getForScope(calibration.mapId, calibration.floor)
+                .count { it.status != "VERIFIED" }
+            updateStatus("已確認 ${calibration.bssid}，目前點位 ${point.pointId}。尚有 $remaining 台候選基地台可套用相同步驟。")
+            showApCalibrationSummary()
+        }
+    }
+
+    private fun showApCalibrationSummary() {
+        val mapId = activeSamplingMapId()
+        val floor = activeSamplingFloor()
+        if (floor == null) {
+            showMessage("請先選擇樓層")
+            return
+        }
+        lifecycleScope.launch {
+            val calibrations = wifiApCalibrationDao.getForScope(mapId, floor)
+            if (calibrations.isEmpty()) {
+                showMessage("目前沒有基地台校正資料")
+                return@launch
+            }
+            val verified = calibrations.filter { it.status == "VERIFIED" }
+            val ready = trilaterationGeometryReady(verified, effectiveMetersPerPixel())
+            val text = buildString {
+                append("地圖：$mapId / ${floorCode(floor)}\n")
+                append("已確認：${verified.size} 台，候選：${calibrations.size - verified.size} 台\n")
+                append(if (ready) "三邊定位資料條件：可用" else "三邊定位資料條件：尚未完成（需至少 3 台已確認且不可共線）")
+                calibrations.forEach { item ->
+                    append("\n\n${if (item.status == "VERIFIED") "已確認" else "候選"}｜${item.ssid.ifBlank { "隱藏 SSID" }}")
+                    append("\n${item.bssid}")
+                    append("\n座標 ${item.x.format1()}, ${item.y.format1()}｜建議點 ${item.suggestedPointId}")
+                    append("\nn=${item.pathLossExponent.format1()}｜誤差 ${item.rmse.format1()} dB｜${item.samplePointCount} 點")
+                }
+            }
+            AlertDialog.Builder(this@MainActivity)
+                .setTitle("AP 校正結果")
+                .setMessage(text)
+                .setPositiveButton("確定", null)
+                .show()
+        }
+    }
+
+    private fun trilaterationGeometryReady(calibrations: List<WifiApCalibration>, scale: Float): Boolean {
+        if (calibrations.size < 3) return false
+        var largestAreaSquareMeters = 0f
+        for (a in 0 until calibrations.size - 2) {
+            for (b in a + 1 until calibrations.size - 1) {
+                for (c in b + 1 until calibrations.size) {
+                    val first = calibrations[a]
+                    val second = calibrations[b]
+                    val third = calibrations[c]
+                    val twiceAreaPixels = kotlin.math.abs(
+                        first.x * (second.y - third.y) + second.x * (third.y - first.y) + third.x * (first.y - second.y)
+                    )
+                    largestAreaSquareMeters = maxOf(largestAreaSquareMeters, twiceAreaPixels * scale * scale / 2f)
+                }
+            }
+        }
+        return largestAreaSquareMeters >= 8f
+    }
+
+    private fun effectiveMetersPerPixel(): Float = metersPerPixel?.takeIf { it > 0f } ?: 0.125f
+
+    private fun apCalibrationId(mapId: String, floor: Int, bssid: String): String =
+        "$mapId|$floor|${bssid.lowercase(Locale.US)}"
+
+    private suspend fun exportApCalibrationsCsv(): File {
+        val outputDir = getExternalFilesDir(null) ?: filesDir
+        val file = File(outputDir, "wifi_ap_calibrations.csv")
+        val calibrations = wifiApCalibrationDao.getAll()
+        file.bufferedWriter(Charsets.UTF_8).use { writer ->
+            writer.appendLine("calibrationId,bssid,ssid,mapId,floor,x,y,referenceRssi,pathLossExponent,rmse,samplePointCount,observationCount,suggestedPointId,status,source,updatedAt")
+            calibrations.forEach { item ->
+                writer.appendLine(
+                    listOf(
+                        item.calibrationId.csvEscape(), item.bssid.csvEscape(), item.ssid.csvEscape(),
+                        item.mapId.csvEscape(), item.floor, item.x, item.y, item.referenceRssi,
+                        item.pathLossExponent, item.rmse, item.samplePointCount, item.observationCount,
+                        item.suggestedPointId.csvEscape(), item.status, item.source, item.updatedAt
+                    ).joinToString(",")
+                )
+            }
+        }
+        return file
     }
 
     private fun showAddAnchorDialog() {
