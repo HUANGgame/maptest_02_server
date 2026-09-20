@@ -33,13 +33,29 @@ async function main() {
       floorId: "smoke-floor",
       name: "Smoke Place",
       category: "測試",
+      categories: ["測試", "置物櫃"],
       x: 10,
       y: 20,
       description: "created by smoke test",
       searchable: true,
     }), (body) => body.success === true && body.place?.id === "smoke-place", "create place"));
+    checks.push(assert(await request("POST", "/api/places", {
+      id: "smoke-place",
+      mapId: "smoke-map",
+      floorId: "smoke-floor",
+      name: "Smoke Place",
+      category: "測試",
+      x: 11,
+      y: 21,
+      searchable: true,
+    }), (body) => body.place?.categories?.includes("置物櫃"), "legacy place update preserves secondary categories"));
     checks.push(assert(await request("GET", "/api/maps"), (body) => body.some((item) => item.id === "tkut-demo"), "maps"));
     checks.push(assert(await request("GET", "/api/places?mapId=smoke-map&floorId=smoke-floor&keyword=Smoke"), (body) => body.length === 1, "created place search"));
+    checks.push(assert(
+      await request("GET", "/api/places?mapId=smoke-map&floorId=smoke-floor&keyword=" + encodeURIComponent("置物櫃")),
+      (body) => body.length === 1 && body[0].category === "測試" && body[0].categories?.includes("置物櫃"),
+      "secondary place category search",
+    ));
     checks.push(assert(await request("GET", "/api/floors?mapId=tkut-demo"), (body) => body.length >= 2, "floors"));
     checks.push(assert(
       await request("GET", "/api/data/export?mapId=tkut-demo&floorId=tkut-demo-ground"),

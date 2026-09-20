@@ -1012,6 +1012,7 @@ class UserNavigationActivity : AppCompatActivity() {
                     id = item.optString("id"),
                     name = item.optString("name"),
                     category = item.optString("category"),
+                    categories = item.optStringList("categories", item.optString("category")),
                     floorId = floorId,
                     floorName = floorName,
                     x = item.optDouble("x", 0.0).toFloat(),
@@ -1032,6 +1033,7 @@ class UserNavigationActivity : AppCompatActivity() {
                 put("id", place.id)
                 put("name", place.name)
                 put("category", place.category)
+                put("categories", JSONArray(place.categories))
                 put("floorId", place.floorId)
                 put("floorName", place.floorName)
                 put("x", place.x)
@@ -2721,7 +2723,7 @@ class UserNavigationActivity : AppCompatActivity() {
     }
 
     private fun placeMeta(place: DemoPlace): String = listOf(
-        place.floorName, place.category,
+        place.floorName, place.categories.joinToString("、"),
         PlaceBusinessHours.status(place.businessStatus, if (place.supportsPlaceReviews()) place.openingHours else ""),
         place.openingHours
     ).filter { it.isNotBlank() }.joinToString("｜")
@@ -2763,20 +2765,34 @@ data class DemoPlace(
     val businessStatus: String = "unset",
     val keywords: String = "",
     val description: String = "",
-    val openingHours: String = ""
+    val openingHours: String = "",
+    val categories: List<String> = listOf(category)
 )
 
 internal fun placeSearchScore(place: DemoPlace, query: String): Int {
     val normalized = query.trim().lowercase()
     if (normalized.isEmpty()) return 0
-    val fields = listOf(place.name, place.keywords, place.description, place.category).map { it.lowercase() }
+    val fields = listOf(place.name, place.keywords, place.description) + place.categories
+    val normalizedFields = fields.map { it.lowercase() }
     val chars = normalized.filterNot { it.isWhitespace() }.toSet()
-    val matchingChars = chars.count { c -> fields.any { c in it } }
+    val matchingChars = chars.count { c -> normalizedFields.any { c in it } }
     if (matchingChars == 0) return 0
-    val phraseMatches = fields.count { normalized in it }
-    val tokenMatches = normalized.split(Regex("\\s+")).count { token -> fields.any { token in it } }
+    val phraseMatches = normalizedFields.count { normalized in it }
+    val tokenMatches = normalized.split(Regex("\\s+")).count { token -> normalizedFields.any { token in it } }
     return matchingChars * 100 + phraseMatches * 200 + tokenMatches * 50 +
-        (if (fields.first() == normalized) 1000 else 0)
+        (if (normalizedFields.first() == normalized) 1000 else 0)
+}
+
+private fun JSONObject.optStringList(key: String, fallback: String = ""): List<String> {
+    val result = mutableListOf<String>()
+    optJSONArray(key)?.let { array ->
+        for (index in 0 until array.length()) {
+            array.optString(index).trim().takeIf { it.isNotBlank() && it !in result }?.let(result::add)
+        }
+    }
+    fallback.trim().takeIf { result.isEmpty() && it.isNotBlank() }?.let(result::add)
+    if (result.isEmpty()) result += "未分類"
+    return result
 }
 
 data class DemoFloor(

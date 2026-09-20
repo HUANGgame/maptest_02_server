@@ -641,7 +641,7 @@ class MainActivity : AppCompatActivity() {
                     "已更新指紋 $updatedRecords 筆、錨點 $updatedAnchors 筆"
             )
             val original = backendPlacesByPoint[point.pointId]
-            syncBackendPlace(point, original?.category ?: categoryFromPointNote(point), point.displayLabel.ifBlank { point.pointId }, original?.keywords.orEmpty(), original?.description ?: point.note)
+            syncBackendPlace(point, original?.categories ?: categoriesFromPointNote(point), point.displayLabel.ifBlank { point.pointId }, original?.keywords.orEmpty(), original?.description ?: point.note)
             syncDraggedBackendNode(point)
         }
     }
@@ -899,16 +899,21 @@ class MainActivity : AppCompatActivity() {
             hint = "備註，例如 靠近東廣場"
             minLines = 2
         }
-        val typeSpinner = Spinner(this).apply {
-            adapter = ArrayAdapter(
-                this@MainActivity,
-                android.R.layout.simple_spinner_dropdown_item,
-                listOf("商家", "電梯", "樓梯", "出口", "廁所", "服務台", "其他")
-            )
+        val categoryNames = listOf("商家", "電梯", "手扶梯", "樓梯", "出口", "廁所", "販賣機", "置物櫃", "地下停車場", "服務台", "其他")
+        val categoryChecks = categoryNames.map { category ->
+            CheckBox(this).apply {
+                text = category
+                isChecked = category == "其他"
+            }
+        }
+        val customCategoryInput = EditText(this).apply {
+            hint = "新增分類，可用逗號分隔"
+            setSingleLine(true)
         }
         container.addView(isNodeCheck)
-        container.addView(TextView(this).apply { text = "點位類型" })
-        container.addView(typeSpinner)
+        container.addView(TextView(this).apply { text = "分類設施（可複選）" })
+        categoryChecks.forEach(container::addView)
+        container.addView(customCategoryInput)
         container.addView(TextView(this).apply { text = "點位名稱" })
         container.addView(nameInput)
         container.addView(TextView(this).apply { text = "關鍵字" })
@@ -929,22 +934,32 @@ class MainActivity : AppCompatActivity() {
                     nameInput.error = "請輸入點位名稱"
                     return@setOnClickListener
                 }
-                val type = typeSpinner.selectedItem?.toString().orEmpty()
+                val categories = buildList {
+                    categoryChecks.filter { it.isChecked }.mapTo(this) { it.text.toString() }
+                    customCategoryInput.text.toString()
+                        .split(',', '，', '、', '\n')
+                        .map(String::trim)
+                        .filter(String::isNotBlank)
+                        .forEach { if (it !in this) add(it) }
+                }.let { selected ->
+                    val meaningful = selected.filter { it != "其他" }
+                    meaningful.ifEmpty { listOf("其他") }
+                }
                 val keywords = keywordInput.text.toString().trim()
                 val note = noteInput.text.toString().trim()
-                addKeyPoint(x, y, floor, type, label, keywords, note, isNodeCheck.isChecked)
+                addKeyPoint(x, y, floor, categories, label, keywords, note, isNodeCheck.isChecked)
                 dialog.dismiss()
             }
         }
         dialog.show()
     }
 
-    private fun addKeyPoint(x: Float, y: Float, floor: Int, type: String, label: String, keywords: String, note: String, isNode: Boolean) {
+    private fun addKeyPoint(x: Float, y: Float, floor: Int, categories: List<String>, label: String, keywords: String, note: String, isNode: Boolean) {
         val localId = nextKeyPointId()
         val backendNodeId = if (isNode) formalNodeIdFor(localId) else ""
         val displayName = label.ifBlank { localId }
         val pointNote = buildList {
-            if (type.isNotBlank()) add(type)
+            if (categories.isNotEmpty()) add(categories.joinToString("、"))
             if (displayName.isNotBlank()) add(displayName)
             if (keywords.isNotBlank()) add("關鍵字=$keywords")
             if (note.isNotBlank()) add("備註=$note")
@@ -965,7 +980,7 @@ class MainActivity : AppCompatActivity() {
             backendNodeId = backendNodeId
         )
         addPoint(point, explicitlyCreated = true)
-        syncBackendPlace(point, type, displayName, keywords, note)
+        syncBackendPlace(point, categories, displayName, keywords, note)
         if (isNode) syncDraggedBackendNode(point)
         autoScanTargetCount = 3
         binding.editAutoScanCount.setText("3")
@@ -1456,6 +1471,7 @@ class MainActivity : AppCompatActivity() {
                 floorId = item.optString("floorId", floorId).ifBlank { floorId },
                 name = item.optString("name", id),
                 category = item.optString("category", "其他"),
+                categories = jsonCategories(item),
                 description = item.optString("description"),
                 keywords = item.optString("keywords"),
                 routeNodeId = item.optString("routeNodeId"),
@@ -1525,7 +1541,7 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun syncBackendPlace(point: SamplingPoint, category: String, label: String, keywords: String, note: String) {
+    private fun syncBackendPlace(point: SamplingPoint, categories: List<String>, label: String, keywords: String, note: String) {
         val mapId = activeSamplingMapId().ifBlank { return }
         val floorId = backendFloorId.ifBlank { floorCode(point.floor) }
         val backendUrl = binding.editBackendUrl.text.toString().trim().trimEnd('/').ifBlank {
@@ -1539,7 +1555,7 @@ class MainActivity : AppCompatActivity() {
                         point = point,
                         mapId = mapId,
                         floorId = floorId,
-                        category = category.ifBlank { "其他" },
+                        categories = categories.ifEmpty { listOf("其他") },
                         label = label.ifBlank { point.pointId },
                         keywords = keywords,
                         note = note
@@ -1559,7 +1575,7 @@ class MainActivity : AppCompatActivity() {
         point: SamplingPoint,
         mapId: String,
         floorId: String,
-        category: String,
+        categories: List<String>,
         label: String,
         keywords: String,
         note: String
@@ -1570,7 +1586,8 @@ class MainActivity : AppCompatActivity() {
             .put("mapId", mapId)
             .put("floorId", floorId)
             .put("name", label)
-            .put("category", category)
+            .put("category", categories.firstOrNull() ?: "其他")
+            .put("categories", JSONArray(categories))
             .put("x", point.x)
             .put("y", point.y)
             .put("description", note.ifBlank { point.note })
@@ -1682,9 +1699,20 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun categoryFromPointNote(point: SamplingPoint): String {
+    private fun categoriesFromPointNote(point: SamplingPoint): List<String> {
         val first = point.note.substringBefore("；").substringBefore("：").trim()
-        return first.ifBlank { "其他" }
+        return first.split('、', ',', '，').map(String::trim).filter(String::isNotBlank).ifEmpty { listOf("其他") }
+    }
+
+    private fun jsonCategories(item: JSONObject): List<String> {
+        val values = mutableListOf<String>()
+        item.optJSONArray("categories")?.let { array ->
+            for (index in 0 until array.length()) {
+                array.optString(index).trim().takeIf { it.isNotBlank() && it !in values }?.let(values::add)
+            }
+        }
+        item.optString("category", "其他").trim().takeIf { values.isEmpty() && it.isNotBlank() }?.let(values::add)
+        return values.ifEmpty { listOf("其他") }
     }
 
     private fun backendFloorMapFileName(mapId: String, floorId: String, imageUrl: String): String {
@@ -4094,7 +4122,8 @@ class MainActivity : AppCompatActivity() {
         val keywords: String,
         val routeNodeId: String = "",
         val x: Float,
-        val y: Float
+        val y: Float,
+        val categories: List<String> = listOf(category)
     )
 
     private data class BackendFingerprintPoint(

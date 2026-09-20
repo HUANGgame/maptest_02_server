@@ -413,8 +413,9 @@
     <h2>標記資訊</h2>
     <label for="newPlaceName">名稱</label>
     <input id="newPlaceName" placeholder="例如 K12、電梯、店名">
-    <label for="newPlaceCategory">分類設施</label>
-    <select id="newPlaceCategory"></select>
+    <label for="newPlaceCategory">分類設施（可複選）</label>
+    <select id="newPlaceCategory" multiple size="6"></select>
+    <div class="muted">可同時選擇多個分類，例如廁所與販賣機。</div>
     <div class="category-editor">
       <input id="newPlaceCategoryAdd" placeholder="新增分類，例如 ATM、售票機">
       <button id="addPlaceCategoryButton" type="button" class="secondary">新增分類</button>
@@ -489,7 +490,7 @@
     let zoneResizeState = null;
     let showPlaceMarkersOnMap = false;
     let showWifiPointsOnMap = false;
-    const defaultPlaceCategories = ["店家", "手扶梯", "樓梯", "電梯", "出口", "廁所", "服務台", "廣場", "停車場", "售票機", "ATM", "重要設施", "未分類"];
+    const defaultPlaceCategories = ["店家", "商家", "手扶梯", "樓梯", "電梯", "出口", "廁所", "販賣機", "置物櫃", "服務台", "廣場", "停車場", "地下停車場", "售票機", "ATM", "重要設施", "未分類"];
     clearRouteZoneBackups();
     reloadButton.addEventListener("click", loadDashboard);
     document.querySelector("#placeModeButton").addEventListener("click", () => setEditorMode("place"));
@@ -642,7 +643,8 @@
     });
     document.querySelector("#createPlaceButton").addEventListener("click", async () => {
       const name = document.querySelector("#newPlaceName").value.trim();
-      const category = document.querySelector("#newPlaceCategory").value.trim() || "未分類";
+      const categories = selectedPlaceCategories();
+      const category = categories[0] || "未分類";
       const keywords = document.querySelector("#newPlaceKeywords").value.trim();
       const description = document.querySelector("#newPlaceDescription").value.trim();
       const x = Number(selectedPlaceNode?.x ?? document.querySelector("#newPlaceX").value);
@@ -671,6 +673,7 @@
           floorId: floorSelect.value,
           name,
           category,
+          categories,
           x,
           y,
           description,
@@ -806,7 +809,7 @@
       document.querySelector("#placesBody").innerHTML = places.map(place => `
         <tr>
           <td>${escapeHtml(place.name)}</td>
-          <td>${escapeHtml(place.category)}</td>
+          <td>${escapeHtml(placeCategoryList(place).join("、"))}</td>
           <td>${place.x}, ${place.y}</td>
           <td>
             <select data-place-status="${escapeHtml(place.id)}">
@@ -1816,7 +1819,7 @@
     function resetPlaceEditorForm() {
       selectedPlaceNode = null;
       document.querySelector("#newPlaceName").value = "";
-      renderPlaceCategoryOptions("未分類");
+      renderPlaceCategoryOptions(["未分類"]);
       document.querySelector("#newPlaceCategoryAdd").value = "";
       document.querySelector("#newPlaceKeywords").value = "";
       document.querySelector("#newPlaceDescription").value = "";
@@ -1838,7 +1841,7 @@
 
     function placeCategoryValues() {
       const saved = allPlaces
-        .map(place => String(place.category || "").trim())
+        .flatMap(place => placeCategoryList(place))
         .filter(Boolean);
       return Array.from(new Set(defaultPlaceCategories.concat(saved)))
         .sort((left, right) => {
@@ -1851,26 +1854,43 @@
         });
     }
 
-    function renderPlaceCategoryOptions(selectedValue = document.querySelector("#newPlaceCategory")?.value || "未分類") {
+    function placeCategoryList(place) {
+      const values = Array.isArray(place?.categories) && place.categories.length
+        ? place.categories
+        : [place?.category];
+      return Array.from(new Set(values.map(value => String(value || "").trim()).filter(Boolean)));
+    }
+
+    function selectedPlaceCategories() {
+      const select = document.querySelector("#newPlaceCategory");
+      const selected = [...select.selectedOptions].map(option => option.value.trim()).filter(Boolean);
+      const unique = Array.from(new Set(selected));
+      const meaningful = unique.filter(category => category !== "未分類");
+      return meaningful.length ? meaningful : ["未分類"];
+    }
+
+    function renderPlaceCategoryOptions(selectedValues = selectedPlaceCategories()) {
       const select = document.querySelector("#newPlaceCategory");
       const values = placeCategoryValues();
-      const selected = String(selectedValue || "未分類").trim();
-      if (selected && !values.includes(selected)) values.push(selected);
+      const selected = Array.isArray(selectedValues) ? selectedValues : [selectedValues];
+      const normalized = Array.from(new Set(selected.map(value => String(value || "").trim()).filter(Boolean)));
+      if (!normalized.length) normalized.push("未分類");
+      normalized.forEach(value => { if (!values.includes(value)) values.push(value); });
       select.innerHTML = values
-        .map(value => `<option value="${escapeHtml(value)}">${escapeHtml(value)}</option>`)
+        .map(value => `<option value="${escapeHtml(value)}" ${normalized.includes(value) ? "selected" : ""}>${escapeHtml(value)}</option>`)
         .join("");
-      select.value = values.includes(selected) ? selected : "未分類";
     }
 
     function setPlaceCategoryValue(value) {
-      renderPlaceCategoryOptions(String(value || "未分類").trim());
+      renderPlaceCategoryOptions(Array.isArray(value) ? value : [String(value || "未分類").trim()]);
     }
 
     function addPlaceCategoryFromInput() {
       const input = document.querySelector("#newPlaceCategoryAdd");
       const value = input.value.trim();
       if (!value) return;
-      setPlaceCategoryValue(value);
+      const selected = selectedPlaceCategories().filter(category => category !== "未分類");
+      setPlaceCategoryValue([...selected, value]);
       input.value = "";
     }
 
@@ -1906,7 +1926,7 @@
         placeId: place.id,
       };
       document.querySelector("#newPlaceName").value = place.name || "";
-      setPlaceCategoryValue(place.category || "未分類");
+      setPlaceCategoryValue(placeCategoryList(place));
       document.querySelector("#newPlaceKeywords").value = place.keywords || "";
       document.querySelector("#newPlaceDescription").value = place.description || "";
       document.querySelector("#newPlaceOpeningHours").value = place.openingHours || "";
@@ -2012,6 +2032,7 @@
         floorId: place.floorId || floorSelect.value,
         name: place.name || "點位",
         category: place.category || "未分類",
+        categories: placeCategoryList(place),
         description: place.description || "",
         keywords: place.keywords || "",
         x: point.x,

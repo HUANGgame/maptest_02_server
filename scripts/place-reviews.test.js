@@ -23,6 +23,7 @@ test("reviews persist by owner and place, aggregate, paginate, and fail honestly
       { mapId: "b", id: "shop", category: " 商家 " },
       { mapId: "a", id: "stairs", category: "手扶梯" },
       { mapId: "a", id: "other", category: "其他店家設施" },
+      { mapId: "a", id: "multi", category: "廁所", categories: ["廁所", "商家"] },
       { mapId: "a", id: "unset" },
     ], storage,
     async readBody(request) {
@@ -50,6 +51,8 @@ test("reviews persist by owner and place, aggregate, paginate, and fail honestly
     assert.equal((await call()).data.average, null);
     assert.equal((await call("PUT", input, other, "mapId=b&placeId=shop")).status, 200);
     assert.equal((await call("DELETE", undefined, other, "mapId=b&placeId=shop")).status, 200);
+    assert.equal((await call("PUT", input, other, "mapId=a&placeId=multi")).status, 200);
+    assert.equal((await call("DELETE", undefined, other, "mapId=a&placeId=multi")).status, 200);
     for (const id of ["stairs", "other", "unset"]) {
       for (const method of ["GET", "PUT", "DELETE"]) {
         assert.equal((await call(method, method === "PUT" ? { ...input, category: "店家" } : undefined,

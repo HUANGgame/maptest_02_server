@@ -85,8 +85,9 @@ function decide(place, review, hidden) {
 $('load').onclick=()=>load();$('queue').onclick=queue;$('more').onclick=()=>load(true);
 $('shop').onchange=()=>{nextOffset=null;$('more').hidden=true;$('list').replaceChildren();$('notice').textContent='按讀取評論查看所選店家。';};
 $('logout').onclick=()=>{$('key').value='';$('list').replaceChildren();$('more').hidden=true;$('notice').textContent='管理金鑰已清除。';};
+function categories(p){return (Array.isArray(p.categories)&&p.categories.length?p.categories:[p.category]).map(v=>String(v||'').trim());}
 fetch('/api/places').then(r=>{if(!r.ok)throw Error('無法取得店家');return r.json();}).then(data=>{
-  shops=data.filter(p=>['店家','商家'].includes(String(p.category||'').trim()));
+  shops=data.filter(p=>categories(p).some(v=>['店家','商家'].includes(v)));
   shops.forEach(p=>{const o=document.createElement('option');o.value=p.id;o.textContent=p.name+' / '+(p.floorName||p.floorId);$('shop').append(o);});
   $('notice').textContent='請輸入管理金鑰，再讀取評論。';
 }).catch(e=>{$('notice').textContent=e.message;});

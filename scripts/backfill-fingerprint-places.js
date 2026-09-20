@@ -57,7 +57,12 @@ async function backfillFloor(floorId) {
     const floorName = floorId.endsWith("-2f") ? "2F" : "1F";
     const fallbackName = `${floorName} 採樣點 ${point.pointId}`;
     const name = matchedNode?.label || matchedPlace?.name || fallbackName;
-    const category = matchedNode ? categoryForNodeType(matchedNode.nodeType) : (matchedPlace?.category || "定位點");
+    const inferredCategory = matchedNode ? categoryForNodeType(matchedNode.nodeType) : "定位點";
+    const existingCategories = Array.isArray(matchedPlace?.categories) && matchedPlace.categories.length
+      ? matchedPlace.categories
+      : [matchedPlace?.category];
+    const categories = Array.from(new Set(existingCategories.concat(inferredCategory).map((value) => String(value || "").trim()).filter(Boolean)));
+    const category = categories[0] || inferredCategory;
     const legacyId = legacyPlaceIdFor(point.pointId);
     if (places.some((place) => place.id === legacyId)) {
       await requestJson(`/api/places?placeId=${encodeURIComponent(legacyId)}`, { method: "DELETE" });
@@ -71,6 +76,7 @@ async function backfillFloor(floorId) {
         floorId,
         name,
         category,
+        categories,
         x: point.x,
         y: point.y,
         description: `既有 Wi-Fi 指紋定位點，共 ${point.scanCount || 0} 筆掃描資料。`,

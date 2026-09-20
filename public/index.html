@@ -691,7 +691,8 @@
         .filter((place) => {
           if (place.mapId !== state.currentMapId) return false;
           if (!keyword) return place.floorId === state.currentFloorId;
-          return [place.id, place.name, place.category, place.description].some((value) => String(value || "").toLowerCase().includes(keyword));
+          return [place.id, place.name, ...(Array.isArray(place.categories) ? place.categories : [place.category]), place.keywords, place.description]
+            .some((value) => String(value || "").toLowerCase().includes(keyword));
         })
         .filter((_, index) => index !== 5)
         .slice(0, 30);
@@ -701,7 +702,7 @@
       results.innerHTML = matched.map((place) => `
         <button class="result" data-id="${escapeHtml(place.id)}">
           <strong>${escapeHtml(place.name)}</strong>
-          <span>${escapeHtml(floorName(place.floorId))}｜${escapeHtml(place.category || "地點")}｜${state.hasCurrentPosition ? `${distance(place.x, place.y, state.current.x, state.current.y).toFixed(0)} 公尺` : "-- 公尺"}｜可導航</span>
+          <span>${escapeHtml(floorName(place.floorId))}｜${escapeHtml(placeCategoryText(place))}｜${state.hasCurrentPosition ? `${distance(place.x, place.y, state.current.x, state.current.y).toFixed(0)} 公尺` : "-- 公尺"}｜可導航</span>
         </button>
       `).join("");
       results.querySelectorAll(".result").forEach((button) => {
@@ -1745,6 +1746,13 @@
       localStorage.setItem("feedbackConsentAsked", "true");
       localStorage.setItem("feedbackAllowed", String(allowed));
       privacyDialog.close();
+    }
+
+    function placeCategoryText(place) {
+      const values = Array.isArray(place?.categories) && place.categories.length
+        ? place.categories
+        : [place?.category];
+      return Array.from(new Set(values.map(value => String(value || "").trim()).filter(Boolean))).join("、") || "地點";
     }
 
     function floorName(id) {

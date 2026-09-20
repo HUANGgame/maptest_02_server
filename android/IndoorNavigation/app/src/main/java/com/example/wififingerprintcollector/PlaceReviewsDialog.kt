@@ -27,7 +27,7 @@ import java.security.MessageDigest
 import java.util.Locale
 import java.util.UUID
 
-internal fun DemoPlace.supportsPlaceReviews(): Boolean = category.trim() in setOf("店家", "商家")
+internal fun DemoPlace.supportsPlaceReviews(): Boolean = categories.any { it.trim() in setOf("店家", "商家") }
 
 internal class PlaceReviewsDialog(
     private val activity: AppCompatActivity,
