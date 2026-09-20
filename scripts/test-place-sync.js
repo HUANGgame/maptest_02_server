@@ -56,6 +56,9 @@ try {
   const apMenu = collectorActivity.slice(collectorActivity.indexOf("private fun showApCalibrationMenu()"), collectorActivity.indexOf("private fun showApCalibrationInstructions()"));
   assert(apMenu.includes('"1. 自動建立候選基地台"'), "collector AP calibration menu must expose candidate generation");
   assert(!apMenu.includes(".setMessage("), "Android list dialogs must not replace the AP calibration choices with a message");
+  const apConfirmation = collectorActivity.slice(collectorActivity.indexOf("private fun confirmApAtCurrentPoint()"), collectorActivity.indexOf("private fun verifyApCalibration("));
+  assert(apConfirmation.includes(".setSingleChoiceItems("), "collector AP confirmation must expose candidate choices");
+  assert(!apConfirmation.includes(".setMessage("), "Android choice dialogs must not replace AP candidates with a message");
   console.log("PASS: status/hours survive editing, coordinates preserved, keyword/notes ranking, recency bounds, progressive admin loading, category picker and syntax");
 } finally {
   fs.rmSync(directory, { recursive: true, force: true });

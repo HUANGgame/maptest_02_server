@@ -4439,9 +4439,8 @@ class MainActivity : AppCompatActivity() {
                 "${calibration.ssid.ifBlank { "隱藏 SSID" }}\n${calibration.bssid}｜$signal｜建議 ${calibration.suggestedPointId}"
             }.toTypedArray()
             AlertDialog.Builder(this@MainActivity)
-                .setTitle("確認目前位置的基地台")
+                .setTitle("確認目前位置的基地台（需 -72 dBm 以上）")
                 .setSingleChoiceItems(labels, 0, null)
-                .setMessage("請站在基地台正下方或最近可到達位置，手機保持胸前直立。訊號必須達 -72 dBm 以上。")
                 .setPositiveButton("確認此基地台") { dialog, _ ->
                     val selected = (dialog as AlertDialog).listView.checkedItemPosition.coerceAtLeast(0)
                     verifyApCalibration(calibrations[selected], point)
