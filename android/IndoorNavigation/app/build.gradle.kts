@@ -29,8 +29,8 @@ android {
         create("navigator") {
             dimension = "mode"
             applicationId = "com.example.indoor.navigator"
-            versionCode = 54
-            versionName = "1.0.54"
+            versionCode = 55
+            versionName = "1.0.55"
             manifestPlaceholders["appLabel"] = "智慧地下街Wi-Fi室內定位導航系統"
         }
     }

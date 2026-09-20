@@ -82,8 +82,9 @@ class UserNavigationActivity : AppCompatActivity() {
         const val FLOOR_SWITCH_BACK_REQUIRED_HITS = 5
         const val FLOOR_SWITCH_BACK_REQUIRED_CONFIDENCE = 75
         const val FLOOR_SWITCH_COOLDOWN_MILLIS = 20000L
-        const val LOCATION_UPDATE_INTERVAL_MILLIS = 1500L
-        const val ROUTE_REFRESH_INTERVAL_MILLIS = 1500L
+        const val MIN_LOCATION_UPDATE_INTERVAL_MILLIS = 1000L
+        const val DEFAULT_LOCATION_UPDATE_INTERVAL_MILLIS = 1500L
+        const val MAX_LOCATION_UPDATE_INTERVAL_MILLIS = 5000L
         const val BLOCKED_ROUTE_ADVANCE_PIXELS = 10f
         const val MIN_STEP_ADVANCE_METERS = 0.25f
         const val MAX_STEP_ADVANCE_METERS = 1.2f
@@ -139,6 +140,7 @@ class UserNavigationActivity : AppCompatActivity() {
     private var currentMarkerStyle = DemoNavigationMapView.CurrentMarkerStyle.GREEN_ARROW
     private var continuousLocationJob: Job? = null
     private var estimatingLocation = false
+    private var locationUpdateIntervalMillis = DEFAULT_LOCATION_UPDATE_INTERVAL_MILLIS
     private var routeRequestInFlight = false
     private var routeRefreshPending = false
     private var lastAcceptedLocationAtMillis = 0L
@@ -249,7 +251,7 @@ class UserNavigationActivity : AppCompatActivity() {
         continuousLocationJob = lifecycleScope.launch {
             while (true) {
                 estimateCurrentLocation()
-                delay(LOCATION_UPDATE_INTERVAL_MILLIS)
+                delay(locationUpdateIntervalMillis)
             }
         }
     }
@@ -1161,7 +1163,7 @@ class UserNavigationActivity : AppCompatActivity() {
             return
         }
         val now = SystemClock.elapsedRealtime()
-        if (!force && now - lastRouteRefreshAtMillis < ROUTE_REFRESH_INTERVAL_MILLIS) return
+        if (!force && now - lastRouteRefreshAtMillis < locationUpdateIntervalMillis) return
         lastRouteRefreshAtMillis = now
         if (routeRequestInFlight) {
             routeRefreshPending = true
@@ -1312,14 +1314,17 @@ class UserNavigationActivity : AppCompatActivity() {
         val requestedFloor = currentFloorId
         val wifiList = currentWifiListForFeedback()
         if (wifiList.length() < 2) {
+            locationUpdateIntervalMillis = maxOf(locationUpdateIntervalMillis, 3000L)
             markOutsideCurrentArea("Wi-Fi 掃描資料不足，請確認手機 Wi-Fi 與定位服務已開啟。")
             updateLocationSignalStatus(LocationSignalState.OUTSIDE)
             refreshMapPlaces()
             return
         }
 
+        val requestStartedAtMillis = SystemClock.elapsedRealtime()
         lifecycleScope.launch {
             estimatingLocation = true
+            var requestSucceeded = false
             runCatching {
                 withContext(Dispatchers.IO) {
                     val estimate = getBestLocationEstimateFromBackend(wifiList)
@@ -1327,6 +1332,7 @@ class UserNavigationActivity : AppCompatActivity() {
                     estimate to nearestPoint
                 }
             }.onSuccess { (estimate, nearestPoint) ->
+                requestSucceeded = true
                 if (requestedMap != currentMapId || requestedFloor != currentFloorId) return@onSuccess
                 if (!isUsableLocationEstimate(estimate, nearestPoint)) {
                     markOutsideCurrentArea("\u76ee\u524d\u4e0d\u5728\u6b64\u5340\u57df\uff0c\u8acb\u78ba\u8a8d\u662f\u5426\u7ad9\u5728\u5df2\u63a1\u6a23\u7bc4\u570d\u5167\u3002")
@@ -1390,7 +1396,24 @@ class UserNavigationActivity : AppCompatActivity() {
                 updateLocationSignalStatus(LocationSignalState.OUTSIDE)
                 refreshMapPlaces()
             }.also {
+                updateLocationPollingInterval(
+                    SystemClock.elapsedRealtime() - requestStartedAtMillis,
+                    requestSucceeded
+                )
                 estimatingLocation = false
+            }
+        }
+    }
+
+    private fun updateLocationPollingInterval(requestDurationMillis: Long, succeeded: Boolean) {
+        locationUpdateIntervalMillis = if (!succeeded) {
+            (locationUpdateIntervalMillis * 2).coerceAtMost(MAX_LOCATION_UPDATE_INTERVAL_MILLIS)
+        } else {
+            when {
+                requestDurationMillis <= 800L -> MIN_LOCATION_UPDATE_INTERVAL_MILLIS
+                requestDurationMillis <= 1800L -> DEFAULT_LOCATION_UPDATE_INTERVAL_MILLIS
+                requestDurationMillis <= 3000L -> 2500L
+                else -> (requestDurationMillis + 500L).coerceAtMost(MAX_LOCATION_UPDATE_INTERVAL_MILLIS)
             }
         }
     }
