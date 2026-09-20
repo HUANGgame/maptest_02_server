@@ -348,6 +348,10 @@ class UserNavigationActivity : AppCompatActivity() {
             val stepDelta = (distanceMeters - latestStepDistance).coerceAtLeast(0f)
             latestStepDistance = distanceMeters
             pendingStepDistanceSinceWifi = (pendingStepDistanceSinceWifi + stepDelta).coerceAtMost(30f)
+            if (::barometerManager.isInitialized) {
+                barometerManager.recordMovement(stepDelta)
+                barometerManager.setTransitionExpected(isNearCurrentRouteConnector())
+            }
             advanceCurrentPositionAlongRouteBySteps(stepDelta)
             updateSensorAssistText(if (latestHeadingStable) "穩定" else "方向可能受干擾")
         }
@@ -1346,6 +1350,9 @@ class UserNavigationActivity : AppCompatActivity() {
                 currentY = displayLocation.y
                 currentFloorId = locatedFloor
                 pendingStepDistanceSinceWifi = 0f
+                if (::barometerManager.isInitialized) {
+                    barometerManager.setTransitionExpected(isNearCurrentRouteConnector())
+                }
                 if (floorChanged) {
                     lastFloorSwitchAtMillis = SystemClock.elapsedRealtime()
                     candidateFloorId = ""
@@ -1498,6 +1505,11 @@ class UserNavigationActivity : AppCompatActivity() {
                 to.floorId == targetFloorId &&
                 distance(currentX, currentY, from.x, from.y) <= 70f
         }
+    }
+
+    private fun isNearCurrentRouteConnector(): Boolean {
+        val connector = connectorOnCurrentRouteFloor() ?: return false
+        return distance(currentX, currentY, connector.first.x, connector.first.y) <= CONNECTOR_LOCK_DISTANCE_PIXELS
     }
 
     private fun smoothNavigationLocation(

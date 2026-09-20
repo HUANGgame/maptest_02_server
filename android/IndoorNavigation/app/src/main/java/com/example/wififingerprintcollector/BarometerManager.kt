@@ -14,6 +14,9 @@ class BarometerManager(
     private val sensorManager = context.getSystemService(Context.SENSOR_SERVICE) as SensorManager
     private val pressureSensor = sensorManager.getDefaultSensor(Sensor.TYPE_PRESSURE)
     private val detector = BarometricFloorDetector()
+    private var lastMovementAtMillis = 0L
+    private var transitionExpected = false
+    private var referencePressureHpa: Float? = null
 
     val isAvailable: Boolean get() = pressureSensor != null
 
@@ -25,9 +28,29 @@ class BarometerManager(
 
     fun confirmFloor() = detector.reset()
 
+    fun recordMovement(distanceMeters: Float) {
+        if (distanceMeters >= 0.2f) lastMovementAtMillis = SystemClock.elapsedRealtime()
+    }
+
+    fun setTransitionExpected(expected: Boolean) {
+        transitionExpected = expected
+    }
+
+    /** Accepts a time-aligned pressure value from an optional fixed venue sensor. */
+    fun updateReferencePressure(pressureHpa: Float?) {
+        referencePressureHpa = pressureHpa?.takeIf { it.isFinite() && it in 850f..1100f }
+    }
+
     override fun onSensorChanged(event: SensorEvent?) {
         if (event?.sensor?.type != Sensor.TYPE_PRESSURE) return
-        val direction = detector.observe(event.values.firstOrNull() ?: return, SystemClock.elapsedRealtime())
+        val now = SystemClock.elapsedRealtime()
+        val movementEvidence = transitionExpected || now - lastMovementAtMillis <= 8_000L
+        val direction = detector.observe(
+            pressureHpa = event.values.firstOrNull() ?: return,
+            timestampMillis = now,
+            movementEvidence = movementEvidence,
+            referencePressureHpa = referencePressureHpa
+        )
         if (direction != 0) onFloorTrend(direction)
     }
 
