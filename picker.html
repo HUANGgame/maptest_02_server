@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>地圖座標取點器</title>
+    <style>
+        body { font-family: sans-serif; text-align: center; background: #f0f0f0; }
+        .map-container { position: relative; display: inline-block; margin-top: 20px; border: 2px solid #333; }
+        img { display: block; width: 750px; height: 250px; }
+        .grid-overlay {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background-image: linear-gradient(to right, rgba(0,0,0,0.1) 1px, transparent 1px),
+                              linear-gradient(to bottom, rgba(0,0,0,0.1) 1px, transparent 1px);
+            background-size: 10px 10px; cursor: crosshair;
+        }
+        #result { margin-top: 20px; font-size: 24px; font-weight: bold; color: #d32f2f; }
+    </style>
+</head>
+<body>
+    <h2>請點擊地圖上的「店家正門口走道 (白色區域)」</h2>
+    <div id="result">尚未點擊</div>
+    <div class="map-container">
+        <!-- 確保 k_zone_map.png 與此檔在同一資料夾 -->
+        <img src="k_zone_map.png" alt="Map">
+        <div class="grid-overlay" onclick="getCoordinates(event)"></div>
+    </div>
+    <script>
+        function getCoordinates(event) {
+            const rect = event.target.getBoundingClientRect();
+            const gridX = Math.floor((event.clientX - rect.left) / 10);
+            const gridY = Math.floor((event.clientY - rect.top) / 10);
+            document.getElementById("result").innerText = `選中座標 👉 "x": ${gridX}, "y": ${gridY}`;
+        }
+    </script>
+</body>
+</html>
