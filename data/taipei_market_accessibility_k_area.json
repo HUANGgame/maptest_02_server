@@ -1,0 +1,32 @@
+{
+  "datasetName": "臺北市市場無障礙設施設置情形",
+  "provider": "臺北市政府產業發展局市場處",
+  "platform": "臺北市資料大平臺",
+  "retrievedForProject": "智捷北車｜地下空間無障礙室內導航系統",
+  "venue": {
+    "name": "K區地下街",
+    "address": "臺北市中正區忠孝西路一段47號",
+    "longitude": 121.517799,
+    "latitude": 25.046967,
+    "facilities": {
+      "accessibleRamps": 2,
+      "accessibleRestrooms": 7,
+      "accessibleElevators": 2
+    },
+    "sourceText": "無障礙坡道x2、無障礙廁所x7、無障礙電梯x2"
+  },
+  "integration": {
+    "note": "官方開放資料用於確認 K區地下街具備無障礙設施；K1、K7 電梯位置與 K1→MRT 無障礙通行路線由團隊現地調查建立。",
+    "fieldVerifiedRoute": {
+      "from": "K1",
+      "to": "MRT",
+      "durationMinutes": 9.5,
+      "stepFree": true,
+      "features": [
+        "電梯",
+        "無障礙坡道",
+        "電動步道"
+      ]
+    }
+  }
+}
