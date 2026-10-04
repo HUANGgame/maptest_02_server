@@ -49,6 +49,17 @@ const server = http.createServer(async (request, response) => {
     return;
   }
 
+  if (request.method === "GET" && url.pathname === "/api/open-data/taipei-accessibility") {
+    const filePath = path.join(__dirname, "data", "taipei_market_accessibility_k_area.json");
+    try {
+      const payload = JSON.parse(fs.readFileSync(filePath, "utf8"));
+      sendJson(response, 200, payload);
+    } catch (error) {
+      sendJson(response, 500, { success: false, message: "開放資料讀取失敗。" });
+    }
+    return;
+  }
+
   if (request.method === "GET" && (url.pathname === "/" || url.pathname === "/app" || url.pathname === "/navigation")) {
     sendJson(response, 410, {
       success: false,
@@ -2104,12 +2115,13 @@ function planRoute(body) {
   const floorId = String(body.startFloorId || body.floorId || "").trim();
   const targetFloorId = String(body.targetFloorId || "").trim();
   const destinationPlaceId = String(body.destinationPlaceId || "").trim();
+  const navigationMode = normalizeNavigationMode(body.navigationMode || body.routeMode);
   const startX = Number(body.startX);
   const startY = Number(body.startY);
   if (!mapId || !floorId || !destinationPlaceId || !Number.isFinite(startX) || !Number.isFinite(startY)) return null;
   const destination = readPlaces().find((place) => place.id === destinationPlaceId && place.mapId === mapId && (!targetFloorId || place.floorId === targetFloorId));
   if (destination && destination.floorId !== floorId) {
-    return planCrossFloorRoute(mapId, floorId, startX, startY, destination);
+    return planCrossFloorRoute(mapId, floorId, startX, startY, destination, navigationMode);
   }
   const zoneRoute = destination ? planZoneRoute(mapId, floorId, { x: startX, y: startY, floorId }, destination) : null;
   if (zoneRoute) return zoneRoute;
@@ -2129,16 +2141,17 @@ function planRoute(body) {
   };
 }
 
-function planCrossFloorRoute(mapId, startFloorId, startX, startY, destination) {
+function planCrossFloorRoute(mapId, startFloorId, startX, startY, destination, navigationMode = "general") {
   const candidates = readFloorTransitions()
     .filter((item) => item.mapId === mapId && item.fromFloorId === startFloorId && item.toFloorId === destination.floorId)
-    .map((transition) => buildCrossFloorCandidate(mapId, startFloorId, startX, startY, destination, transition))
+    .filter((item) => transitionAllowedForMode(item, navigationMode))
+    .map((transition) => buildCrossFloorCandidate(mapId, startFloorId, startX, startY, destination, transition, navigationMode))
     .filter(Boolean)
-    .sort((a, b) => a.distance - b.distance);
+    .sort((a, b) => a.estimatedTime - b.estimatedTime || a.distance - b.distance);
   return candidates[0] || null;
 }
 
-function buildCrossFloorCandidate(mapId, startFloorId, startX, startY, destination, transition) {
+function buildCrossFloorCandidate(mapId, startFloorId, startX, startY, destination, transition, navigationMode = "general") {
   const transitionFrom = nodeById(transition.fromNodeId);
   const firstLegDestination = { id: "transition-destination", x: transitionFrom?.x, y: transitionFrom?.y, floorId: startFloorId };
   if (firstLegDestination.x == null || firstLegDestination.y == null) return null;
@@ -2167,17 +2180,36 @@ function buildCrossFloorCandidate(mapId, startFloorId, startX, startY, destinati
   const firstPoints = firstLeg?.routePoints || [];
   const firstDistance = Number(firstLeg?.distance || 0);
   const totalDistance = firstDistance + secondDistance;
+  const transitionMinutes = Number.isFinite(Number(transition.transitionMinutes))
+    ? Number(transition.transitionMinutes)
+    : 0.5;
+  const estimatedTime = Math.max(0.5, Math.round((totalDistance / 75 + transitionMinutes) * 10) / 10);
   return {
     routePoints: firstPoints.concat(secondPoints),
     distance: Math.round(totalDistance * 100) / 100,
-    estimatedTime: routeEstimatedMinutes(totalDistance, 1),
+    estimatedTime,
+    navigationMode,
     floorTransitions: [{
       fromFloorId: transition.fromFloorId,
       toFloorId: transition.toFloorId,
       transitionType: transition.transitionType,
       name: transition.name,
+      accessible: transition.accessible === true || transition.transitionType === "elevator",
+      fieldVerified: transition.fieldVerified === true,
+      transitionMinutes,
     }],
   };
+}
+
+function normalizeNavigationMode(value) {
+  return String(value || "general").trim().toLowerCase() === "accessible" ? "accessible" : "general";
+}
+
+function transitionAllowedForMode(transition, navigationMode) {
+  if (navigationMode === "accessible") {
+    return transition.accessible === true || ["elevator", "ramp", "accessible"].includes(String(transition.transitionType || "").toLowerCase());
+  }
+  return transition.accessibleOnly !== true;
 }
 
 function planZoneRoute(mapId, floorId, start, destination) {
