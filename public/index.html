@@ -301,7 +301,7 @@
   <div class="app">
     <header class="topbar">
       <div class="brand">
-        <h1>地下街室內導航系統</h1>
+        <h1>智捷北車</h1>
         <span>用戶端</span>
       </div>
       <div class="search">
@@ -336,6 +336,11 @@
         <span id="timeText">時間：-- 分鐘</span>
         <span id="headingText" hidden></span>
       </div>
+      <div class="actions">
+        <button id="generalModeButton" class="primary">一般路線</button>
+        <button id="accessibleModeButton">♿ 無障礙</button>
+      </div>
+      <p id="accessibilityInfo" class="muted">臺北市開放資料讀取中...</p>
       <div class="actions">
         <button id="showRouteButton">顯示路線</button>
         <button id="startButton" class="primary">開始導航</button>
@@ -391,6 +396,8 @@
       navigationFrame: null,
       navigationTimer: null,
       navigationRouteIndex: 0,
+      navigationMode: localStorage.getItem("navigationMode") === "accessible" ? "accessible" : "general",
+      accessibilityOpenData: null,
       feedbackAllowed: localStorage.getItem("feedbackAllowed") === "true",
     };
 
@@ -409,6 +416,9 @@
     const distanceText = document.querySelector("#distanceText");
     const timeText = document.querySelector("#timeText");
     const headingText = document.querySelector("#headingText");
+    const generalModeButton = document.querySelector("#generalModeButton");
+    const accessibleModeButton = document.querySelector("#accessibleModeButton");
+    const accessibilityInfo = document.querySelector("#accessibilityInfo");
     const feedbackSwitch = document.querySelector("#feedbackSwitch");
     const privacyDialog = document.querySelector("#privacyDialog");
 
@@ -431,6 +441,8 @@
     document.querySelector("#zoomInButton").addEventListener("click", () => setZoom(state.zoom * 1.2));
     document.querySelector("#zoomOutButton").addEventListener("click", () => setZoom(state.zoom / 1.2));
     document.querySelector("#resetButton").addEventListener("click", resetView);
+    generalModeButton.addEventListener("click", () => setNavigationMode("general"));
+    accessibleModeButton.addEventListener("click", () => setNavigationMode("accessible"));
     document.querySelector("#showRouteButton").addEventListener("click", showRoute);
     document.querySelector("#startButton").addEventListener("click", startNavigation);
     document.querySelector("#endButton").addEventListener("click", endNavigation);
@@ -477,11 +489,44 @@
       await loadFloors();
       await loadPlaces();
       await loadWifiPoints();
+      await loadAccessibilityOpenData();
+      updateNavigationModeButtons();
       resizeCanvas();
       focusOnWifiPoints();
       performSearch();
       startLiveLocator();
       renderAll();
+    }
+
+    async function loadAccessibilityOpenData() {
+      try {
+        state.accessibilityOpenData = await fetchJson("/api/open-data/taipei-accessibility");
+        const venue = state.accessibilityOpenData?.venue;
+        if (venue) {
+          accessibilityInfo.textContent = `臺北市開放資料｜${venue.name}：${venue.sourceText}`;
+        } else {
+          accessibilityInfo.textContent = "臺北市開放資料：目前無 K區資料。";
+        }
+      } catch {
+        state.accessibilityOpenData = null;
+        accessibilityInfo.textContent = "臺北市開放資料暫時無法讀取。";
+      }
+    }
+
+    function setNavigationMode(mode) {
+      state.navigationMode = mode === "accessible" ? "accessible" : "general";
+      localStorage.setItem("navigationMode", state.navigationMode);
+      updateNavigationModeButtons();
+      if (state.destination) showRoute();
+    }
+
+    function updateNavigationModeButtons() {
+      const accessible = state.navigationMode === "accessible";
+      generalModeButton.classList.toggle("primary", !accessible);
+      accessibleModeButton.classList.toggle("primary", accessible);
+      if (accessible && state.accessibilityOpenData?.venue) {
+        nextStep.textContent = "♿ 已啟用無障礙模式，跨樓層優先使用 K1 電梯與無階差通道。";
+      }
     }
 
     function startLiveLocator() {
@@ -757,6 +802,7 @@
         startX: state.current.x,
         startY: state.current.y,
         destinationPlaceId: state.destination.id,
+        navigationMode: state.navigationMode,
       };
       try {
         if (state.destination.source === "wifiPoint") {
@@ -772,6 +818,10 @@
           }));
           state.routeDistance = Number(route.distance || 0);
           state.routeTime = Math.max(1, Number(route.estimatedTime || 1));
+          const selectedTransition = Array.isArray(route.floorTransitions) ? route.floorTransitions[0] : null;
+          if (state.navigationMode === "accessible" && selectedTransition?.name) {
+            nextStep.textContent = `♿ 無障礙路線：經 ${selectedTransition.name}${selectedTransition.fieldVerified ? "（已現地驗證）" : ""}`;
+          }
         }
       } catch (error) {
         if (state.destination.source === "wifiPoint") {
