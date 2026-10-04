@@ -252,6 +252,24 @@
                 android:textSize="14sp" />
         </LinearLayout>
 
+        <Switch
+            android:id="@+id/switchAccessibleRoute"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="♿ 無障礙路線"
+            android:textColor="@color/text_primary"
+            android:textSize="14sp" />
+
+        <TextView
+            android:id="@+id/textAccessibilityData"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
+            android:text="臺北市開放資料讀取中..."
+            android:textColor="@color/text_secondary"
+            android:textSize="12sp" />
+
         <HorizontalScrollView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
