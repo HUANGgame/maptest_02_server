@@ -134,6 +134,7 @@ class UserNavigationActivity : AppCompatActivity() {
             field = value
             if (::binding.isInitialized) binding.navigationMapView.setNavigationActive(value)
         }
+    private var accessibleNavigationEnabled = false
     private var reviewNavigationStartedAt = 0L
     private var reviewNavigationPlaceId: String? = null
     private var mapFollowsHeading = false
@@ -193,7 +194,10 @@ class UserNavigationActivity : AppCompatActivity() {
         setupSensorAssist()
         setupFeedbackConsent()
         loadMarkerStyle()
+        accessibleNavigationEnabled = false
+        binding.switchAccessibleRoute.isChecked = accessibleNavigationEnabled
         setupActions()
+        loadAccessibilityOpenData()
         updateRecentNavigationText()
         updateFloorButtons()
         refreshMapPlaces()
@@ -284,6 +288,15 @@ class UserNavigationActivity : AppCompatActivity() {
         binding.buttonZoomIn.setOnClickListener { binding.navigationMapView.zoomIn() }
         binding.buttonZoomOut.setOnClickListener { binding.navigationMapView.zoomOut() }
         binding.buttonResetMap.setOnClickListener { binding.navigationMapView.resetView() }
+        binding.switchAccessibleRoute.setOnCheckedChangeListener { _, isChecked ->
+            accessibleNavigationEnabled = isChecked
+            binding.textNextStep.text = if (isChecked) {
+                "♿ 已啟用無障礙路線，跨樓層將優先使用 K1 電梯與無階差通道。"
+            } else {
+                "已切換為一般路線。"
+            }
+            if (selectedPlace != null && hasCurrentPosition) showRouteToSelectedPlace(force = true)
+        }
         binding.buttonShowRoute.setOnClickListener {
             navigationActive = false
             reviewNavigationStartedAt = 0L
@@ -1153,6 +1166,41 @@ class UserNavigationActivity : AppCompatActivity() {
         }
     }
 
+    private fun loadAccessibilityOpenData() {
+        lifecycleScope.launch {
+            runCatching {
+                withContext(Dispatchers.IO) {
+                    val connection = (URL("${backendBaseUrl()}/api/open-data/taipei-accessibility").openConnection() as HttpURLConnection).apply {
+                        requestMethod = "GET"
+                        connectTimeout = 4000
+                        readTimeout = 5000
+                    }
+                    try {
+                        val code = connection.responseCode
+                        if (code !in 200..299) throw IllegalStateException("HTTP $code")
+                        val raw = connection.inputStream.bufferedReader(Charsets.UTF_8).use { it.readText() }
+                        val venue = JSONObject(raw).optJSONObject("venue")
+                        venue?.let {
+                            val name = it.optString("name", "K區地下街")
+                            val sourceText = it.optString("sourceText", "")
+                            "$name：$sourceText"
+                        }.orEmpty()
+                    } finally {
+                        connection.disconnect()
+                    }
+                }
+            }.onSuccess { text ->
+                binding.textAccessibilityData.text = if (text.isNotBlank()) {
+                    "臺北市開放資料｜$text"
+                } else {
+                    "臺北市開放資料｜K區地下街無障礙設施"
+                }
+            }.onFailure {
+                binding.textAccessibilityData.text = "臺北市開放資料｜K區地下街無障礙設施"
+            }
+        }
+    }
+
     private fun showRouteToSelectedPlace(force: Boolean = false) {
         val destination = selectedPlace
         if (destination == null) {
@@ -1222,7 +1270,12 @@ class UserNavigationActivity : AppCompatActivity() {
         val displayDistance = navigatorRemainingDistance(route.points, distance)
         binding.textDistance.text = formatDistanceMeters(displayDistance)
         binding.textEstimatedTime.text = "${formatMinutes(route.estimatedMinutes)} 分鐘"
-        binding.textNextStep.text = nextStepText(destination, route)
+        val selectedTransition = route.floorTransitions.firstOrNull()
+        binding.textNextStep.text = if (accessibleNavigationEnabled && selectedTransition != null) {
+            "♿ 無障礙路線：經 ${selectedTransition.name} 前往 ${destination.name}。"
+        } else {
+            nextStepText(destination, route)
+        }
     }
 
     private fun directRouteToDestination(destination: DemoPlace): DemoRouteResult {
@@ -1652,6 +1705,7 @@ class UserNavigationActivity : AppCompatActivity() {
             put("startX", currentX)
             put("startY", currentY)
             put("destinationPlaceId", destination.id)
+            put("navigationMode", if (accessibleNavigationEnabled) "accessible" else "general")
         }.toString()
         var lastError: Exception? = null
         repeat(3) { attempt ->
