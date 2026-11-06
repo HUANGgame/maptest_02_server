@@ -12,8 +12,8 @@ android {
         applicationId = "com.example.indoornavigation"
         minSdk = 26
         targetSdk = 37
-        versionCode = 2
-        versionName = "1.1-test"
+        versionCode = 3
+        versionName = "1.2-test"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
