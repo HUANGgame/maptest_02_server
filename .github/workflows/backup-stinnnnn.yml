@@ -1,0 +1,42 @@
+name: Backup stinnnnn smart-underground-wifi-navigation
+
+on:
+  push:
+    paths:
+      - ".github/workflows/backup-stinnnnn.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Huang repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Clone source repository
+        run: |
+          rm -rf /tmp/smart-underground-wifi-navigation
+          git clone --depth 1 https://github.com/stinnnnn/smart-underground-wifi-navigation.git /tmp/smart-underground-wifi-navigation
+
+      - name: Create backup branch snapshot
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout --orphan backup-stinnnnn-20261106
+          git rm -rf . || true
+          cp -a /tmp/smart-underground-wifi-navigation/. .
+          rm -rf .git
+          git init
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Backup stinnnnn/smart-underground-wifi-navigation snapshot 2026-11-06"
+          git branch -M backup-stinnnnn-20261106
+          git remote add target https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git
+          git push target backup-stinnnnn-20261106 --force
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
