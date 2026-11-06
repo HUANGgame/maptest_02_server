@@ -376,6 +376,7 @@
       lastLocationAt: 0,
       lastLocationConfidence: null,
       heading: null,
+      nativeHeadingAt: 0,
       destination: null,
       route: [],
       routeDistance: 0,
@@ -460,6 +461,7 @@
     window.addEventListener("deviceorientation", handleOrientation, true);
     window.updateIndoorWifiSignals = receiveWifiSignals;
     window.setIndoorWifiSignals = receiveWifiSignals;
+    window.setNativeHeading = setNativeHeading;
     canvas.addEventListener("pointerdown", startPan);
     canvas.addEventListener("pointermove", movePan);
     canvas.addEventListener("pointerup", endPan);
@@ -815,6 +817,9 @@
         return;
       }
       state.navigationActive = true;
+      state.viewFollow = true;
+      compassButton.classList.add("active");
+      centerOnCurrent();
       state.navigationRouteIndex = nearestRouteIndexOnCurrentFloor();
       nextStep.textContent = nextStepText();
       playNavigationAnimation("start");
@@ -938,6 +943,9 @@
       state.viewFollow = !state.viewFollow;
       compassButton.classList.toggle("active", state.viewFollow);
       compassButton.textContent = "跟隨";
+      if (state.viewFollow && state.hasCurrentPosition) {
+        centerOnCurrent();
+      }
       renderAll();
     }
 
@@ -1556,6 +1564,14 @@
 
     function movePan(event) {
       if (!state.dragStart || state.dragStart.pointerId !== event.pointerId) return;
+      const moved = Math.hypot(
+        event.clientX - state.dragStart.x,
+        event.clientY - state.dragStart.y
+      );
+      if (state.viewFollow && moved > 8) {
+        state.viewFollow = false;
+        compassButton.classList.remove("active");
+      }
       state.viewOffsetX = state.dragStart.offsetX + event.clientX - state.dragStart.x;
       state.viewOffsetY = state.dragStart.offsetY + event.clientY - state.dragStart.y;
       drawMap();
@@ -1573,13 +1589,43 @@
       setZoom(state.zoom * factor);
     }
 
+    function setNativeHeading(rawHeading) {
+      const heading = Number(rawHeading);
+      if (!Number.isFinite(heading)) return false;
+      const offset = Number(currentFloor()?.mapHeadingOffsetDegrees || 0);
+      state.heading = normalizeDegrees(
+        heading + (Number.isFinite(offset) ? offset : 0)
+      );
+      state.nativeHeadingAt = Date.now();
+      if (state.viewFollow && state.hasCurrentPosition) centerOnCurrent();
+      drawMap();
+      return true;
+    }
+
     function handleOrientation(event) {
+      // Android App 會由 Rotation Vector 傳入真實 azimuth；
+      // 只在原生方向暫時沒有資料時，才使用瀏覽器方向作備援。
+      if (Date.now() - state.nativeHeadingAt < 1500) return;
+
+      const webkitHeading = Number(event.webkitCompassHeading);
       const alpha = Number(event.alpha);
-      if (Number.isFinite(alpha)) {
-        const offset = Number(currentFloor()?.mapHeadingOffsetDegrees || 0);
-        state.heading = normalizeDegrees(alpha + (Number.isFinite(offset) ? offset : 0));
-        drawMap();
+      let heading = null;
+
+      if (Number.isFinite(webkitHeading)) {
+        heading = webkitHeading;
+      } else if (Number.isFinite(alpha)) {
+        // DeviceOrientation alpha 的旋轉方向與羅盤 heading 相反。
+        heading = normalizeDegrees(360 - alpha);
       }
+
+      if (heading == null) return;
+
+      const offset = Number(currentFloor()?.mapHeadingOffsetDegrees || 0);
+      state.heading = normalizeDegrees(
+        heading + (Number.isFinite(offset) ? offset : 0)
+      );
+      if (state.viewFollow && state.hasCurrentPosition) centerOnCurrent();
+      drawMap();
     }
 
     function normalizeDegrees(value) {
