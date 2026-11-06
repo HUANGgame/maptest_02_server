@@ -753,6 +753,7 @@
   pdrLastRxMs: 0,
   pdrLastOutcome: "WAIT",
   pdrActive: false,
+  pdrTravelDirection: 1,
   pdrStepLengthM: 0.70,
   pdrGridCellM: 0.60,
 
@@ -1641,6 +1642,18 @@ function drawPdrCalStop() {
         state.pdrAndroidCount = 0;
         state.pdrLastRxMs = 0;
         state.pdrLastOutcome = "READY";
+        state.pdrTravelDirection = 1;
+
+        try {
+          if (
+            window.AndroidSOS &&
+            typeof window.AndroidSOS.startPdrSession === "function"
+          ) {
+            window.AndroidSOS.startPdrSession();
+          }
+        } catch (error) {
+          console.warn("Android PDR session start failed", error);
+        }
 
         updatePdrSyncDebug("READY");
         nextStep.textContent = nextStepText();
@@ -1653,6 +1666,16 @@ function drawPdrCalStop() {
         state.navigationActive = false;
         state.pdrActive = false;
         state.pdrHeadingOffsetDeg = null;
+        try {
+          if (
+            window.AndroidSOS &&
+            typeof window.AndroidSOS.stopPdrSession === "function"
+          ) {
+            window.AndroidSOS.stopPdrSession();
+          }
+        } catch (error) {
+          console.warn("Android PDR session stop failed", error);
+        }
         updatePdrDebug("PDR STOP");
         nextStep.textContent = t("navEnded");
         playNavigationAnimation("end");
@@ -3047,12 +3070,16 @@ drawCurrent();
           state.pdrSensorHeading = normalizeDeg(raw);
         }
 
-        if (!state.hasRealLocation) {
+        const hasPdrOrigin =
+          Number.isFinite(Number(state.pdrGridX)) &&
+          Number.isFinite(Number(state.pdrGridY));
+
+        if (!state.hasRealLocation && !hasPdrOrigin) {
           updatePdrDebug(
             `RX ${state.pdrRxCount}｜gap=${gapMs}ms｜` +
-            `PDR BLOCK：尚未取得 REAL Wi-Fi 起點`
+            `PDR BLOCK：尚未取得初始定位`
           );
-          updatePdrSyncDebug("BLOCK NO-WIFI");
+          updatePdrSyncDebug("BLOCK NO-ORIGIN");
           return;
         }
 
@@ -3130,22 +3157,16 @@ drawCurrent();
             ? angularDiffDeg(mappedHeading, expectedHeading)
             : 0;
 
-        // Heading only decides forward/reverse. Do not integrate free X/Y
-        // because indoor magnetic noise creates lateral drift and wall crossing.
-        let travelDirection = 0;
-        if (headingError <= 70) {
+        // Heading only decides forward/reverse. Every detected step must
+        // advance route progress; the 80-100 degree band keeps the previous
+        // direction instead of dropping the step.
+        let travelDirection = Number(state.pdrTravelDirection || 1);
+        if (headingError <= 80) {
           travelDirection = 1;
-        } else if (headingError >= 110) {
+        } else if (headingError >= 100) {
           travelDirection = -1;
         }
-
-        if (travelDirection === 0) {
-          updatePdrDebug(
-            `RX ${state.pdrRxCount}｜PDR HOLD｜方向不確定 Δ=${Math.round(headingError)}°`
-          );
-          updatePdrSyncDebug("HOLD HEADING");
-          return;
-        }
+        state.pdrTravelDirection = travelDirection;
 
         const totalProgress =
           routeTotalGridLength();
@@ -3247,10 +3268,20 @@ drawCurrent();
           const matchedAp = Number(data.matchedFeatureCount || 0);
 
           if (data.validLocation === false || matchedAp < 5) {
-            state.hasRealLocation = false;
-            console.warn(" REAL 定位無效", data);
-            nextStep.textContent =
-              t("invalidLocation", { count: matchedAp });
+            const pdrCanContinue =
+              state.navigationActive &&
+              state.pdrActive &&
+              Number.isFinite(Number(state.pdrGridX)) &&
+              Number.isFinite(Number(state.pdrGridY));
+
+            if (!pdrCanContinue) {
+              state.hasRealLocation = false;
+              nextStep.textContent =
+                t("invalidLocation", { count: matchedAp });
+            } else {
+              console.warn(" REAL 定位暫時無效，PDR 繼續", data);
+              updatePdrSyncDebug("PDR PRIORITY");
+            }
             renderAll();
             return;
           }
@@ -3373,18 +3404,18 @@ drawCurrent();
             const marginMae = Number(data.anchorMarginMae);
             const floorConfidence = Number(data.floorConfidence);
 
-            let correctionWeight = 0.18;
+            let correctionWeight = 0.05;
 
             if (
               matchedAp >= 20 &&
               Number.isFinite(marginMae) &&
               marginMae >= 2.0
             ) {
-              correctionWeight = 0.58;
+              correctionWeight = 0.22;
             } else if (matchedAp >= 12) {
-              correctionWeight = 0.40;
+              correctionWeight = 0.16;
             } else if (matchedAp >= 8) {
-              correctionWeight = 0.28;
+              correctionWeight = 0.10;
             }
 
             if (
@@ -3395,12 +3426,12 @@ drawCurrent();
             }
 
             if (driftCells >= 6 && matchedAp >= 12) {
-              correctionWeight = Math.max(correctionWeight, 0.68);
+              correctionWeight = Math.max(correctionWeight, 0.28);
             }
 
             correctionWeight = Math.max(
-              0.10,
-              Math.min(0.75, correctionWeight)
+              0.03,
+              Math.min(0.30, correctionWeight)
             );
 
             const correctedX =
