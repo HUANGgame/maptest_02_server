@@ -737,7 +737,7 @@
   pdrLastRxMs: 0,
   pdrLastOutcome: "WAIT",
   pdrActive: false,
-  pdrStepLengthM: 0.12,
+  pdrStepLengthM: 0.70,
   pdrGridCellM: 0.60,
 
   destination: null,
@@ -3050,8 +3050,16 @@ drawCurrent();
           );
         }
 
-        if (routeDistance <= 3.0) {
-          const snapWeight = 0.90;
+        if (routeDistance <= 2.25) {
+          const headingError =
+            Number.isFinite(expectedHeading)
+              ? angularDiffDeg(mappedHeading, expectedHeading)
+              : 0;
+
+          const snapWeight =
+            headingError <= 20 ? 0.58 :
+            headingError <= 45 ? 0.72 :
+            0.82;
 
           state.pdrGridX =
             candidateX * (1 - snapWeight) +
@@ -3066,7 +3074,7 @@ drawCurrent();
           state.pdrGridX = candidateX;
           state.pdrGridY = candidateY;
 
-          if (routeDistance <= 3.0) {
+          if (routeDistance <= 2.25) {
             state.pdrRouteIndex = nearestIndex;
           }
         }
@@ -3270,7 +3278,38 @@ drawCurrent();
               wifiGridY - pdrY
             );
 
-            const correctionWeight = 0;
+            const marginMae = Number(data.anchorMarginMae);
+            const floorConfidence = Number(data.floorConfidence);
+
+            let correctionWeight = 0.18;
+
+            if (
+              matchedAp >= 20 &&
+              Number.isFinite(marginMae) &&
+              marginMae >= 2.0
+            ) {
+              correctionWeight = 0.58;
+            } else if (matchedAp >= 12) {
+              correctionWeight = 0.40;
+            } else if (matchedAp >= 8) {
+              correctionWeight = 0.28;
+            }
+
+            if (
+              Number.isFinite(floorConfidence) &&
+              floorConfidence < 0.55
+            ) {
+              correctionWeight *= 0.55;
+            }
+
+            if (driftCells >= 6 && matchedAp >= 12) {
+              correctionWeight = Math.max(correctionWeight, 0.68);
+            }
+
+            correctionWeight = Math.max(
+              0.10,
+              Math.min(0.75, correctionWeight)
+            );
 
             const correctedX =
               pdrX * (1 - correctionWeight) +
