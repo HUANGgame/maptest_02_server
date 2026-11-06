@@ -1,5 +1,8 @@
 name: verify-backup-branch
 
+permissions:
+  contents: write
+
 on:
   push:
     branches:
@@ -20,10 +23,11 @@ jobs:
       - name: Verify Python syntax
         run: python -m py_compile app_v4_integrated.py wifi_locator_v3.py wifi_locator_v4.py route_safe_engine.py anchor_to_dqn.py
 
-      - name: Verify removed grid UI
+      - name: Verify removed grid and mission UI
         run: |
           ! grep -q 'id="gridOverlayButton"' public/index_dqn_integrated_pdr_test_v19_idcompat.html
           ! grep -q 'const GRID_DATA' public/index_dqn_integrated_pdr_test_v19_idcompat.html
+          ! grep -qiE '寶藏|每日任務|treasure|daily[ _-]?(mission|task)' public/index_dqn_integrated_pdr_test_v19_idcompat.html android/IndoorNavigation/app/src/main/java/com/example/indoornavigation/MainActivity.kt
 
       - name: Verify JavaScript syntax
         run: |
@@ -50,3 +54,16 @@ jobs:
         run: |
           chmod +x gradlew
           ./gradlew assembleDebug
+
+      - name: Publish test APK to backup branch
+        run: |
+          cp android/IndoorNavigation/app/build/outputs/apk/debug/app-debug.apk public/NaviTaipei_BACKUP_TEST_v1.1.apk
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add public/NaviTaipei_BACKUP_TEST_v1.1.apk
+          if git diff --cached --quiet; then
+            echo "APK unchanged"
+          else
+            git commit -m "Publish backup test APK v1.1"
+            git push
+          fi
