@@ -520,7 +520,6 @@
           <button id="zoomInButton">+</button>
           <button id="zoomOutButton">-</button>
           <button id="resetButton">2D</button>
-          <button id="gridOverlayButton">網格</button>
         </div>
       </main>
 
@@ -596,7 +595,7 @@
       const I18N = {
         zh: {
           appTitle: "地下街室內導航系統", client: "用戶端", searchPlaceholder: "輸入地點、設施或分類", search: "搜尋",
-          selectMap: "選擇地圖", mapVisual3: "K區地下街 (網格測試版 - Map Visual 3)", floor: "樓層", loading: "讀取資料中", follow: "跟隨", display: "顯示", grid: "網格",
+          selectMap: "選擇地圖", mapVisual3: "K區地下街 (網格測試版 - Map Visual 3)", floor: "樓層", loading: "讀取資料中", follow: "跟隨", display: "顯示",
           initialHint: "請搜尋目的地，或從結果中選擇地點。", destinationNone: "目的地：尚未選擇", destination: "目的地：{name}",
           distanceNone: "距離：-- 公尺", timeNone: "時間：-- 分鐘", showRoute: "顯示路線", startNav: "開始導航", endNav: "結束導航",
           privacyHint: "協助改善定位：匿名上傳必要定位狀態，不包含姓名或個人身分資料。",
@@ -616,7 +615,7 @@
         },
         en: {
           appTitle: "Underground Mall Indoor Navigation", client: "User", searchPlaceholder: "Search place, facility, or category", search: "Search",
-          selectMap: "Select map", mapVisual3: "K-Area Underground Mall (Grid Test - Map Visual 3)", floor: "Floor", loading: "Loading data", follow: "Follow", display: "Display", grid: "Grid",
+          selectMap: "Select map", mapVisual3: "K-Area Underground Mall (Grid Test - Map Visual 3)", floor: "Floor", loading: "Loading data", follow: "Follow", display: "Display",
           initialHint: "Search for a destination or choose one from the results.", destinationNone: "Destination: Not selected", destination: "Destination: {name}",
           distanceNone: "Distance: -- m", timeNone: "Time: -- min", showRoute: "Show Route", startNav: "Start Navigation", endNav: "End Navigation",
           privacyHint: "Help improve positioning: anonymously upload necessary positioning status without names or personal identifiers.",
@@ -675,7 +674,7 @@
         const setText = (selector, key) => { const el = document.querySelector(selector); if (el) el.textContent = t(key); };
         setText("#appTitle", "appTitle"); setText("#clientBadge", "client"); setText("#searchButton", "search");
         if (typeof state === "undefined" || (!state.places.length && !state.wifiPoints.length)) setText("#dataStatus", "loading");
-        setText("#floorLabel", "floor"); setText("#relocateButton", "follow"); setText("#pointModeButton", "display"); setText("#gridOverlayButton", "grid");
+        setText("#floorLabel", "floor"); setText("#relocateButton", "follow"); setText("#pointModeButton", "display");
         setText("#showRouteButton", "showRoute"); setText("#startButton", "startNav"); setText("#endButton", "endNav");
         setText("#privacyHint", "privacyHint"); setText("#privacyTitle", "privacyTitle"); setText("#privacyBody", "privacyBody");
         setText("#declinePrivacy", "disagree"); setText("#acceptPrivacy", "agree"); setText("#reviewStarLabel", "ratingLabel"); setText("#reviewTextLabel", "reviewLabel");
@@ -753,7 +752,6 @@
           localStorage.getItem("pointDisplayMode") || "important",
         dragStart: null,
         viewFocusedKey: "",
-        showGridOverlay: false,
         navigationActive: false,
         navigationFrame: null,
         feedbackAllowed: localStorage.getItem("feedbackAllowed") === "true",
@@ -994,12 +992,6 @@ function drawPdrCalStop() {
         .querySelector("#resetButton")
         .addEventListener("click", resetView);
       document
-        .querySelector("#gridOverlayButton")
-        .addEventListener("click", () => {
-          state.showGridOverlay = !state.showGridOverlay;
-          drawMap();
-        });
-      document
         .querySelector("#showRouteButton")
         .addEventListener("click", showRoute);
       document
@@ -1134,6 +1126,24 @@ function drawPdrCalStop() {
 
       async function loadPlaces() {
         if (state.currentMapId === "map_visual_3") {
+          const databasePlaces = await fetchJson(
+            "/api/places?mapId=k-area-airport"
+          ).catch(() => []);
+
+          if (Array.isArray(databasePlaces) && databasePlaces.length > 0) {
+            state.places = databasePlaces.map((place) => ({
+              ...place,
+              floorId:
+                place.floorId === "k-area-airport-1f" ? FLOOR1_ID :
+                place.floorId === "k-area-airport-2f" ? FLOOR2_ID :
+                place.floorId,
+              categories: Array.isArray(place.categories)
+                ? place.categories
+                : (place.category ? [place.category] : []),
+            }));
+            updateDataStatus();
+            return;
+          }
         state.places = [
             { id: "桃園機場捷運", name: "桃園機場捷運", category: "出口", x: 2, y: 4, visualX: 15, visualY: 40 },
             { id: "K12 樓梯", name: "K12 樓梯", category: "設施", x: 2, y: 4, visualX: 15, visualY: 35 },
@@ -1200,7 +1210,9 @@ function drawPdrCalStop() {
       async function loadWifiPoints() {
         try {
           const data = await fetchJson(
-            `/api/wifi-scans/points?mapId=${encodeURIComponent(state.currentMapId)}&floorId=${encodeURIComponent(state.currentFloorId)}`,
+            state.currentMapId === "map_visual_3"
+              ? "/api/wifi-scans/points?mapId=k-area-airport"
+              : `/api/wifi-scans/points?mapId=${encodeURIComponent(state.currentMapId)}&floorId=${encodeURIComponent(state.currentFloorId)}`,
           );
           state.wifiPoints = Array.isArray(data.points) ? data.points : [];
           if (
@@ -1352,11 +1364,27 @@ function drawPdrCalStop() {
               String(state.current.anchorId || "")
             );
 
-            const targetIndex = floor2AnchorOrder.indexOf(
+            let targetIndex = floor2AnchorOrder.indexOf(
               String(state.destination.id || "")
             );
 
             if (startIndex < 0) startIndex = 0;
+
+            if (targetIndex < 0) {
+              const destinationX = Number(state.destination.x);
+              const destinationY = Number(state.destination.y);
+              if (Number.isFinite(destinationX) && Number.isFinite(destinationY)) {
+                let nearestDistance = Infinity;
+                floor2AnchorOrder.forEach((anchorId, index) => {
+                  const p = FLOOR2_ANCHOR_PIXELS[anchorId];
+                  const d = Math.hypot(destinationX - p.x, destinationY - p.y);
+                  if (d < nearestDistance) {
+                    nearestDistance = d;
+                    targetIndex = index;
+                  }
+                });
+              }
+            }
 
             const endIndex =
               targetIndex >= 0
@@ -1383,6 +1411,19 @@ function drawPdrCalStop() {
                 anchorId,
               };
             });
+
+            if (!floor2AnchorOrder.includes(String(state.destination.id || ""))) {
+              const destinationX = Number(state.destination.x);
+              const destinationY = Number(state.destination.y);
+              if (Number.isFinite(destinationX) && Number.isFinite(destinationY)) {
+                state.route.push({
+                  x: destinationX,
+                  y: destinationY,
+                  floorId: FLOOR2_ID,
+                  destination: true,
+                });
+              }
+            }
 
             state.routeDistance = 0;
             state.routeTime = 0;
@@ -1488,6 +1529,10 @@ function drawPdrCalStop() {
               isFloor1ToFloor2
                 ? "K12 樓梯"
                 : state.destination.id,
+            destinationX:
+              isFloor1ToFloor2 ? null : Number(state.destination.x),
+            destinationY:
+              isFloor1ToFloor2 ? null : Number(state.destination.y),
           };
 
           const response = await fetch(`${API_BASE}/api/routes`, {
@@ -1708,47 +1753,6 @@ drawPlaces();
 drawDebugAnchors();
 drawPdrCalStop();
 drawCurrent();
-      }
-      
-      const GRID_DATA = [
-        [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,3,3,0,3,3,1,1,3,1,1,1,1,1,1,1,1,1,3,1,1,1],
-        [1,1,0,0,0,0,0,1,1,1,1,1,1,1,1,1,3,3,0,3,3,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
-        [1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,0,1,0,1,1,1,0,0,0,0,1],
-        [3,3,0,0,0,0,0,1,1,1,0,0,0,1,1,1,1,0,0,0,0,0,0,1,1,1,0,0,0,1,1,0,0,0,0,0,3],
-        [3,3,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,3],
-        [1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,3],
-        [1,1,0,1,0,0,1,1,1,1,1,0,0,1,1,1,0,0,0,0,0,0,1,1,1,1,1,1,0,1,1,0,1,1,1,1,1],
-        [1,1,1,1,0,0,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,1,1,1,1,1,1,0,1,1,0,1,1,1,1,1],
-        [1,1,1,1,0,0,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,1,1,1,1,1,1,1,1,1,3,1,1,1,1,1]
-      ];
-
-      function drawWalkways() {
-        if (!state.showGridOverlay) return;
-        const floor = currentFloor();
-        if (!floor?.imageUrl) return;
-        const cols = 37, rows = 9;
-        const cellW = floor.imageWidth / cols;
-        const cellH = floor.imageHeight / rows;
-        const ox = floor.imageLeft;
-        const oy = floor.imageTop;
-        ctx.save();
-        applyFollowRotation();
-        ctx.globalAlpha = 0.6;
-        GRID_DATA.forEach((rowVals, r) => {
-          rowVals.forEach((v, c) => {
-            const x0 = ox + c * cellW;
-            const y0 = oy + r * cellH;
-            if (v === 1) {
-              ctx.fillStyle = "#1f2933";
-            } else if (v === 0 || v === 3) {
-              ctx.fillStyle = "#ffffff";
-            } else {
-              return;
-            }
-            ctx.fillRect(x0, y0, cellW, cellH);
-          });
-        });
-        ctx.restore();
       }
       function drawSecondFloorSchematic() {
         const floor = currentFloor();
@@ -2474,12 +2478,26 @@ drawCurrent();
         const factor = event.deltaY < 0 ? 1.12 : 0.88;
         setZoom(state.zoom * factor);
       }
+      let nativeHeadingActive = false;
+
+      window.setNativeHeading = function (headingDegrees) {
+        const heading = Number(headingDegrees);
+        if (!Number.isFinite(heading)) return;
+        const offset = Number(currentFloor()?.mapHeadingOffsetDegrees || 0);
+        state.heading = normalizeDegrees(
+          heading + (Number.isFinite(offset) ? offset : 0)
+        );
+        nativeHeadingActive = true;
+        drawMap();
+      };
+
       function handleOrientation(event) {
+        if (nativeHeadingActive) return;
         const alpha = Number(event.alpha);
         if (Number.isFinite(alpha)) {
           const offset = Number(currentFloor()?.mapHeadingOffsetDegrees || 0);
           state.heading = normalizeDegrees(
-            alpha + (Number.isFinite(offset) ? offset : 0),
+            360 - alpha + (Number.isFinite(offset) ? offset : 0),
           );
           drawMap();
         }
