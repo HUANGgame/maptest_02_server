@@ -376,6 +376,8 @@
       lastLocationAt: 0,
       lastLocationConfidence: null,
       heading: null,
+      sensorHeading: null,
+      headingCalibrationOffset: null,
       nativeHeadingAt: 0,
       destination: null,
       route: [],
@@ -819,6 +821,10 @@
       state.navigationActive = true;
       state.viewFollow = true;
       compassButton.classList.add("active");
+      state.headingCalibrationOffset = null;
+      if (Number.isFinite(Number(state.sensorHeading))) {
+        calibrateHeadingToRoute(state.sensorHeading);
+      }
       centerOnCurrent();
       state.navigationRouteIndex = nearestRouteIndexOnCurrentFloor();
       nextStep.textContent = nextStepText();
@@ -829,6 +835,7 @@
 
     function endNavigation() {
       state.navigationActive = false;
+      state.headingCalibrationOffset = null;
       stopAutoNavigationDemo();
       nextStep.textContent = "導航已結束。";
       playNavigationAnimation("end");
@@ -944,6 +951,13 @@
       compassButton.classList.toggle("active", state.viewFollow);
       compassButton.textContent = "跟隨";
       if (state.viewFollow && state.hasCurrentPosition) {
+        if (
+          state.navigationActive &&
+          Number.isFinite(Number(state.sensorHeading))
+        ) {
+          state.headingCalibrationOffset = null;
+          calibrateHeadingToRoute(state.sensorHeading);
+        }
         centerOnCurrent();
       }
       renderAll();
@@ -1590,17 +1604,100 @@
     }
 
     function setNativeHeading(rawHeading) {
-      const heading = Number(rawHeading);
-      if (!Number.isFinite(heading)) return false;
-      const offset = Number(currentFloor()?.mapHeadingOffsetDegrees || 0);
-      state.heading = normalizeDegrees(
-        heading + (Number.isFinite(offset) ? offset : 0)
-      );
+      const raw = Number(rawHeading);
+      if (!Number.isFinite(raw)) return false;
+
+      state.sensorHeading = normalizeDegrees(raw);
       state.nativeHeadingAt = Date.now();
+
+      // 導航中以「目前路線方向」校正手機 Rotation Vector，
+      // 避免地下街地圖本身不是正北朝上時產生 90°/180° 偏差。
+      if (state.navigationActive && state.headingCalibrationOffset == null) {
+        calibrateHeadingToRoute(state.sensorHeading);
+      }
+
+      if (state.headingCalibrationOffset != null) {
+        state.heading = normalizeDegrees(
+          state.sensorHeading + state.headingCalibrationOffset
+        );
+      } else {
+        const floorOffset = Number(currentFloor()?.mapHeadingOffsetDegrees || 0);
+        state.heading = normalizeDegrees(
+          state.sensorHeading + (Number.isFinite(floorOffset) ? floorOffset : 0)
+        );
+      }
+
       if (state.viewFollow && state.hasCurrentPosition) centerOnCurrent();
       drawMap();
       return true;
     }
+
+    function routeHeadingAtCurrentPosition() {
+      if (!Array.isArray(state.route) || state.route.length < 2) return NaN;
+
+      const sameFloor = state.route
+        .map((point, index) => ({
+          point,
+          index,
+          d: point.floorId === state.current.floorId
+            ? distance(point.x, point.y, state.current.x, state.current.y)
+            : Infinity,
+        }))
+        .filter((item) => Number.isFinite(item.d))
+        .sort((a, b) => a.d - b.d);
+
+      if (!sameFloor.length) return NaN;
+
+      const index = sameFloor[0].index;
+      let from = state.route[index];
+      let to = state.route[index + 1];
+
+      if (!to || to.floorId !== from.floorId) {
+        to = from;
+        from = state.route[index - 1];
+      }
+
+      if (!from || !to || from.floorId !== to.floorId) return NaN;
+
+      const dx = Number(to.x) - Number(from.x);
+      const dy = Number(to.y) - Number(from.y);
+      if (!Number.isFinite(dx) || !Number.isFinite(dy) || Math.hypot(dx, dy) < 0.001) {
+        return NaN;
+      }
+
+      // 地圖座標 y 向下：0°=畫面上方、90°=右方。
+      return normalizeDegrees(Math.atan2(dx, -dy) * 180 / Math.PI);
+    }
+
+    function calibrateHeadingToRoute(rawHeading) {
+      const raw = Number(rawHeading);
+      const routeHeading = routeHeadingAtCurrentPosition();
+
+      if (!Number.isFinite(raw) || !Number.isFinite(routeHeading)) {
+        return false;
+      }
+
+      state.headingCalibrationOffset = normalizeDegrees(
+        routeHeading - normalizeDegrees(raw)
+      );
+      state.heading = routeHeading;
+      return true;
+    }
+
+    window.calibratePdrHeading = function(rawHeading) {
+      const raw = Number(rawHeading);
+      if (!Number.isFinite(raw)) return false;
+      state.sensorHeading = normalizeDegrees(raw);
+      return calibrateHeadingToRoute(state.sensorHeading);
+    };
+
+    window.submitPdrHeading = function(rawHeading) {
+      return setNativeHeading(rawHeading);
+    };
+
+    window.submitPdrStep = function(rawHeading) {
+      return setNativeHeading(rawHeading);
+    };
 
     function handleOrientation(event) {
       // Android App 會由 Rotation Vector 傳入真實 azimuth；
@@ -1620,10 +1717,22 @@
 
       if (heading == null) return;
 
-      const offset = Number(currentFloor()?.mapHeadingOffsetDegrees || 0);
-      state.heading = normalizeDegrees(
-        heading + (Number.isFinite(offset) ? offset : 0)
-      );
+      state.sensorHeading = normalizeDegrees(heading);
+
+      if (state.navigationActive && state.headingCalibrationOffset == null) {
+        calibrateHeadingToRoute(state.sensorHeading);
+      }
+
+      if (state.headingCalibrationOffset != null) {
+        state.heading = normalizeDegrees(
+          state.sensorHeading + state.headingCalibrationOffset
+        );
+      } else {
+        const offset = Number(currentFloor()?.mapHeadingOffsetDegrees || 0);
+        state.heading = normalizeDegrees(
+          state.sensorHeading + (Number.isFinite(offset) ? offset : 0)
+        );
+      }
       if (state.viewFollow && state.hasCurrentPosition) centerOnCurrent();
       drawMap();
     }
