@@ -1737,6 +1737,26 @@ function drawPdrCalStop() {
         state.pdrFloor2Progress = bestProgress;
       }
 
+      function isNearFloorConnector(targetFloorId) {
+        if (state.current.floorId === FLOOR1_ID && targetFloorId === FLOOR2_ID) {
+          const connectorGrid = { x: 2, y: 3 };
+          const gx = Number(state.current.gridX);
+          const gy = Number(state.current.gridY);
+          if (!Number.isFinite(gx) || !Number.isFinite(gy)) return false;
+          return Math.hypot(gx - connectorGrid.x, gy - connectorGrid.y) <= 4.5;
+        }
+
+        if (state.current.floorId === FLOOR2_ID && targetFloorId === FLOOR1_ID) {
+          const connector = FLOOR2_ANCHOR_PIXELS.ESCALATOR_END;
+          const x = Number(state.current.x);
+          const y = Number(state.current.y);
+          if (!Number.isFinite(x) || !Number.isFinite(y)) return false;
+          return Math.hypot(x - connector.x, y - connector.y) <= 85;
+        }
+
+        return false;
+      }
+
       async function switchNavigationFloor(targetFloorId) {
         if (targetFloorId === state.current.floorId) return;
 
@@ -3586,7 +3606,10 @@ drawCurrent();
                 state.floorSwitchCandidateCount = 1;
               }
 
-              if (state.floorSwitchCandidateCount >= 2) {
+              if (
+                state.floorSwitchCandidateCount >= 2 &&
+                isNearFloorConnector(candidateFloor)
+              ) {
                 await switchNavigationFloor(candidateFloor);
                 return;
               }
@@ -3594,7 +3617,9 @@ drawCurrent();
               console.log(
                 "樓層候選等待確認",
                 candidateFloor,
-                state.floorSwitchCandidateCount
+                state.floorSwitchCandidateCount,
+                "nearConnector=",
+                isNearFloorConnector(candidateFloor)
               );
               return;
             }
