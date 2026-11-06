@@ -474,6 +474,7 @@
           <h1 id="appTitle">地下街室內導航系統</h1>
           <div class="brand-actions">
             <span id="clientBadge">用戶端</span>
+            <button id="settingsButton" type="button" title="設定" aria-label="設定">⚙</button>
             <div class="lang-switch" role="group" aria-label="Language">
               <button id="langZhButton" type="button">中文</button>
               <button id="langEnButton" type="button">EN</button>
@@ -556,6 +557,20 @@
       <div class="dialog-actions">
         <button id="declinePrivacy">不同意</button
         ><button id="acceptPrivacy" class="primary">同意</button>
+      </div>
+    </dialog>
+
+    <dialog id="settingsDialog">
+      <h2>設定</h2>
+      <label class="privacy" style="margin-top:0;">
+        <span>
+          <strong style="display:block;color:var(--text);margin-bottom:4px;">SOS 緊急警報</strong>
+          開啟後，主畫面會顯示 SOS 按鈕；關閉時不顯示。
+        </span>
+        <input id="sosEnabledSwitch" type="checkbox" />
+      </label>
+      <div class="dialog-actions">
+        <button id="closeSettingsButton" class="primary" type="button">完成</button>
       </div>
     </dialog>
 
@@ -3553,7 +3568,7 @@ drawCurrent();
   
 
 
-    <button id="sosButton" type="button" aria-label="長按一秒啟動 SOS">
+    <button id="sosButton" type="button" aria-label="長按一秒啟動 SOS" hidden>
       SOS
       <small>長按 1 秒</small>
     </button>
@@ -3572,9 +3587,15 @@ drawCurrent();
         const button = document.getElementById("sosButton");
         const overlay = document.getElementById("sosOverlay");
         const stopButton = document.getElementById("sosStopButton");
+        const settingsButton = document.getElementById("settingsButton");
+        const settingsDialog = document.getElementById("settingsDialog");
+        const closeSettingsButton = document.getElementById("closeSettingsButton");
+        const sosEnabledSwitch = document.getElementById("sosEnabledSwitch");
 
         if (!button || !overlay || !stopButton) return;
 
+        const SOS_ENABLED_KEY = "sosEnabled";
+        let sosEnabled = localStorage.getItem(SOS_ENABLED_KEY) === "true";
         let active = false;
         let holdTimer = null;
         let holdStartedAt = 0;
@@ -3667,8 +3688,14 @@ drawCurrent();
           gainNode = null;
         }
 
+        function applySosSetting() {
+          button.hidden = !sosEnabled || active;
+          if (sosEnabledSwitch) sosEnabledSwitch.checked = sosEnabled;
+          if (!sosEnabled && active) stopSos();
+        }
+
         async function activateSos() {
-          if (active) return;
+          if (active || !sosEnabled) return;
 
           active = true;
           clearHold();
@@ -3696,7 +3723,7 @@ drawCurrent();
           callNativeStop();
 
           overlay.classList.remove("sos-active");
-          button.hidden = false;
+          button.hidden = !sosEnabled;
           document.body.style.overflow = "";
         }
 
@@ -3736,6 +3763,27 @@ drawCurrent();
             clearHold();
           }
         }
+
+        if (settingsButton && settingsDialog) {
+          settingsButton.addEventListener("click", () => {
+            if (sosEnabledSwitch) sosEnabledSwitch.checked = sosEnabled;
+            settingsDialog.showModal();
+          });
+        }
+
+        if (closeSettingsButton && settingsDialog) {
+          closeSettingsButton.addEventListener("click", () => settingsDialog.close());
+        }
+
+        if (sosEnabledSwitch) {
+          sosEnabledSwitch.addEventListener("change", () => {
+            sosEnabled = sosEnabledSwitch.checked;
+            localStorage.setItem(SOS_ENABLED_KEY, String(sosEnabled));
+            applySosSetting();
+          });
+        }
+
+        applySosSetting();
 
         button.addEventListener("pointerdown", beginHold);
         button.addEventListener("pointerup", cancelHold);
