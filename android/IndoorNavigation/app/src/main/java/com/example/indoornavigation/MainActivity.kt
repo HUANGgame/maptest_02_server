@@ -101,7 +101,7 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
     private val linearLowThreshold = 0.7f
     private val linearMinStepIntervalMs = 420L
     private val webUrl =
-        "https://taipei-station-indoor-navigation.onrender.com/?sos_native=1"
+        "https://navi-taipei-backup-test.onrender.com/?sos_native=1"
 
     private var webPageReady = false
 
