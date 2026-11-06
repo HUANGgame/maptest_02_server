@@ -1372,9 +1372,10 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
                     heading += 360f
                 }
 
-                // Map heading calibration: rotate the device heading 90 degrees clockwise
-                // before it is sent to follow-mode and PDR.
-                currentHeadingDeg = (heading + 90f) % 360f
+                // Keep the same heading basis as the user's main navigation:
+                // Android sends the absolute 0..360 heading; the map applies -heading
+                // when follow mode rotates the canvas.
+                currentHeadingDeg = heading
 
                 val now =
                     SystemClock.elapsedRealtime()
