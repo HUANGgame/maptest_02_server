@@ -1267,6 +1267,9 @@ function drawPdrCalStop() {
           button.className = floor.id === state.currentFloorId ? "active" : "";
           button.addEventListener("click", async () => {
             state.currentFloorId = floor.id;
+            if (!state.navigationActive) {
+              state.current.floorId = floor.id;
+            }
             state.viewFocusedKey = "";
             await loadWifiPoints();
             updateWorldFromData();
@@ -1617,6 +1620,171 @@ function drawPdrCalStop() {
         renderAll();
       }
 
+      function floor2RoutePoints() {
+        return (state.route || []).filter(
+          (p) =>
+            (!p.floorId || p.floorId === FLOOR2_ID) &&
+            Number.isFinite(Number(p.x)) &&
+            Number.isFinite(Number(p.y))
+        );
+      }
+
+      function floor2RouteTotalLength() {
+        const points = floor2RoutePoints();
+        let total = 0;
+        for (let i = 1; i < points.length; i++) {
+          total += Math.hypot(
+            Number(points[i].x) - Number(points[i - 1].x),
+            Number(points[i].y) - Number(points[i - 1].y)
+          );
+        }
+        return total;
+      }
+
+      function floor2PointAtProgress(progress) {
+        const points = floor2RoutePoints();
+        if (!points.length) return null;
+        if (points.length === 1) {
+          return { ...points[0], routeIndex: 0 };
+        }
+
+        let remaining = Math.max(0, Number(progress || 0));
+        for (let i = 1; i < points.length; i++) {
+          const from = points[i - 1];
+          const to = points[i];
+          const dx = Number(to.x) - Number(from.x);
+          const dy = Number(to.y) - Number(from.y);
+          const len = Math.hypot(dx, dy);
+          if (len <= 0.001) continue;
+          if (remaining <= len) {
+            const ratio = remaining / len;
+            return {
+              x: Number(from.x) + dx * ratio,
+              y: Number(from.y) + dy * ratio,
+              floorId: FLOOR2_ID,
+              routeIndex: i - 1,
+            };
+          }
+          remaining -= len;
+        }
+        return { ...points[points.length - 1], routeIndex: points.length - 1 };
+      }
+
+      function floor2HeadingAtProgress(progress) {
+        const points = floor2RoutePoints();
+        if (points.length < 2) return null;
+        const p = floor2PointAtProgress(progress);
+        if (!p) return null;
+        const i = Math.min(
+          Math.max(0, Number(p.routeIndex || 0)),
+          points.length - 2
+        );
+        const from = points[i];
+        const to = points[i + 1];
+        const dx = Number(to.x) - Number(from.x);
+        const dy = Number(to.y) - Number(from.y);
+        if (Math.hypot(dx, dy) < 0.001) return null;
+        return normalizeDeg(Math.atan2(dx, -dy) * 180 / Math.PI);
+      }
+
+      function resetFloor2PdrFromCurrent() {
+        const points = floor2RoutePoints();
+        if (!points.length) {
+          state.pdrFloor2Progress = 0;
+          state.pdrFloor2RouteIndex = 0;
+          return;
+        }
+
+        let bestDistance = Infinity;
+        let bestProgress = 0;
+        let consumed = 0;
+
+        for (let i = 1; i < points.length; i++) {
+          const from = points[i - 1];
+          const to = points[i];
+          const dx = Number(to.x) - Number(from.x);
+          const dy = Number(to.y) - Number(from.y);
+          const len2 = dx * dx + dy * dy;
+          const len = Math.sqrt(len2);
+          if (len <= 0.001) continue;
+
+          const t = Math.max(
+            0,
+            Math.min(
+              1,
+              (
+                (Number(state.current.x) - Number(from.x)) * dx +
+                (Number(state.current.y) - Number(from.y)) * dy
+              ) / len2
+            )
+          );
+
+          const px = Number(from.x) + dx * t;
+          const py = Number(from.y) + dy * t;
+          const distance = Math.hypot(
+            Number(state.current.x) - px,
+            Number(state.current.y) - py
+          );
+
+          if (distance < bestDistance) {
+            bestDistance = distance;
+            bestProgress = consumed + len * t;
+            state.pdrFloor2RouteIndex = i - 1;
+          }
+          consumed += len;
+        }
+
+        state.pdrFloor2Progress = bestProgress;
+      }
+
+      async function switchNavigationFloor(targetFloorId) {
+        if (targetFloorId === state.current.floorId) return;
+
+        state.currentFloorId = targetFloorId;
+        state.current.floorId = targetFloorId;
+        state.pdrHeadingOffsetDeg = null;
+        state.pdrTravelDirection = 1;
+        state.floorSwitchCandidate = null;
+        state.floorSwitchCandidateCount = 0;
+
+        if (targetFloorId === FLOOR2_ID) {
+          const transfer = FLOOR2_ANCHOR_PIXELS.ESCALATOR_END;
+          state.current.x = Number(transfer.x);
+          state.current.y = Number(transfer.y);
+          state.current.anchorId = "ESCALATOR_END";
+          state.pdrActive = false;
+          await showRoute();
+          state.pdrActive =
+            state.navigationActive &&
+            floor2RoutePoints().length >= 2;
+          resetFloor2PdrFromCurrent();
+        } else if (targetFloorId === FLOOR1_ID) {
+          // Re-enter 1F from the verified K12 connector and rebuild DQN route.
+          state.current.anchorId = "ESCALATOR_START";
+          state.current.gridX = 2;
+          state.current.gridY = 3;
+          const display = dqnGridToPixel(2, 3);
+          if (display) {
+            state.current.x = display.x;
+            state.current.y = display.y;
+          }
+          await showRoute();
+          state.pdrActive =
+            state.navigationActive &&
+            state.route.some(
+              (p) => Number.isFinite(Number(p.gridX)) &&
+                     Number.isFinite(Number(p.gridY))
+            );
+          resetPdrFromCurrent();
+        }
+
+        renderFloorButtons();
+        updateWorldFromData();
+        performSearch();
+        if (state.viewFollow) centerOnCurrent();
+        renderAll();
+      }
+
       function startNavigation() {
         if (!state.destination) {
           nextStep.textContent = t("chooseDestination");
@@ -1624,12 +1792,18 @@ function drawPdrCalStop() {
         }
         state.navigationActive = true;
 
-        state.pdrActive =
+        const hasFloor1PdrRoute =
           state.current.floorId === FLOOR1_ID &&
           Array.isArray(state.route) &&
           state.route.some(
             (p) => Number.isFinite(Number(p.gridX)) && Number.isFinite(Number(p.gridY))
           );
+
+        const hasFloor2PdrRoute =
+          state.current.floorId === FLOOR2_ID &&
+          floor2RoutePoints().length >= 2;
+
+        state.pdrActive = hasFloor1PdrRoute || hasFloor2PdrRoute;
 
         state.pdrHeadingOffsetDeg = null;
         state.pdrGridX = Number(state.current.gridX);
@@ -1637,6 +1811,9 @@ function drawPdrCalStop() {
         state.pdrRawGridX = Number(state.current.gridX);
         state.pdrRawGridY = Number(state.current.gridY);
         syncRouteProgressFromCurrent();
+        if (state.current.floorId === FLOOR2_ID) {
+          resetFloor2PdrFromCurrent();
+        }
         state.pdrStepCount = 0;
         state.pdrRxCount = 0;
         state.pdrAndroidCount = 0;
@@ -3084,10 +3261,10 @@ drawCurrent();
         }
 
         if (
-          state.current.floorId !== FLOOR1_ID ||
-          state.currentFloorId !== FLOOR1_ID
+          state.current.floorId !== FLOOR1_ID &&
+          state.current.floorId !== FLOOR2_ID
         ) {
-          updatePdrDebug("PDR WAIT：目前 v16 先驗證 1F");
+          updatePdrDebug("PDR BLOCK：目前樓層不支援導航");
           updatePdrSyncDebug("BLOCK FLOOR");
           return;
         }
@@ -3095,6 +3272,95 @@ drawCurrent();
         if (!state.navigationActive || !state.pdrActive) {
           updatePdrDebug("PDR WAIT：請先選目的地並按「開始導航」");
           updatePdrSyncDebug("BLOCK NAV");
+          return;
+        }
+
+        if (state.current.floorId === FLOOR2_ID) {
+          if (floor2RoutePoints().length < 2) {
+            updatePdrDebug("PDR BLOCK：2F 尚未建立可走路線");
+            updatePdrSyncDebug("BLOCK ROUTE");
+            return;
+          }
+
+          const sensorHeading = Number(state.pdrSensorHeading);
+          if (!Number.isFinite(sensorHeading)) {
+            updatePdrDebug("PDR WAIT：尚未收到 Rotation Vector 方向");
+            updatePdrSyncDebug("BLOCK HEADING");
+            return;
+          }
+
+          const expectedHeading =
+            floor2HeadingAtProgress(state.pdrFloor2Progress);
+
+          if (state.pdrHeadingOffsetDeg == null &&
+              Number.isFinite(expectedHeading)) {
+            state.pdrHeadingOffsetDeg =
+              normalizeDeg(expectedHeading - sensorHeading);
+          }
+
+          const mappedHeading =
+            state.pdrHeadingOffsetDeg == null
+              ? sensorHeading
+              : normalizeDeg(sensorHeading + state.pdrHeadingOffsetDeg);
+
+          const headingError =
+            Number.isFinite(expectedHeading)
+              ? angularDiffDeg(mappedHeading, expectedHeading)
+              : 0;
+
+          let travelDirection = Number(state.pdrTravelDirection || 1);
+          if (headingError <= 80) {
+            travelDirection = 1;
+          } else if (headingError >= 100) {
+            travelDirection = -1;
+          }
+          state.pdrTravelDirection = travelDirection;
+          state.heading = mappedHeading;
+
+          // 2F map image is 1015x437 scaled to 2000x861.08.
+          // Use the production map's approximate 8 px/m calibration.
+          const stepPixels = Number(state.pdrStepLengthM) * 8 * (2000 / 1015);
+          const total = floor2RouteTotalLength();
+
+          state.pdrFloor2Progress = Math.max(
+            0,
+            Math.min(
+              total,
+              Number(state.pdrFloor2Progress || 0) +
+                stepPixels * travelDirection
+            )
+          );
+
+          const point = floor2PointAtProgress(state.pdrFloor2Progress);
+          if (!point) {
+            updatePdrDebug("PDR BLOCK：2F 無法取得路線位置");
+            updatePdrSyncDebug("BLOCK PROGRESS");
+            return;
+          }
+
+          state.current.x = Number(point.x);
+          state.current.y = Number(point.y);
+          state.current.floorId = FLOOR2_ID;
+          state.currentFloorId = FLOOR2_ID;
+          state.pdrFloor2RouteIndex = Number(point.routeIndex || 0);
+          state.current.anchorId = null;
+          state.pdrStepCount += 1;
+          updatePdrSyncDebug("MOVE");
+
+          const nearRouteStart = state.pdrFloor2Progress <= stepPixels * 1.2;
+          if (
+            nearRouteStart &&
+            travelDirection < 0 &&
+            state.destination?.floorId === FLOOR1_ID
+          ) {
+            switchNavigationFloor(FLOOR1_ID);
+            return;
+          }
+
+          if (state.viewFollow && state.pdrStepCount % 2 === 0) {
+            centerOnCurrent();
+          }
+          drawMap();
           return;
         }
 
@@ -3218,6 +3484,20 @@ drawCurrent();
         state.pdrStepCount += 1;
         updatePdrSyncDebug("MOVE");
 
+        const nearRouteEnd =
+          totalProgress > 0 &&
+          state.pdrRouteProgress >=
+            Math.max(0, totalProgress - stepGridUnits * 1.2);
+
+        if (
+          nearRouteEnd &&
+          travelDirection > 0 &&
+          state.destination?.floorId === FLOOR2_ID
+        ) {
+          switchNavigationFloor(FLOOR2_ID);
+          return;
+        }
+
         const turnDiff =
           Number.isFinite(expectedHeading)
             ? Math.round(angularDiffDeg(mappedHeading, expectedHeading))
@@ -3288,6 +3568,42 @@ drawCurrent();
 
           const realFloor = Number(data.floor);
           state.current.anchorId = data.anchorId || null;
+
+          if (state.navigationActive) {
+            const candidateFloor =
+              realFloor === 1 ? FLOOR2_ID :
+              realFloor === 0 ? FLOOR1_ID :
+              null;
+
+            if (
+              candidateFloor &&
+              candidateFloor !== state.current.floorId
+            ) {
+              if (state.floorSwitchCandidate === candidateFloor) {
+                state.floorSwitchCandidateCount += 1;
+              } else {
+                state.floorSwitchCandidate = candidateFloor;
+                state.floorSwitchCandidateCount = 1;
+              }
+
+              if (state.floorSwitchCandidateCount >= 2) {
+                await switchNavigationFloor(candidateFloor);
+                return;
+              }
+
+              console.log(
+                "樓層候選等待確認",
+                candidateFloor,
+                state.floorSwitchCandidateCount
+              );
+              return;
+            }
+
+            if (candidateFloor === state.current.floorId) {
+              state.floorSwitchCandidate = null;
+              state.floorSwitchCandidateCount = 0;
+            }
+          }
 
           if (realFloor === 1) {
             const p = floor2PixelFromReal(data);
