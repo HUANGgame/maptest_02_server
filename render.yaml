@@ -1,8 +1,12 @@
 ﻿services:
   - type: web
-    name: taipei-station-indoor-navigation
+    name: navi-taipei-backup
     runtime: python
     plan: free
     buildCommand: pip install -r requirements.txt
     startCommand: uvicorn render_app:app --host 0.0.0.0 --port $PORT
     healthCheckPath: /health
+
+    envVars:
+      - key: HUANG_DATA_API_BASE
+        value: https://taipei-station-indoor-navigation.onrender.com
