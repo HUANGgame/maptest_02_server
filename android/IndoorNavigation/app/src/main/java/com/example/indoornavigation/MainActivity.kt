@@ -160,11 +160,27 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
                     Manifest.permission.ACCESS_FINE_LOCATION
                 ] == true
 
+            val activityGranted =
+                Build.VERSION.SDK_INT < Build.VERSION_CODES.Q ||
+                permissions[Manifest.permission.ACTIVITY_RECOGNITION] == true ||
+                ContextCompat.checkSelfPermission(
+                    this,
+                    Manifest.permission.ACTIVITY_RECOGNITION
+                ) == PackageManager.PERMISSION_GRANTED
+
+            if (activityGranted) {
+                registerMotionSensors()
+            }
+
             if (fineGranted) {
 
                 Toast.makeText(
                     this,
-                    "定位權限已取得",
+                    if (activityGranted) {
+                        "定位與步數權限已取得"
+                    } else {
+                        "定位權限已取得；步數將使用加速度備援"
+                    },
                     Toast.LENGTH_SHORT
                 ).show()
 
@@ -559,50 +575,64 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
         )
     }
 
-    override fun onStart() {
-        super.onStart()
-        if (
-            Build.VERSION.SDK_INT < Build.VERSION_CODES.Q ||
-            ContextCompat.checkSelfPermission(
-                this,
-                Manifest.permission.ACTIVITY_RECOGNITION
-            ) == PackageManager.PERMISSION_GRANTED
-        ) {
+    private fun hasActivityRecognitionPermission(): Boolean {
+        return Build.VERSION.SDK_INT < Build.VERSION_CODES.Q ||
+                ContextCompat.checkSelfPermission(
+                    this,
+                    Manifest.permission.ACTIVITY_RECOGNITION
+                ) == PackageManager.PERMISSION_GRANTED
+    }
 
+    private fun registerMotionSensors() {
+        sensorManager.unregisterListener(this)
+
+        if (hasActivityRecognitionPermission()) {
             stepDetectorSensor?.let { sensor ->
-                stepCounterSensor?.let { sensor ->
-
-                    sensorManager.registerListener(
-                        this,
-                        sensor,
-                        SensorManager.SENSOR_DELAY_NORMAL,
-                        0
-                    )
-                }
-
                 sensorManager.registerListener(
                     this,
                     sensor,
                     SensorManager.SENSOR_DELAY_NORMAL
                 )
             }
-            rotationVectorSensor?.let { sensor ->
 
+            stepCounterSensor?.let { sensor ->
                 sensorManager.registerListener(
                     this,
                     sensor,
-                    SensorManager.SENSOR_DELAY_UI
-                )
-            }
-            linearAccelerationSensor?.let { sensor ->
-
-                sensorManager.registerListener(
-                    this,
-                    sensor,
-                    SensorManager.SENSOR_DELAY_GAME
+                    SensorManager.SENSOR_DELAY_NORMAL
                 )
             }
         }
+
+        rotationVectorSensor?.let { sensor ->
+            sensorManager.registerListener(
+                this,
+                sensor,
+                SensorManager.SENSOR_DELAY_UI
+            )
+        }
+
+        linearAccelerationSensor?.let { sensor ->
+            sensorManager.registerListener(
+                this,
+                sensor,
+                SensorManager.SENSOR_DELAY_GAME
+            )
+        }
+
+        android.util.Log.d(
+            "PDR_SENSOR",
+            "registered stepPermission=" + hasActivityRecognitionPermission() +
+                    " detector=" + (stepDetectorSensor != null) +
+                    " counter=" + (stepCounterSensor != null) +
+                    " rotation=" + (rotationVectorSensor != null) +
+                    " linear=" + (linearAccelerationSensor != null)
+        )
+    }
+    override fun onStart() {
+        super.onStart()
+
+        registerMotionSensors()
 
         val filter =
             IntentFilter(
@@ -1408,7 +1438,10 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
 
                     if (
                         hybridSessionStarted &&
-                        stepDetectorSensor == null &&
+                        (
+                            stepDetectorSensor == null ||
+                            !hasActivityRecognitionPermission()
+                        ) &&
                         !hybridCounterActive
                     ) {
                         sendHybridPdrStep()
