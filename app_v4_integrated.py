@@ -1,6 +1,9 @@
 from pathlib import Path
 import time
 import json
+import os
+import urllib.parse
+import urllib.request
 from datetime import datetime
 from collections import deque
 from typing import List, Optional
@@ -11,12 +14,70 @@ from pydantic import BaseModel
 
 from wifi_locator_v3 import WifiLocatorV3
 from wifi_locator_v4 import WifiLocatorV4
-from route_safe_engine import plan_safe_route, DQN_ENGINE, DQN_ERROR
+from route_safe_engine import plan_safe_route, nearest_walkable_xy, DQN_ENGINE, DQN_ERROR
 from places_to_dqn import PLACE_DQN_MAP, place_to_dqn
 from anchor_to_dqn import anchor_to_dqn
 
 
 BASE_DIR = Path(__file__).resolve().parent
+HUANG_DATA_API_BASE = os.environ.get("HUANG_DATA_API_BASE", "").rstrip("/")
+
+SOURCE_FLOOR_TO_LOCAL = {
+    "k-area-airport-1f": "k-floor-grid",
+    "k-area-airport-2f": "k-floor-mrt",
+}
+LOCAL_FLOOR_TO_SOURCE = {value: key for key, value in SOURCE_FLOOR_TO_LOCAL.items()}
+
+# The other implementation uses a compact calibrated coordinate space for 1F
+# and a 2000px display space for 2F. Production DB points remain in the
+# original map-image coordinate systems, so convert only for presentation.
+DISPLAY_TRANSFORMS = {
+    "k-area-airport-1f": {
+        "sourceWidth": 1734.0, "sourceHeight": 591.0,
+        "left": -4.63, "top": -16.36, "width": 379.06, "height": 122.73,
+    },
+    "k-area-airport-2f": {
+        "sourceWidth": 1015.0, "sourceHeight": 437.0,
+        "left": 0.0, "top": 0.0, "width": 2000.0, "height": 861.08,
+    },
+}
+
+def _fetch_huang_json(path: str, query: dict | None = None):
+    if not HUANG_DATA_API_BASE:
+        return None
+    url = f"{HUANG_DATA_API_BASE}{path}"
+    if query:
+        url += "?" + urllib.parse.urlencode(query)
+    request = urllib.request.Request(
+        url,
+        headers={"Accept": "application/json", "User-Agent": "NaviTaipei-backup-data-bridge/1.0"},
+    )
+    with urllib.request.urlopen(request, timeout=8) as response:
+        return json.loads(response.read().decode("utf-8"))
+
+def _to_local_point(item: dict):
+    source_floor = str(item.get("floorId") or "")
+    transform = DISPLAY_TRANSFORMS.get(source_floor)
+    result = dict(item)
+    result["sourceFloorId"] = source_floor
+    result["floorId"] = SOURCE_FLOOR_TO_LOCAL.get(source_floor, source_floor)
+    result["sourceX"] = item.get("x")
+    result["sourceY"] = item.get("y")
+    if transform:
+        try:
+            source_x = float(item.get("x"))
+            source_y = float(item.get("y"))
+            result["x"] = (
+                transform["left"] +
+                source_x / transform["sourceWidth"] * transform["width"]
+            )
+            result["y"] = (
+                transform["top"] +
+                source_y / transform["sourceHeight"] * transform["height"]
+            )
+        except (TypeError, ValueError):
+            pass
+    return result
 
 app = FastAPI(title="AR Indoor Navigation API v4")
 
@@ -315,15 +376,23 @@ def get_floors(mapId: str = ""):
 
 @app.get("/api/places")
 def get_places(mapId: str = ""):
+    if HUANG_DATA_API_BASE and (not mapId or mapId in {"k-area-airport", "map_visual_3"}):
+        try:
+            remote = _fetch_huang_json("/api/places", {"mapId": "k-area-airport"})
+            if isinstance(remote, list) and remote:
+                return [_to_local_point(item) for item in remote]
+        except Exception as exc:
+            print(f"HUANG places API unavailable, using local fallback: {exc}")
+
     return [
-        {"id": "start_k_area", "name": "K區起點 (我在這裡！)", "mapId": "k-area-airport", "floorId": "k-area-airport-1f", "category": "起點", "x": 250, "y": 570},
-        {"id": "end_mrt_target", "name": "機捷連通道 (測試終點)", "mapId": "k-area-airport", "floorId": "k-area-airport-mrt", "category": "目的地", "x": 100, "y": 120},
-        {"id": "k12_escalator", "name": "K12 手扶梯", "mapId": "k-area-airport", "floorId": "k-area-airport-1f", "category": "設施", "x": 169, "y": 340},
-        {"id": "daiso", "name": "大創 DAISO", "mapId": "k-area-airport", "floorId": "k-area-airport-1f", "category": "商店", "x": 517, "y": 496},
-        {"id": "hobby_off", "name": "Hobby OFF", "mapId": "k-area-airport", "floorId": "k-area-airport-1f", "category": "商店", "x": 512, "y": 432},
-        {"id": "central_square", "name": "中央廣場", "mapId": "k-area-airport", "floorId": "k-area-airport-1f", "category": "地標", "x": 1040, "y": 389},
-        {"id": "711_store", "name": "7-ELEVEN", "mapId": "k-area-airport", "floorId": "k-area-airport-1f", "category": "商店", "x": 1147, "y": 503},
-        {"id": "marugame", "name": "丸龜製麵", "mapId": "k-area-airport", "floorId": "k-area-airport-1f", "category": "餐廳", "x": 1564, "y": 428},
+        {"id": "start_k_area", "name": "K區起點 (我在這裡！)", "mapId": "k-area-airport", "floorId": "k-floor-grid", "category": "起點", "x": 53, "y": 62},
+        {"id": "end_mrt_target", "name": "機捷連通道 (測試終點)", "mapId": "k-area-airport", "floorId": "k-floor-mrt", "category": "目的地", "x": 100, "y": 120},
+        {"id": "k12_escalator", "name": "K12 手扶梯", "mapId": "k-area-airport", "floorId": "k-floor-grid", "category": "設施", "x": 15, "y": 40},
+        {"id": "daiso", "name": "大創 DAISO", "mapId": "k-area-airport", "floorId": "k-floor-grid", "category": "商店", "x": 88, "y": 76},
+        {"id": "hobby_off", "name": "Hobby OFF", "mapId": "k-area-airport", "floorId": "k-floor-grid", "category": "商店", "x": 95, "y": 48},
+        {"id": "central_square", "name": "中央廣場", "mapId": "k-area-airport", "floorId": "k-floor-grid", "category": "地標", "x": 270, "y": 60},
+        {"id": "711_store", "name": "7-ELEVEN", "mapId": "k-area-airport", "floorId": "k-floor-grid", "category": "商店", "x": 216, "y": 76},
+        {"id": "marugame", "name": "丸龜製麵", "mapId": "k-area-airport", "floorId": "k-floor-grid", "category": "餐廳", "x": 295, "y": 38},
     ]
 
 
@@ -337,6 +406,8 @@ class GridPathRequest(BaseModel):
     startX: float = 0
     startY: float = 0
     destinationPlaceId: str = ""
+    destinationX: Optional[float] = None
+    destinationY: Optional[float] = None
     startAnchorId: Optional[str] = None
     startDqnX: Optional[float] = None
     startDqnY: Optional[float] = None
@@ -344,12 +415,6 @@ class GridPathRequest(BaseModel):
 
 @app.post("/api/routes")
 def get_shortest_path(req: GridPathRequest):
-    if req.destinationPlaceId not in PLACE_DQN_MAP:
-        raise HTTPException(
-            status_code=404,
-            detail=f"找不到目的地：{req.destinationPlaceId}"
-        )
-
     if req.startAnchorId:
         try:
             anchor_pos = anchor_to_dqn(req.startAnchorId)
@@ -381,7 +446,20 @@ def get_shortest_path(req: GridPathRequest):
             detail="尚未取得 REAL 定位藍點，無法建立導航起點"
         )
 
-    goal_xy = place_to_dqn(req.destinationPlaceId)
+    if req.destinationPlaceId in PLACE_DQN_MAP:
+        goal_xy = place_to_dqn(req.destinationPlaceId)
+        destination_name = PLACE_DQN_MAP[req.destinationPlaceId]["name"]
+    elif req.destinationX is not None and req.destinationY is not None:
+        gx = round((float(req.destinationX) - (-4.63)) / (379.06 / 75.0) - 0.5)
+        gy = round((float(req.destinationY) - (-16.36)) / (122.73 / 25.0) - 0.5)
+        goal_xy = nearest_walkable_xy(gx, gy)
+        destination_name = req.destinationPlaceId or "目的地"
+    else:
+        raise HTTPException(
+            status_code=404,
+            detail=f"找不到可導航目的地：{req.destinationPlaceId}"
+        )
+
     result = plan_safe_route(start_xy, goal_xy)
 
     if result.get("status") != "success":
@@ -399,9 +477,9 @@ def get_shortest_path(req: GridPathRequest):
         "distance": distance_m,
         "estimatedTime": estimated_minutes,
         "destinationPlaceId": req.destinationPlaceId,
-        "destinationName": PLACE_DQN_MAP[req.destinationPlaceId]["name"],
+        "destinationName": destination_name,
         "message": (
-            f"已規劃至 {PLACE_DQN_MAP[req.destinationPlaceId]['name']} "
+            f"已規劃至 {destination_name} "
             f"入口走道；{result['algorithm']}"
         ),
     }
@@ -516,12 +594,28 @@ async def navigation_feedback(request: Request):
 
 @app.get("/api/wifi-scans/points")
 def get_wifi_points(mapId: str = "", floorId: str = ""):
-    if mapId == "map_visual_3" or floorId == "k-floor-grid":
-        return {"points": []}
+    source_floor = LOCAL_FLOOR_TO_SOURCE.get(floorId, floorId)
+    if HUANG_DATA_API_BASE and (
+        mapId in {"", "map_visual_3", "k-area-airport"} or
+        source_floor in SOURCE_FLOOR_TO_LOCAL
+    ):
+        try:
+            query = {"mapId": "k-area-airport"}
+            if source_floor in SOURCE_FLOOR_TO_LOCAL:
+                query["floorId"] = source_floor
+            remote = _fetch_huang_json("/api/wifi-scans/points", query)
+            if isinstance(remote, dict) and isinstance(remote.get("points"), list):
+                return {
+                    **remote,
+                    "points": [_to_local_point(item) for item in remote["points"]],
+                    "source": "huang-production-api",
+                }
+        except Exception as exc:
+            print(f"HUANG Wi-Fi points API unavailable, using local CSV fallback: {exc}")
 
     try:
         df = pd.read_csv(BASE_DIR / "Final_Training_Data_v3_final.csv")
-        target_z = 0 if floorId == "k-area-airport-1f" else 1
+        target_z = 1 if source_floor == "k-area-airport-2f" else 0
         df_floor = df[df["z"] == target_z]
 
         unique_coords = df_floor[["x", "y"]].drop_duplicates()
@@ -534,7 +628,7 @@ def get_wifi_points(mapId: str = "", floorId: str = ""):
                     "x": float(row["x"]),
                     "y": float(row["y"]),
                     "mapId": "k-area-airport",
-                    "floorId": floorId,
+                    "floorId": SOURCE_FLOOR_TO_LOCAL.get(source_floor, floorId),
                     "scanCount": 1,
                 }
             )
