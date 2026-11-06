@@ -731,6 +731,7 @@
   pdrRawGridX: null,
   pdrRawGridY: null,
   pdrRouteIndex: 0,
+  pdrRouteProgress: 0,
   pdrStepCount: 0,
   pdrRxCount: 0,
   pdrAndroidCount: 0,
@@ -1619,12 +1620,7 @@ function drawPdrCalStop() {
         state.pdrGridY = Number(state.current.gridY);
         state.pdrRawGridX = Number(state.current.gridX);
         state.pdrRawGridY = Number(state.current.gridY);
-        state.pdrRouteIndex = findNearestPdrRouteIndex(
-          state.pdrGridX,
-          state.pdrGridY,
-          0,
-          Math.max(0, state.route.length - 1)
-        );
+        syncRouteProgressFromCurrent();
         state.pdrStepCount = 0;
         state.pdrRxCount = 0;
         state.pdrAndroidCount = 0;
@@ -2834,18 +2830,122 @@ drawCurrent();
         return bestIndex;
       }
 
+      function routeTotalGridLength() {
+        if (!Array.isArray(state.route) || state.route.length < 2) return 0;
+        let total = 0;
+        for (let i = 1; i < state.route.length; i++) {
+          const a = state.route[i - 1];
+          const b = state.route[i];
+          if (
+            !Number.isFinite(Number(a.gridX)) ||
+            !Number.isFinite(Number(a.gridY)) ||
+            !Number.isFinite(Number(b.gridX)) ||
+            !Number.isFinite(Number(b.gridY))
+          ) continue;
+          total += Math.hypot(
+            Number(b.gridX) - Number(a.gridX),
+            Number(b.gridY) - Number(a.gridY)
+          );
+        }
+        return total;
+      }
+
+      function routeProgressAtIndex(targetIndex) {
+        if (!Array.isArray(state.route) || state.route.length === 0) return 0;
+        const end = Math.max(0, Math.min(state.route.length - 1, Number(targetIndex) || 0));
+        let progress = 0;
+        for (let i = 1; i <= end; i++) {
+          const a = state.route[i - 1];
+          const b = state.route[i];
+          if (
+            !Number.isFinite(Number(a.gridX)) ||
+            !Number.isFinite(Number(a.gridY)) ||
+            !Number.isFinite(Number(b.gridX)) ||
+            !Number.isFinite(Number(b.gridY))
+          ) continue;
+          progress += Math.hypot(
+            Number(b.gridX) - Number(a.gridX),
+            Number(b.gridY) - Number(a.gridY)
+          );
+        }
+        return progress;
+      }
+
+      function routePointAtProgress(targetProgress) {
+        if (!Array.isArray(state.route) || state.route.length === 0) return null;
+        if (state.route.length === 1) return state.route[0];
+
+        const total = routeTotalGridLength();
+        const target = Math.max(0, Math.min(total, Number(targetProgress) || 0));
+        let consumed = 0;
+
+        for (let i = 1; i < state.route.length; i++) {
+          const a = state.route[i - 1];
+          const b = state.route[i];
+          const ax = Number(a.gridX), ay = Number(a.gridY);
+          const bx = Number(b.gridX), by = Number(b.gridY);
+          if (![ax, ay, bx, by].every(Number.isFinite)) continue;
+
+          const segment = Math.hypot(bx - ax, by - ay);
+          if (segment <= 0.0001) continue;
+
+          if (target <= consumed + segment) {
+            const ratio = Math.max(0, Math.min(1, (target - consumed) / segment));
+            return {
+              gridX: ax + (bx - ax) * ratio,
+              gridY: ay + (by - ay) * ratio,
+              routeIndex: i,
+            };
+          }
+          consumed += segment;
+        }
+
+        const last = state.route[state.route.length - 1];
+        return {
+          gridX: Number(last.gridX),
+          gridY: Number(last.gridY),
+          routeIndex: state.route.length - 1,
+        };
+      }
+
+      function routeHeadingDegAtProgress(targetProgress) {
+        const total = routeTotalGridLength();
+        if (total <= 0) return NaN;
+        const p1 = routePointAtProgress(Math.max(0, targetProgress - 0.35));
+        const p2 = routePointAtProgress(Math.min(total, targetProgress + 0.35));
+        if (!p1 || !p2) return NaN;
+        const dx = Number(p2.gridX) - Number(p1.gridX);
+        const dy = Number(p2.gridY) - Number(p1.gridY);
+        if (Math.hypot(dx, dy) < 0.001) return NaN;
+        return normalizeDeg(Math.atan2(dx, -dy) * 180 / Math.PI);
+      }
+
+      function routeMetersPerGridUnit() {
+        const gridLength = routeTotalGridLength();
+        const distanceM = Number(state.routeDistance);
+        if (gridLength > 0 && Number.isFinite(distanceM) && distanceM > 0) {
+          return distanceM / gridLength;
+        }
+        return 0.60;
+      }
+
+      function syncRouteProgressFromCurrent() {
+        state.pdrRouteIndex = findNearestPdrRouteIndex(
+          Number(state.current.gridX),
+          Number(state.current.gridY),
+          0,
+          Math.max(0, state.route.length - 1)
+        );
+        state.pdrRouteProgress = routeProgressAtIndex(state.pdrRouteIndex);
+      }
+
       function resetPdrFromCurrent() {
         state.pdrGridX = Number(state.current.gridX);
         state.pdrGridY = Number(state.current.gridY);
         state.pdrRawGridX = Number(state.current.gridX);
         state.pdrRawGridY = Number(state.current.gridY);
         state.pdrHeadingOffsetDeg = null;
-        state.pdrRouteIndex = findNearestPdrRouteIndex(
-          state.pdrGridX,
-          state.pdrGridY,
-          0,
-          Math.max(0, state.route.length - 1)
-        );
+        syncRouteProgressFromCurrent();
       }
 
       function calibratePdrHeading(sensorHeadingDeg) {
@@ -2874,7 +2974,7 @@ drawCurrent();
         }
 
         const routeHeading =
-          routeHeadingDegAt(state.pdrRouteIndex);
+          routeHeadingDegAtProgress(state.pdrRouteProgress);
 
         if (!Number.isFinite(routeHeading)) {
           return false;
@@ -3000,84 +3100,65 @@ drawCurrent();
         }
 
         const mappedHeading = Number(state.heading);
-        const expectedHeading = routeHeadingDegAt(state.pdrRouteIndex);
+        const expectedHeading =
+          routeHeadingDegAtProgress(state.pdrRouteProgress);
 
-        const stepCells =
-          Number(state.pdrStepLengthM) / Number(state.pdrGridCellM);
+        const metersPerGrid =
+          routeMetersPerGridUnit();
 
-        if (
-          !Number.isFinite(Number(state.pdrRawGridX)) ||
-          !Number.isFinite(Number(state.pdrRawGridY))
-        ) {
-          state.pdrRawGridX = Number(state.pdrGridX);
-          state.pdrRawGridY = Number(state.pdrGridY);
+        const stepGridUnits =
+          Number(state.pdrStepLengthM) /
+          Math.max(0.05, metersPerGrid);
+
+        const headingError =
+          Number.isFinite(expectedHeading)
+            ? angularDiffDeg(mappedHeading, expectedHeading)
+            : 0;
+
+        // Heading only decides forward/reverse. Do not integrate free X/Y
+        // because indoor magnetic noise creates lateral drift and wall crossing.
+        let travelDirection = 0;
+        if (headingError <= 70) {
+          travelDirection = 1;
+        } else if (headingError >= 110) {
+          travelDirection = -1;
         }
 
-        const rad = mappedHeading * Math.PI / 180;
-
-        const candidateX =
-          Number(state.pdrRawGridX) + Math.sin(rad) * stepCells;
-        const candidateY =
-          Number(state.pdrRawGridY) - Math.cos(rad) * stepCells;
-
-        state.pdrRawGridX = candidateX;
-        state.pdrRawGridY = candidateY;
-
-        const searchFrom = Math.max(0, state.pdrRouteIndex - 8);
-        const searchTo = Math.min(
-          state.route.length - 1,
-          state.pdrRouteIndex + 8
-        );
-
-        const nearestIndex = findNearestPdrRouteIndex(
-          candidateX,
-          candidateY,
-          searchFrom,
-          searchTo
-        );
-
-        const nearest = state.route[nearestIndex];
-
-        let routeDistance = Infinity;
-        if (
-          nearest &&
-          Number.isFinite(Number(nearest.gridX)) &&
-          Number.isFinite(Number(nearest.gridY))
-        ) {
-          routeDistance = Math.hypot(
-            Number(nearest.gridX) - candidateX,
-            Number(nearest.gridY) - candidateY
+        if (travelDirection === 0) {
+          updatePdrDebug(
+            `RX ${state.pdrRxCount}｜PDR HOLD｜方向不確定 Δ=${Math.round(headingError)}°`
           );
+          updatePdrSyncDebug("HOLD HEADING");
+          return;
         }
 
-        if (routeDistance <= 2.25) {
-          const headingError =
-            Number.isFinite(expectedHeading)
-              ? angularDiffDeg(mappedHeading, expectedHeading)
-              : 0;
+        const totalProgress =
+          routeTotalGridLength();
 
-          const snapWeight =
-            headingError <= 20 ? 0.58 :
-            headingError <= 45 ? 0.72 :
-            0.82;
+        state.pdrRouteProgress =
+          Math.max(
+            0,
+            Math.min(
+              totalProgress,
+              Number(state.pdrRouteProgress || 0) +
+                stepGridUnits * travelDirection
+            )
+          );
 
-          state.pdrGridX =
-            candidateX * (1 - snapWeight) +
-            Number(nearest.gridX) * snapWeight;
+        const routePoint =
+          routePointAtProgress(state.pdrRouteProgress);
 
-          state.pdrGridY =
-            candidateY * (1 - snapWeight) +
-            Number(nearest.gridY) * snapWeight;
-
-          state.pdrRouteIndex = nearestIndex;
-        } else {
-          state.pdrGridX = candidateX;
-          state.pdrGridY = candidateY;
-
-          if (routeDistance <= 2.25) {
-            state.pdrRouteIndex = nearestIndex;
-          }
+        if (!routePoint) {
+          updatePdrDebug("PDR BLOCK：無法取得路線進度位置");
+          updatePdrSyncDebug("BLOCK PROGRESS");
+          return;
         }
+
+        state.pdrRawGridX = Number(routePoint.gridX);
+        state.pdrRawGridY = Number(routePoint.gridY);
+        state.pdrGridX = Number(routePoint.gridX);
+        state.pdrGridY = Number(routePoint.gridY);
+        state.pdrRouteIndex = Number(routePoint.routeIndex);
 
         state.current.gridX = state.pdrGridX;
         state.current.gridY = state.pdrGridY;
@@ -3101,19 +3182,15 @@ drawCurrent();
         state.pdrStepCount += 1;
         updatePdrSyncDebug("MOVE");
 
-        const routeState =
-          routeDistance <= 1.15
-            ? "ON ROUTE"
-            : "OFF ROUTE";
-
         const turnDiff =
           Number.isFinite(expectedHeading)
             ? Math.round(angularDiffDeg(mappedHeading, expectedHeading))
             : 0;
 
         updatePdrDebug(
-          `RX ${state.pdrRxCount}｜PDR STEP ${state.pdrStepCount}｜${routeState}｜` +
+          `RX ${state.pdrRxCount}｜PDR STEP ${state.pdrStepCount}｜ON ROUTE｜` +
           `gap=${gapMs}ms｜map=${Math.round(mappedHeading)}° Δ=${turnDiff}°｜` +
+          `stride=${Number(state.pdrStepLengthM).toFixed(2)}m｜` +
           `grid=(${state.current.gridX.toFixed(1)},${state.current.gridY.toFixed(1)})`
         );
 
@@ -3346,6 +3423,28 @@ drawCurrent();
                   state.pdrRouteIndex + 12
                 )
               );
+              state.pdrRouteProgress =
+                routeProgressAtIndex(state.pdrRouteIndex);
+
+              const correctedRoutePoint =
+                routePointAtProgress(state.pdrRouteProgress);
+
+              if (correctedRoutePoint) {
+                state.pdrRawGridX = correctedRoutePoint.gridX;
+                state.pdrRawGridY = correctedRoutePoint.gridY;
+                state.pdrGridX = correctedRoutePoint.gridX;
+                state.pdrGridY = correctedRoutePoint.gridY;
+                state.current.gridX = correctedRoutePoint.gridX;
+                state.current.gridY = correctedRoutePoint.gridY;
+                const snappedDisplay = dqnGridToPixel(
+                  correctedRoutePoint.gridX,
+                  correctedRoutePoint.gridY
+                );
+                if (snappedDisplay) {
+                  state.current.x = snappedDisplay.x;
+                  state.current.y = snappedDisplay.y;
+                }
+              }
             }
 
             updatePdrDebug(
