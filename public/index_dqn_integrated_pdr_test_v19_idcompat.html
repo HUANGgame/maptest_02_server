@@ -1805,12 +1805,31 @@ function drawPdrCalStop() {
         renderAll();
       }
 
-      function startNavigation() {
+      async function startNavigation() {
         if (!state.destination) {
           nextStep.textContent = t("chooseDestination");
           return;
         }
+
         state.navigationActive = true;
+
+        const routeReady =
+          (
+            state.current.floorId === FLOOR1_ID &&
+            Array.isArray(state.route) &&
+            state.route.some(
+              (p) => Number.isFinite(Number(p.gridX)) &&
+                     Number.isFinite(Number(p.gridY))
+            )
+          ) ||
+          (
+            state.current.floorId === FLOOR2_ID &&
+            floor2RoutePoints().length >= 2
+          );
+
+        if (!routeReady) {
+          await showRoute();
+        }
 
         const hasFloor1PdrRoute =
           state.current.floorId === FLOOR1_ID &&
