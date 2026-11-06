@@ -1,0 +1,2514 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>地下街室內導航系統後台</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f6f7f8;
+      --panel: #ffffff;
+      --line: #d8dde3;
+      --text: #1f2933;
+      --muted: #657181;
+      --accent: #146c63;
+      --warn: #9a5b00;
+      --bad: #a32929;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: "Noto Sans TC", "Microsoft JhengHei", system-ui, sans-serif;
+      line-height: 1.5;
+    }
+    header {
+      background: #ffffff;
+      border-bottom: 1px solid var(--line);
+      padding: 18px 24px;
+    }
+    h1 {
+      margin: 0;
+      font-size: 22px;
+      letter-spacing: 0;
+    }
+    main {
+      display: grid;
+      gap: 16px;
+      grid-template-columns: 280px 1fr;
+      padding: 16px;
+    }
+    section, aside {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 14px;
+    }
+    h2 {
+      margin: 0 0 10px;
+      font-size: 16px;
+    }
+    label {
+      display: block;
+      margin-top: 10px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+    select, input, textarea, button {
+      width: 100%;
+      min-height: 38px;
+      margin-top: 4px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: #fff;
+      color: var(--text);
+      font: inherit;
+      padding: 7px 10px;
+    }
+    textarea {
+      min-height: 72px;
+      resize: vertical;
+    }
+    button {
+      margin-top: 12px;
+      border-color: var(--accent);
+      background: var(--accent);
+      color: #fff;
+      cursor: pointer;
+    }
+    .grid {
+      display: grid;
+      gap: 16px;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 14px;
+    }
+    th, td {
+      border-bottom: 1px solid var(--line);
+      padding: 8px;
+      text-align: left;
+      vertical-align: top;
+    }
+    th {
+      color: var(--muted);
+      font-weight: 600;
+      white-space: nowrap;
+    }
+    .metric {
+      display: grid;
+      gap: 8px;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      margin-bottom: 12px;
+    }
+    .metric div {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 10px;
+    }
+    .metric strong {
+      display: block;
+      font-size: 22px;
+      color: var(--accent);
+    }
+    .muted { color: var(--muted); }
+    .warn { color: var(--warn); }
+    .bad { color: var(--bad); }
+    .full { grid-column: 1 / -1; }
+    .map-editor {
+      display: grid;
+      gap: 12px;
+      grid-template-columns: 1fr 260px;
+      align-items: start;
+    }
+    .map-editor-canvas-wrap {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #eef1f4;
+      min-height: 360px;
+      overflow: hidden;
+    }
+    #mapEditorCanvas {
+      display: block;
+      width: 100%;
+      height: 520px;
+      cursor: crosshair;
+    }
+    .inline-buttons {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+    }
+    .inline-buttons button {
+      margin-top: 0;
+    }
+    .category-editor {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 8px;
+      align-items: end;
+    }
+    .category-editor button {
+      width: auto;
+      min-width: 96px;
+      margin-top: 4px;
+      white-space: nowrap;
+    }
+    button.secondary {
+      background: #fff;
+      color: var(--accent);
+    }
+    button.active {
+      outline: 3px solid rgba(20, 108, 99, 0.22);
+    }
+    .hidden { display: none; }
+    .editor-form {
+      margin-top: 12px;
+      padding-top: 12px;
+      border-top: 1px solid var(--line);
+    }
+    dialog {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      max-width: 420px;
+      width: calc(100% - 32px);
+      padding: 16px;
+    }
+    dialog::backdrop {
+      background: rgba(15, 23, 42, 0.35);
+    }
+    @media (max-width: 900px) {
+      main, .grid, .map-editor { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>地下街室內導航系統後台</h1>
+    <div id="healthInfo" class="muted">後端：檢查中</div>
+    <div id="adminNotice" class="muted">待命</div>
+    <a href="#userReports" id="reportsLink">使用者回報</a>
+  </header>
+  <main>
+    <aside>
+      <h2>查詢條件</h2>
+      <label for="mapSelect">地圖</label>
+      <select id="mapSelect"></select>
+      <label for="floorSelect">樓層</label>
+      <select id="floorSelect"></select>
+      <button id="reloadButton">重新整理</button>
+      <button id="exportScopeButton">匯出資料</button>
+
+      <h2 style="margin-top:18px">新增資料</h2>
+      <label for="newMapName">新增地圖名稱</label>
+      <input id="newMapName" placeholder="地圖名稱">
+      <button id="createMapButton">新增地圖</button>
+
+      <label for="newFloorName">新增樓層名稱</label>
+      <input id="newFloorName" placeholder="例如 B1">
+      <button id="createFloorButton">新增樓層</button>
+
+    </aside>
+    <div class="grid">
+      <section class="full">
+        <h2>地圖編輯</h2>
+        <div class="map-editor">
+          <div class="map-editor-canvas-wrap">
+            <canvas id="mapEditorCanvas"></canvas>
+          </div>
+          <div>
+            <div class="inline-buttons">
+              <button id="placeModeButton" class="active">新增標記節點</button>
+              <button id="markModeButton" class="secondary">標記</button>
+              <button id="deletePlaceModeButton" class="secondary">刪點位</button>
+              <button id="routeModeButton" class="secondary">測試導航路線</button>
+              <button id="deleteEdgeModeButton" class="secondary">刪路線</button>
+              <button id="movePlaceModeButton" class="secondary">移動點位</button>
+              <button id="walkableZoneModeButton" class="secondary">綠框可走</button>
+              <button id="colorWalkableZoneModeButton" class="secondary">色階可走</button>
+              <button id="blockedZoneModeButton" class="secondary">紅框禁入</button>
+              <button id="colorBlockedZoneModeButton" class="secondary">色階禁入</button>
+              <button id="cautionZoneModeButton" class="secondary">橘框待確認</button>
+              <button id="colorCautionZoneModeButton" class="secondary">色階待確認</button>
+              <button id="resizeZoneModeButton" class="secondary">調整框框</button>
+              <button id="deleteZoneModeButton" class="secondary">刪框框</button>
+            </div>
+            <button id="restoreLastButton" class="secondary">回復上一個</button>
+            <button id="clearRouteDraftButton" class="secondary">清除路線暫選</button>
+            <button id="clearFloorRouteGraphButton" class="danger">清空本樓層點線</button>
+            <button id="togglePlaceMarkersButton" class="secondary">顯示地點標記</button>
+            <button id="toggleWifiPointsButton" class="secondary">顯示採樣點</button>
+            <div id="mapEditorInfo" class="muted" style="margin-top:12px">點地圖後會帶入座標。</div>
+            <div id="transitionEditorForm" class="editor-form hidden">
+              <label for="transitionFromNode">本樓層節點</label>
+              <input id="transitionFromNode" readonly>
+              <label for="transitionToNode">連到另一張地圖節點</label>
+              <select id="transitionToNode"></select>
+              <label for="transitionType">連接類型</label>
+              <select id="transitionType">
+                <option value="escalator">手扶梯</option>
+                <option value="stairs">樓梯</option>
+                <option value="elevator">電梯</option>
+                <option value="corridor">通道</option>
+              </select>
+              <label for="transitionName">名稱</label>
+              <input id="transitionName" placeholder="例如 F1 手扶梯到 F2 手扶梯">
+              <button id="createTransitionButton">儲存連接</button>
+            </div>
+          </div>
+        </div>
+      </section>
+      <section>
+        <h2>地點資料</h2>
+        <table>
+          <thead><tr><th>名稱</th><th>分類</th><th>座標</th><th>狀態</th><th>操作</th></tr></thead>
+          <tbody id="placesBody"></tbody>
+        </table>
+      </section>
+      <section>
+        <h2>Wi-Fi 指紋點</h2>
+        <div class="metric">
+          <div><span class="muted">掃描紀錄</span><strong id="totalRecords">0</strong></div>
+          <div><span class="muted">採樣點</span><strong id="pointCount">0</strong></div>
+          <div><span class="muted">AP 數</span><strong id="bssidCount">0</strong></div>
+        </div>
+        <table>
+          <thead><tr><th>點位</th><th>座標</th><th>掃描數</th><th>AP 數</th></tr></thead>
+          <tbody id="pointsBody"></tbody>
+        </table>
+      </section>
+      <section>
+        <h2>資料品質</h2>
+        <table>
+          <thead><tr><th>項目</th><th>結果</th><th>建議動作</th></tr></thead>
+          <tbody id="qualityBody"></tbody>
+        </table>
+      </section>
+      <section>
+        <h2>障礙路段</h2>
+        <table>
+          <thead><tr><th>路段</th><th>距離</th><th>狀態</th><th>操作</th></tr></thead>
+          <tbody id="routeEdgesBody"></tbody>
+        </table>
+      </section>
+      <section>
+        <h2>區域框框</h2>
+        <table>
+          <thead><tr><th>類型</th><th>位置</th><th>大小</th></tr></thead>
+          <tbody id="routeZonesBody"></tbody>
+        </table>
+      </section>
+      <section>
+        <h2>樓層連接</h2>
+        <table>
+          <thead><tr><th>名稱</th><th>來源</th><th>目標</th><th>操作</th></tr></thead>
+          <tbody id="transitionsBody"></tbody>
+        </table>
+      </section>
+      <section>
+        <h2>目前範圍</h2>
+        <div id="scopeInfo" class="muted"></div>
+      </section>
+      <section>
+        <h2>正式資料庫狀態</h2>
+        <div id="storageInfo" class="muted">檢查中</div>
+        <button id="syncStorageButton">同步正式資料庫</button>
+      </section>
+      <section>
+        <h2>匿名回饋</h2>
+        <div class="metric">
+          <div><span class="muted">待評估</span><strong id="pendingFeedback">0</strong></div>
+          <div><span class="muted">高可信</span><strong id="highFeedback">0</strong></div>
+          <div><span class="muted">拒用</span><strong id="rejectedFeedback">0</strong></div>
+        </div>
+        <button id="evaluateFeedbackButton">評估回饋品質</button>
+        <button id="retrainFeedbackButton">回饋再訓練</button>
+      </section>
+      <section>
+        <h2>模型版本</h2>
+        <button id="trainKnnButton">訓練 KNN</button>
+        <button id="trainRfButton">建立比較模型</button>
+        <table>
+          <thead><tr><th>版本</th><th>演算法</th><th>資料量</th><th>用途</th><th>狀態</th><th>操作</th></tr></thead>
+          <tbody id="modelsBody"></tbody>
+        </table>
+      </section>
+      <section>
+        <h2>訓練紀錄</h2>
+        <table>
+          <thead><tr><th>類型</th><th>狀態</th><th>資料</th></tr></thead>
+          <tbody id="jobsBody"></tbody>
+        </table>
+      </section>
+      <section>
+        <h2>導航策略</h2>
+        <button id="trainPolicyButton">策略訓練</button>
+        <table>
+          <thead><tr><th>回合</th><th>平均獎勵</th><th>成功率</th><th>摘要</th><th>狀態</th></tr></thead>
+          <tbody id="policyRunsBody"></tbody>
+        </table>
+      </section>
+      <section>
+        <h2>策略決策紀錄</h2>
+        <table>
+          <thead><tr><th>建議動作</th><th>Wi-Fi</th><th>狀態</th></tr></thead>
+          <tbody id="policyLogsBody"></tbody>
+        </table>
+      </section>
+      <section id="userReports">
+        <h2>使用者回報（全部地圖與樓層）</h2>
+        <button type="button" id="refreshReportsButton">重新整理回報</button>
+        <div id="reportsNotice" role="status"></div>
+        <table>
+          <thead><tr><th>時間</th><th>地圖／樓層／座標</th><th>類型</th><th>狀態</th><th>說明</th></tr></thead>
+          <tbody id="reportsBody"></tbody>
+        </table>
+      </section>
+      <section>
+        <h2>路線測試</h2>
+        <button id="testLibraryRouteButton">測試本樓層路線</button>
+        <button id="testSecondFloorRouteButton">測試跨樓層</button>
+        <div id="routeTestResult" class="muted">尚未測試</div>
+      </section>
+    </div>
+  </main>
+  <dialog id="placeEditorForm">
+    <h2>標記資訊</h2>
+    <label for="newPlaceName">名稱</label>
+    <input id="newPlaceName" placeholder="例如 K12、電梯、店名">
+    <label for="newPlaceCategory">分類設施</label>
+    <select id="newPlaceCategory"></select>
+    <div class="category-editor">
+      <input id="newPlaceCategoryAdd" placeholder="新增分類，例如 ATM、售票機">
+      <button id="addPlaceCategoryButton" type="button" class="secondary">新增分類</button>
+    </div>
+    <label for="newPlaceKeywords">關鍵詞</label>
+    <input id="newPlaceKeywords" placeholder="例如 東森 K12 出口">
+    <label for="newPlaceDescription">備註</label>
+    <textarea id="newPlaceDescription" placeholder="例如 靠近樓梯，往機捷方向"></textarea>
+    <label for="newPlaceOpeningHours">營業時間</label>
+    <input id="newPlaceOpeningHours" placeholder="例如 週一至週日 10:00-22:00">
+    <label>
+      <input id="newPlaceIsTransition" type="checkbox">
+      這是跨樓層連結點
+    </label>
+    <div id="newPlaceTransitionFields" class="transition-fields hidden">
+      <label for="newPlaceTransitionTarget">連到另一層點位</label>
+      <select id="newPlaceTransitionTarget"></select>
+      <label for="newPlaceTransitionType">連接類型</label>
+      <select id="newPlaceTransitionType">
+        <option value="escalator">手扶梯</option>
+        <option value="stairs">樓梯</option>
+        <option value="elevator">電梯</option>
+        <option value="corridor">通道</option>
+      </select>
+    </div>
+    <label for="newPlaceX">座標 X</label>
+    <input id="newPlaceX" type="number" placeholder="0" readonly>
+    <label for="newPlaceY">座標 Y</label>
+    <input id="newPlaceY" type="number" placeholder="0" readonly>
+    <div class="inline-buttons" style="margin-top:12px">
+      <button id="createPlaceButton">儲存標記</button>
+      <button id="cancelPlaceButton" class="secondary">取消</button>
+    </div>
+  </dialog>
+  <dialog id="deleteConfirmDialog">
+    <h2 id="deleteConfirmTitle">確認刪除</h2>
+    <div id="deleteConfirmText" class="muted">確認要刪除嗎？</div>
+    <div class="inline-buttons" style="margin-top:12px">
+      <button id="confirmDeleteButton">刪除</button>
+      <button id="cancelDeleteButton" class="secondary">取消</button>
+    </div>
+  </dialog>
+  <script>
+    const mapSelect = document.querySelector("#mapSelect");
+    const floorSelect = document.querySelector("#floorSelect");
+    const reloadButton = document.querySelector("#reloadButton");
+    const mapEditorCanvas = document.querySelector("#mapEditorCanvas");
+    const mapEditorCtx = mapEditorCanvas.getContext("2d");
+    let currentPlaces = [];
+    let allPlaces = [];
+    let currentFloors = [];
+    let currentPoints = [];
+    let currentRouteEdges = [];
+    let currentRouteNodes = [];
+    let currentRouteZones = [];
+    let allRouteNodes = [];
+    let currentTransitions = [];
+    let selectedTransitionFromNode = null;
+    let editorMode = "place";
+    let routeDraft = [];
+    let mapEditorImage = null;
+    let mapEditorBounds = null;
+    let selectedPlaceNode = null;
+    let selectedDeleteTarget = null;
+    let selectedMoveTarget = null;
+    let selectedRouteZone = null;
+    let routeTestStart = null;
+    let routeTestRoute = [];
+    let zoneDraft = null;
+    let isDrawingZone = false;
+    let zoneResizeState = null;
+    let showPlaceMarkersOnMap = false;
+    let showWifiPointsOnMap = false;
+    const defaultPlaceCategories = ["店家", "手扶梯", "樓梯", "電梯", "出口", "廁所", "服務台", "廣場", "停車場", "售票機", "ATM", "重要設施", "未分類"];
+    clearRouteZoneBackups();
+    reloadButton.addEventListener("click", loadDashboard);
+    document.querySelector("#placeModeButton").addEventListener("click", () => setEditorMode("place"));
+    document.querySelector("#markModeButton").addEventListener("click", () => setEditorMode("mark"));
+    document.querySelector("#deletePlaceModeButton").addEventListener("click", () => setEditorMode("deletePlace"));
+    document.querySelector("#routeModeButton").addEventListener("click", () => setEditorMode("routeTest"));
+    document.querySelector("#deleteEdgeModeButton").addEventListener("click", () => setEditorMode("deleteEdge"));
+    document.querySelector("#movePlaceModeButton").addEventListener("click", () => setEditorMode("movePlace"));
+    document.querySelector("#walkableZoneModeButton").addEventListener("click", () => setEditorMode("walkableZone"));
+    document.querySelector("#colorWalkableZoneModeButton").addEventListener("click", () => setEditorMode("colorWalkableZone"));
+    document.querySelector("#blockedZoneModeButton").addEventListener("click", () => setEditorMode("blockedZone"));
+    document.querySelector("#colorBlockedZoneModeButton").addEventListener("click", () => setEditorMode("colorBlockedZone"));
+    document.querySelector("#cautionZoneModeButton").addEventListener("click", () => setEditorMode("cautionZone"));
+    document.querySelector("#colorCautionZoneModeButton").addEventListener("click", () => setEditorMode("colorCautionZone"));
+    document.querySelector("#resizeZoneModeButton").addEventListener("click", () => setEditorMode("resizeZone"));
+    document.querySelector("#deleteZoneModeButton").addEventListener("click", () => setEditorMode("deleteZone"));
+    document.querySelector("#createTransitionButton").addEventListener("click", createSelectedTransition);
+    document.querySelector("#addPlaceCategoryButton").addEventListener("click", addPlaceCategoryFromInput);
+    document.querySelector("#newPlaceIsTransition").addEventListener("change", syncPlaceTransitionFieldsVisibility);
+    document.querySelector("#cancelPlaceButton").addEventListener("click", () => {
+      document.querySelector("#placeEditorForm").close();
+      resetPlaceEditorForm();
+    });
+    document.querySelector("#cancelDeleteButton").addEventListener("click", () => {
+      selectedDeleteTarget = null;
+      document.querySelector("#deleteConfirmDialog").close();
+      renderMapEditor();
+    });
+    document.querySelector("#confirmDeleteButton").addEventListener("click", confirmDeleteTarget);
+    document.querySelector("#restoreLastButton").addEventListener("click", async () => {
+      await runAdminAction("已回復上一個", async () => {
+        await postJson("/api/route-graph/restore-last", {});
+        await loadDashboard();
+      });
+    });
+    document.querySelector("#clearRouteDraftButton").addEventListener("click", () => {
+      routeDraft = [];
+      renderMapEditor();
+      setEditorInfo("已清除路線暫選。");
+    });
+    document.querySelector("#clearFloorRouteGraphButton").addEventListener("click", clearCurrentFloorRouteGraph);
+    document.querySelector("#togglePlaceMarkersButton").addEventListener("click", () => {
+      showPlaceMarkersOnMap = !showPlaceMarkersOnMap;
+      document.querySelector("#togglePlaceMarkersButton").textContent = showPlaceMarkersOnMap ? "隱藏地點標記" : "顯示地點標記";
+      document.querySelector("#togglePlaceMarkersButton").classList.toggle("active", showPlaceMarkersOnMap);
+      document.querySelector("#togglePlaceMarkersButton").classList.toggle("secondary", !showPlaceMarkersOnMap);
+      renderMapEditor();
+      setEditorInfo(showPlaceMarkersOnMap ? "已顯示地點標記。" : "已隱藏地點標記。");
+    });
+    document.querySelector("#toggleWifiPointsButton").addEventListener("click", () => {
+      showWifiPointsOnMap = !showWifiPointsOnMap;
+      document.querySelector("#toggleWifiPointsButton").textContent = showWifiPointsOnMap ? "隱藏採樣點" : "顯示採樣點";
+      document.querySelector("#toggleWifiPointsButton").classList.toggle("active", showWifiPointsOnMap);
+      document.querySelector("#toggleWifiPointsButton").classList.toggle("secondary", !showWifiPointsOnMap);
+      renderMapEditor();
+      setEditorInfo(showWifiPointsOnMap ? "已顯示目前樓層採樣點。" : "已隱藏採樣點。");
+    });
+    document.querySelector("#syncStorageButton").addEventListener("click", async () => {
+      await runAdminAction("已同步正式資料庫", async () => {
+        await postJson("/api/storage/sync", {});
+        await loadStorageStatus();
+      });
+    });
+    mapEditorCanvas.addEventListener("click", handleMapEditorClick);
+    mapEditorCanvas.addEventListener("pointerdown", handleMapPointerDown);
+    mapEditorCanvas.addEventListener("pointermove", handleMapPointerMove);
+    window.addEventListener("pointerup", handleMapPointerUp);
+    window.addEventListener("pointercancel", cancelZoneDraft);
+    document.querySelector("#exportScopeButton").addEventListener("click", async () => {
+      await runAdminAction("已匯出", async () => {
+        const mapId = mapSelect.value;
+        const floorId = floorSelect.value;
+        const data = await getJson(`/api/data/export?mapId=${encodeURIComponent(mapId)}&floorId=${encodeURIComponent(floorId)}`);
+        const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json;charset=utf-8" });
+        const link = document.createElement("a");
+        link.href = URL.createObjectURL(blob);
+        link.download = `indoor-navigation-${mapId}-${floorId}.json`;
+        link.click();
+        URL.revokeObjectURL(link.href);
+      });
+    });
+    document.querySelector("#evaluateFeedbackButton").addEventListener("click", async () => {
+      await runAdminAction("評估完成", async () => {
+        await postJson("/api/navigation-feedback/evaluate", {});
+        await loadDashboard();
+      });
+    });
+    document.querySelector("#retrainFeedbackButton").addEventListener("click", async () => {
+      await runAdminAction("訓練完成", async () => {
+        await postJson("/api/models/retrain-from-feedback", {
+          mapId: mapSelect.value,
+          floorId: floorSelect.value,
+        });
+        await loadDashboard();
+      });
+    });
+    document.querySelector("#trainKnnButton").addEventListener("click", async () => {
+      await runAdminAction("訓練完成", async () => {
+        await postJson("/api/models/train", {
+          mapId: mapSelect.value,
+          floorId: floorSelect.value,
+          algorithm: "knn",
+          activate: true,
+        });
+        await loadDashboard();
+      });
+    });
+    document.querySelector("#trainRfButton").addEventListener("click", async () => {
+      await runAdminAction("已建立", async () => {
+        await postJson("/api/models/train", {
+          mapId: mapSelect.value,
+          floorId: floorSelect.value,
+          algorithm: "randomForest",
+          activate: false,
+        });
+        await loadDashboard();
+      });
+    });
+    document.querySelector("#trainPolicyButton").addEventListener("click", async () => {
+      await runAdminAction("訓練完成", async () => {
+        await postJson("/api/navigation-policy/train", {
+          mapId: mapSelect.value,
+          floorId: floorSelect.value,
+          trainingEpisodes: 100,
+        });
+        await loadDashboard();
+      });
+    });
+    document.querySelector("#createMapButton").addEventListener("click", async () => {
+      const name = document.querySelector("#newMapName").value.trim();
+      await runAdminAction("已新增地圖", async () => {
+        await postJson("/api/maps", { name, description: "" });
+        await init();
+      });
+    });
+    document.querySelector("#createFloorButton").addEventListener("click", async () => {
+      const floorName = document.querySelector("#newFloorName").value.trim();
+      await runAdminAction("已新增樓層", async () => {
+        await postJson("/api/floors", {
+          mapId: mapSelect.value,
+          floorName,
+          floorLevel: floorSelect.options.length + 1,
+          width: 1200,
+          height: 800,
+          scale: 1,
+        });
+        await loadFloors();
+        await loadDashboard();
+      });
+    });
+    document.querySelector("#createPlaceButton").addEventListener("click", async () => {
+      const name = document.querySelector("#newPlaceName").value.trim();
+      const category = document.querySelector("#newPlaceCategory").value.trim() || "未分類";
+      const keywords = document.querySelector("#newPlaceKeywords").value.trim();
+      const description = document.querySelector("#newPlaceDescription").value.trim();
+      const x = Number(selectedPlaceNode?.x ?? document.querySelector("#newPlaceX").value);
+      const y = Number(selectedPlaceNode?.y ?? document.querySelector("#newPlaceY").value);
+      const placeId = selectedPlaceNode?.placeId || adminPointId("place", x, y);
+      const routeNodeId = selectedPlaceNode?.id || adminPointId("node", x, y);
+      const isTransitionConnector = document.querySelector("#newPlaceIsTransition").checked;
+      const transitionTargetValue = isTransitionConnector ? document.querySelector("#newPlaceTransitionTarget").value : "";
+      const transitionType = isTransitionConnector ? document.querySelector("#newPlaceTransitionType").value : "";
+      await runAdminAction("已儲存標記節點", async () => {
+        await postJson("/api/route-nodes", {
+          id: routeNodeId,
+          mapId: mapSelect.value,
+          floorId: floorSelect.value,
+          x,
+          y,
+          nodeType: categoryToNodeType(category),
+          label: name,
+        });
+        const transitionTargetNodeId = isTransitionConnector
+          ? await resolveTransitionTargetNodeId(transitionTargetValue)
+          : "";
+        await postJson("/api/places", {
+          id: placeId,
+          mapId: mapSelect.value,
+          floorId: floorSelect.value,
+          name,
+          category,
+          x,
+          y,
+          description,
+          keywords,
+          openingHours: document.querySelector("#newPlaceOpeningHours").value.trim(),
+          routeNodeId,
+          nodeType: categoryToNodeType(category),
+          isTransitionConnector,
+          transitionTargetValue,
+          transitionTargetNodeId,
+          transitionType,
+          isNavigationNode: true,
+          searchable: true,
+        });
+        await createTransitionFromPlaceForm(routeNodeId, name, category, transitionTargetNodeId);
+        selectedPlaceNode = null;
+        document.querySelector("#placeEditorForm").close();
+        resetPlaceEditorForm();
+        await loadDashboard();
+      });
+    });
+    document.querySelector("#testLibraryRouteButton").addEventListener("click", async () => {
+      const place = currentPlaces.find(item => item.floorId === floorSelect.value) || currentPlaces[0];
+      if (!place) {
+        document.querySelector("#routeTestResult").textContent = "目前沒有可測試的地點。";
+        return;
+      }
+      await testRoute(place.id, place.floorId);
+    });
+    document.querySelector("#testSecondFloorRouteButton").addEventListener("click", async () => {
+      const place = currentPlaces.find(item => item.floorId !== floorSelect.value);
+      if (!place) {
+        document.querySelector("#routeTestResult").textContent = "目前沒有其他樓層的地點可測試。";
+        return;
+      }
+      await testRoute(place.id, place.floorId);
+    });
+    mapSelect.addEventListener("change", async () => {
+      await loadFloors();
+      await loadDashboard();
+    });
+    floorSelect.addEventListener("change", loadDashboard);
+
+    init();
+
+    async function init() {
+      const maps = sortMapsForAdmin(await getJson("/api/maps"));
+      mapSelect.innerHTML = maps.map(map => `<option value="${escapeHtml(map.id)}">${escapeHtml(map.name)}</option>`).join("");
+      await loadFloors();
+      await loadHealth();
+      await loadStorageStatus();
+      await loadDashboard();
+    }
+
+    function sortMapsForAdmin(maps) {
+      return [...maps].sort((left, right) => mapSortPriority(left) - mapSortPriority(right) || String(left.name || "").localeCompare(String(right.name || ""), "zh-Hant"));
+    }
+
+    function mapSortPriority(map) {
+      if (map.id === "k-area-airport" || map.name === "K區地下街往機捷") return 0;
+      if (String(map.name || "").includes("K區地下街往機捷")) return 1;
+      return 10;
+    }
+
+    async function loadHealth() {
+      const health = await getJson("/api/health");
+      document.querySelector("#healthInfo").textContent = `後端：正常，儲存：${health.storage}`;
+    }
+
+    async function loadStorageStatus() {
+      const info = await getJson("/api/storage/status");
+      const firebaseCounts = info.firebase?.counts || {};
+      const mysqlCounts = info.mysql?.counts || {};
+      const counts = info.storage === "firebase-rtdb" ? firebaseCounts : mysqlCounts;
+      const catalog = counts.catalog_records || {};
+      const graph = counts.route_graph_records || {};
+      const mysqlText = info.mysql?.enabled ? "MySQL 已啟用" : "MySQL 未啟用";
+      const firebaseText = info.firebase?.enabled ? "Firebase RTDB 已啟用" : "Firebase RTDB 未啟用";
+      const scopes = Array.isArray(info.mysql?.fingerprintScopes) ? info.mysql.fingerprintScopes : [];
+      document.querySelector("#storageInfo").innerHTML = [
+        `儲存模式：${info.storage || "json"}，${firebaseText}，${mysqlText}`,
+        `地圖 ${catalog.maps ?? "-"}，樓層 ${catalog.floors ?? "-"}，地點 ${catalog.places ?? "-"}`,
+        `節點 ${graph.routeNodes ?? "-"}，路線 ${graph.routeEdges ?? "-"}，跨樓層 ${graph.floorTransitions ?? "-"}`,
+        `指紋 ${counts.wifi_scans ?? counts.wifi_scan_records ?? "-"}，模型 ${counts.model_versions ?? "-"}，DQN ${counts.dqn_training_runs ?? "-"}，策略紀錄 ${counts.navigation_policy_logs ?? "-"}`,
+        scopes.length
+          ? scopes.map(scope => `${escapeHtml(scope.mapId)} / ${escapeHtml(scope.floorId)}：${scope.records} 筆，${scope.points} 點，${scope.aps} AP`).join("<br>")
+          : "MySQL 未啟用時不顯示 MySQL scope 統計",
+      ].join("<br>");
+    }
+
+    async function loadFloors() {
+      const mapId = mapSelect.value;
+      const floors = await getJson(`/api/floors?mapId=${encodeURIComponent(mapId)}`);
+      currentFloors = floors;
+      floorSelect.innerHTML = floors.map(floor => `<option value="${escapeHtml(floor.id)}">${escapeHtml(floor.floorName)}</option>`).join("");
+    }
+
+    async function loadDashboard() {
+      const mapId = mapSelect.value;
+      const floorId = floorSelect.value;
+      loadStorageStatus().catch(() => {});
+      const [places, allMapPlaces, summary, points, quality, routeEdges, routeNodes, routeZones, allNodes, transitions, feedback, models, jobs, policyRuns, policyLogs, reports] = await Promise.all([
+        getJson(`/api/places?mapId=${encodeURIComponent(mapId)}&floorId=${encodeURIComponent(floorId)}`),
+        getJson(`/api/places?mapId=${encodeURIComponent(mapId)}`),
+        getJson(`/api/wifi-scans/summary?mapId=${encodeURIComponent(mapId)}&floorId=${encodeURIComponent(floorId)}`),
+        getJson(`/api/wifi-scans/points?mapId=${encodeURIComponent(mapId)}&floorId=${encodeURIComponent(floorId)}`),
+        getJson(`/api/wifi-scans/quality?mapId=${encodeURIComponent(mapId)}&floorId=${encodeURIComponent(floorId)}`),
+        getJson(`/api/route-edges?mapId=${encodeURIComponent(mapId)}&floorId=${encodeURIComponent(floorId)}`),
+        getJson(`/api/route-nodes?mapId=${encodeURIComponent(mapId)}&floorId=${encodeURIComponent(floorId)}`),
+        getJson(`/api/route-zones?mapId=${encodeURIComponent(mapId)}&floorId=${encodeURIComponent(floorId)}`),
+        getJson(`/api/route-nodes?mapId=${encodeURIComponent(mapId)}`),
+        getJson(`/api/floor-transitions?mapId=${encodeURIComponent(mapId)}&floorId=${encodeURIComponent(floorId)}`),
+        getJson(`/api/navigation-feedback/quality-summary?mapId=${encodeURIComponent(mapId)}&floorId=${encodeURIComponent(floorId)}`),
+        getJson(`/api/models?mapId=${encodeURIComponent(mapId)}&floorId=${encodeURIComponent(floorId)}`),
+        getJson(`/api/model-training-jobs?mapId=${encodeURIComponent(mapId)}&floorId=${encodeURIComponent(floorId)}`),
+        getJson(`/api/navigation-policy/runs?mapId=${encodeURIComponent(mapId)}&floorId=${encodeURIComponent(floorId)}`),
+        getJson(`/api/navigation-policy/logs?mapId=${encodeURIComponent(mapId)}&floorId=${encodeURIComponent(floorId)}`),
+        getJson(`/api/user-reports`),
+      ]);
+      currentPlaces = places;
+      allPlaces = allMapPlaces;
+      renderPlaceCategoryOptions();
+      currentPoints = Array.isArray(points.points) ? points.points : [];
+      currentRouteEdges = routeEdges;
+      currentRouteNodes = routeNodes;
+      currentRouteZones = Array.isArray(routeZones) ? routeZones : [];
+      allRouteNodes = allNodes;
+      currentTransitions = transitions;
+      await loadMapEditorImage();
+
+      document.querySelector("#placesBody").innerHTML = places.map(place => `
+        <tr>
+          <td>${escapeHtml(place.name)}</td>
+          <td>${escapeHtml(place.category)}</td>
+          <td>${place.x}, ${place.y}</td>
+          <td>
+            <select data-place-status="${escapeHtml(place.id)}">
+              ${["open", "closed", "suspended", "unset"].map(status => `<option value="${status}" ${place.businessStatus === status ? "selected" : ""}>${statusText(status)}</option>`).join("")}
+            </select>
+            <details><summary>營業時間</summary>
+              <input data-place-hours="${escapeHtml(place.id)}" value="${escapeHtml(place.openingHours || "")}" placeholder="例如 每日 10:00-22:00">
+              <button data-place-save-hours="${escapeHtml(place.id)}">儲存營業時間</button>
+            </details>
+          </td>
+          <td><button data-place-delete="${escapeHtml(place.id)}">刪除</button></td>
+        </tr>
+      `).join("") || `<tr><td colspan="5" class="muted">目前沒有地點資料</td></tr>`;
+      document.querySelectorAll("[data-place-status]").forEach(select => {
+        select.addEventListener("change", async () => {
+          await runAdminAction("狀態已儲存", async () => {
+          await postJson("/api/places/status", {
+            placeId: select.getAttribute("data-place-status"),
+            businessStatus: select.value,
+          });
+          await loadDashboard();
+          });
+        });
+      });
+      document.querySelectorAll("[data-place-save-hours]").forEach(button => {
+        button.addEventListener("click", () => runAdminAction("營業時間已儲存", async () => {
+          const row = button.closest("tr");
+          await postJson("/api/places/status", {
+            placeId: button.getAttribute("data-place-save-hours"),
+            businessStatus: row.querySelector("[data-place-status]").value,
+            openingHours: row.querySelector("[data-place-hours]").value.trim(),
+          });
+          await loadDashboard();
+        }));
+      });
+      document.querySelectorAll("[data-place-delete]").forEach(button => {
+        button.addEventListener("click", () => {
+          const place = currentPlaces.find(item => item.id === button.getAttribute("data-place-delete"));
+          if (!place) return;
+          selectedDeleteTarget = { type: "place", value: place };
+          renderMapEditor();
+          showDeleteDialog("刪除地點標記", `${place.name}，座標 ${Number(place.x).toFixed(1)}, ${Number(place.y).toFixed(1)}`);
+        });
+      });
+
+      document.querySelector("#totalRecords").textContent = summary.totalRecords;
+      document.querySelector("#pointCount").textContent = summary.pointCount;
+      document.querySelector("#bssidCount").textContent = summary.bssidCount;
+
+      document.querySelector("#pointsBody").innerHTML = points.points.map(point => `
+        <tr>
+          <td>${escapeHtml(point.pointId)}</td>
+          <td>${point.x}, ${point.y}</td>
+          <td>${point.scanCount}</td>
+          <td>${point.bssidCount}</td>
+        </tr>
+      `).join("") || `<tr><td colspan="4" class="muted">目前沒有 Wi-Fi 採樣點</td></tr>`;
+
+      document.querySelector("#qualityBody").innerHTML = quality.items.map(item => `
+        <tr>
+          <td>${escapeHtml(item.name)}</td>
+          <td class="${item.level === "bad" ? "bad" : item.level === "warn" ? "warn" : ""}">${escapeHtml(item.message)}</td>
+          <td>${escapeHtml(item.action || "-")}</td>
+        </tr>
+      `).join("");
+
+      document.querySelector("#routeEdgesBody").innerHTML = routeEdges.map(edge => `
+        <tr>
+          <td>${escapeHtml(edge.fromNodeId)} -> ${escapeHtml(edge.toNodeId)}</td>
+          <td>${edge.distance}</td>
+          <td>${edge.isBlocked ? "封鎖" : "可通行"}</td>
+          <td><button data-route-edge="${escapeHtml(edge.id)}" data-blocked="${edge.isBlocked ? "false" : "true"}">${edge.isBlocked ? "解除" : "封鎖"}</button></td>
+        </tr>
+      `).join("") || `<tr><td colspan="4" class="muted">目前沒有路段資料</td></tr>`;
+      document.querySelectorAll("[data-route-edge]").forEach(button => {
+        button.addEventListener("click", async () => {
+          await runAdminAction("已更新路段狀態", async () => {
+            await postJson("/api/route-edges/block", {
+              edgeId: button.getAttribute("data-route-edge"),
+              isBlocked: button.getAttribute("data-blocked") === "true",
+            });
+            await loadDashboard();
+          });
+        });
+      });
+
+      document.querySelector("#routeZonesBody").innerHTML = currentRouteZones.map(zone => `
+        <tr>
+          <td>${zoneTypeText(zone.zoneType)}</td>
+          <td>${Number(zone.x).toFixed(1)}, ${Number(zone.y).toFixed(1)}</td>
+          <td>${Number(zone.width).toFixed(1)} x ${Number(zone.height).toFixed(1)}</td>
+        </tr>
+      `).join("") || `<tr><td colspan="3" class="muted">目前沒有區域框框</td></tr>`;
+
+      document.querySelector("#transitionsBody").innerHTML = transitions.map(transition => `
+        <tr>
+          <td>${escapeHtml(transition.name || transition.transitionType)}</td>
+          <td>${escapeHtml(floorName(transition.fromFloorId))}<br>${escapeHtml(transition.fromNodeId)}</td>
+          <td>${escapeHtml(floorName(transition.toFloorId))}<br>${escapeHtml(transition.toNodeId)}</td>
+          <td>${transition.source === "admin" ? `<button data-transition-delete="${escapeHtml(transition.id)}">刪除</button>` : "內建"}</td>
+        </tr>
+      `).join("") || `<tr><td colspan="4" class="muted">目前沒有樓層連接</td></tr>`;
+      document.querySelectorAll("[data-transition-delete]").forEach(button => {
+        button.addEventListener("click", async () => {
+          await runAdminAction("已刪除樓層連接", async () => {
+            await deleteJson(`/api/floor-transitions?transitionId=${encodeURIComponent(button.getAttribute("data-transition-delete"))}`);
+            await loadDashboard();
+          });
+        });
+      });
+
+      document.querySelector("#scopeInfo").textContent = `地圖：${mapId}，樓層：${floorId}`;
+      document.querySelector("#pendingFeedback").textContent = feedback.pendingCount;
+      document.querySelector("#highFeedback").textContent = feedback.highConfidenceCount;
+      document.querySelector("#rejectedFeedback").textContent = feedback.rejectedCount;
+      document.querySelector("#modelsBody").innerHTML = models.map(model => `
+        <tr>
+          <td>${escapeHtml(model.versionName)}</td>
+          <td>${escapeHtml(model.algorithm)}</td>
+          <td>${model.trainingDataCount}</td>
+          <td>${model.isComparisonOnly ? "比較模型" : "主定位模型"}</td>
+          <td>${model.isActive ? "啟用" : "未啟用"}</td>
+          <td>${model.isActive || model.isComparisonOnly ? "" : `<button data-activate-model="${escapeHtml(model.id)}">啟用</button>`}</td>
+        </tr>
+      `).join("") || `<tr><td colspan="6" class="muted">目前沒有模型版本</td></tr>`;
+      document.querySelectorAll("[data-activate-model]").forEach(button => {
+        button.addEventListener("click", async () => {
+          await runAdminAction("已切換啟用模型", async () => {
+            await postJson("/api/models/activate", { modelVersionId: button.getAttribute("data-activate-model") });
+            await loadDashboard();
+          });
+        });
+      });
+      document.querySelector("#jobsBody").innerHTML = jobs.map(job => `
+        <tr>
+          <td>${trainingTypeText(job.trainingType)}</td>
+          <td>${job.status}</td>
+          <td>人工 ${job.trainingDataCount}，回饋 ${job.feedbackDataCount}</td>
+        </tr>
+      `).join("") || `<tr><td colspan="3" class="muted">目前沒有訓練紀錄</td></tr>`;
+      document.querySelector("#policyRunsBody").innerHTML = policyRuns.map(run => `
+        <tr>
+          <td>${run.trainingEpisodes}</td>
+          <td>${run.averageReward ?? "-"}</td>
+          <td>${run.successRate ?? "-"}</td>
+          <td>${escapeHtml(run.simulationSummary || "-")}</td>
+          <td>${run.isActive ? "啟用" : "未啟用"}</td>
+        </tr>
+      `).join("") || `<tr><td colspan="5" class="muted">目前沒有策略版本</td></tr>`;
+      document.querySelector("#policyLogsBody").innerHTML = policyLogs.map(log => `
+        <tr>
+          <td>${policyActionText(log.recommendedAction)}</td>
+          <td>${log.wifiConfidence}</td>
+          <td>${log.isOffRoute ? "偏離路線" : log.obstacleNearby ? "有障礙" : "一般"}</td>
+        </tr>
+      `).join("") || `<tr><td colspan="3" class="muted">目前沒有策略決策紀錄</td></tr>`;
+      renderReports(reports);
+    }
+
+    function renderReports(reports) {
+      document.querySelector("#reportsLink").textContent = `使用者回報（${reports.length}）`;
+      document.querySelector("#reportsBody").innerHTML = [...reports].sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt))).map(report => `
+        <tr>
+          <td>${escapeHtml(report.createdAt ? new Date(report.createdAt).toLocaleString("zh-TW") : "-")}</td>
+          <td>${escapeHtml(report.mapId)} / ${escapeHtml(report.floorId)} / ${escapeHtml(String(report.x))}, ${escapeHtml(String(report.y))}</td>
+          <td>${escapeHtml(reportTypeText(report.reportType))}</td>
+          <td>${escapeHtml(report.status)}</td>
+          <td>${escapeHtml(report.description || "-")}${report.mapImageUrl ? `<br><a href="${escapeHtml(report.mapImageUrl)}" target="_blank" rel="noopener">地圖圖片</a>` : ""}</td>
+        </tr>
+      `).join("") || `<tr><td colspan="5" class="muted">目前沒有使用者回報</td></tr>`;
+    }
+
+    async function refreshReports() {
+      try {
+        renderReports(await getJson(`/api/user-reports?t=${Date.now()}`));
+        document.querySelector("#reportsNotice").textContent = "已更新回報";
+      } catch (error) {
+        document.querySelector("#reportsNotice").textContent = `回報讀取失敗：${error.message}`;
+      }
+    }
+    document.querySelector("#refreshReportsButton").addEventListener("click", refreshReports);
+    document.querySelector("#reportsLink").addEventListener("click", refreshReports);
+    refreshReports();
+    setInterval(() => { if (!document.hidden) refreshReports(); }, 30000);
+
+    async function loadMapEditorImage() {
+      const floor = currentFloors.find(item => item.id === floorSelect.value);
+      mapEditorImage = null;
+      mapEditorBounds = null;
+      if (!floor?.imageUrl) {
+        renderMapEditor();
+        setEditorInfo("目前樓層沒有地圖圖片。");
+        return;
+      }
+      await new Promise((resolve) => {
+        const image = new Image();
+        image.onload = () => {
+          mapEditorImage = image;
+          renderMapEditor();
+          resolve();
+        };
+        image.onerror = () => {
+          renderMapEditor();
+          setEditorInfo("地圖圖片載入失敗。");
+          resolve();
+        };
+        image.src = `${floor.imageUrl}?v=${encodeURIComponent(floor.updatedAt || "")}`;
+      });
+    }
+
+    function renderMapEditor() {
+      const ratio = window.devicePixelRatio || 1;
+      const rect = mapEditorCanvas.getBoundingClientRect();
+      mapEditorCanvas.width = Math.max(1, Math.round(rect.width * ratio));
+      mapEditorCanvas.height = Math.max(1, Math.round(rect.height * ratio));
+      mapEditorCtx.setTransform(ratio, 0, 0, ratio, 0, 0);
+      mapEditorCtx.clearRect(0, 0, rect.width, rect.height);
+      mapEditorCtx.fillStyle = "#eef1f4";
+      mapEditorCtx.fillRect(0, 0, rect.width, rect.height);
+      if (!mapEditorImage) return;
+
+      const bounds = containRect(rect.width, rect.height, mapEditorImage.naturalWidth, mapEditorImage.naturalHeight);
+      mapEditorBounds = bounds;
+      mapEditorCtx.drawImage(mapEditorImage, bounds.x, bounds.y, bounds.width, bounds.height);
+      drawDefaultWalkableZone(bounds);
+      drawRouteZones(bounds);
+      drawRouteSegments(bounds);
+      drawRouteNodes(bounds);
+      drawTransitionNodes(bounds);
+      drawWifiPoints(bounds);
+      drawPlaces(bounds);
+      drawRouteDraft(bounds);
+      drawRouteTest(bounds);
+      drawZoneDraft(bounds);
+      drawSelectedRouteZone(bounds);
+      drawSelectedDeleteTarget(bounds);
+      drawSelectedMoveTarget(bounds);
+    }
+
+    function drawRouteZones(bounds) {
+      currentRouteZones.forEach(zone => {
+        const fill = zone.zoneType === "blocked"
+          ? "rgba(220, 38, 38, 0.28)"
+          : zone.zoneType === "caution"
+            ? "rgba(245, 158, 11, 0.28)"
+            : "rgba(20, 184, 166, 0.22)";
+        const stroke = zone.zoneType === "blocked" ? "#dc2626" : zone.zoneType === "caution" ? "#f59e0b" : "#14b8a6";
+        mapEditorCtx.fillStyle = fill;
+        mapEditorCtx.strokeStyle = stroke;
+        mapEditorCtx.lineWidth = 1;
+        drawZonePath(zone, bounds);
+        mapEditorCtx.fill();
+        mapEditorCtx.stroke();
+      });
+    }
+
+    function drawDefaultWalkableZone(bounds) {
+      const hasWalkableZone = currentRouteZones.some(zone => zone.zoneType === "walkable");
+      if (hasWalkableZone) return;
+      mapEditorCtx.fillStyle = "rgba(20, 184, 166, 0.08)";
+      mapEditorCtx.strokeStyle = "rgba(20, 184, 166, 0.45)";
+      mapEditorCtx.lineWidth = 1;
+      mapEditorCtx.fillRect(bounds.x, bounds.y, bounds.width, bounds.height);
+      mapEditorCtx.strokeRect(bounds.x, bounds.y, bounds.width, bounds.height);
+    }
+
+    function drawZoneDraft(bounds) {
+      if (!zoneDraft) return;
+      const x = mapToCanvasX(zoneDraft.x, bounds);
+      const y = mapToCanvasY(zoneDraft.y, bounds);
+      const width = mapToCanvasX(zoneDraft.x + zoneDraft.width, bounds) - x;
+      const height = mapToCanvasY(zoneDraft.y + zoneDraft.height, bounds) - y;
+      mapEditorCtx.setLineDash([6, 4]);
+      mapEditorCtx.strokeStyle = "#111827";
+      mapEditorCtx.lineWidth = 1;
+      mapEditorCtx.strokeRect(x, y, width, height);
+      mapEditorCtx.setLineDash([]);
+    }
+
+    function drawSelectedRouteZone(bounds) {
+      if (!selectedRouteZone) return;
+      const zone = currentRouteZones.find(item => item.id === selectedRouteZone.id);
+      if (!zone) return;
+      mapEditorCtx.strokeStyle = "#111827";
+      mapEditorCtx.lineWidth = 2;
+      drawZonePath(zone, bounds);
+      mapEditorCtx.stroke();
+      zonePolygonPoints(zone).forEach(point => {
+        const x = mapToCanvasX(point.x, bounds);
+        const y = mapToCanvasY(point.y, bounds);
+        mapEditorCtx.fillStyle = "#111827";
+        mapEditorCtx.beginPath();
+        mapEditorCtx.arc(x, y, 2.5, 0, Math.PI * 2);
+        mapEditorCtx.fill();
+      });
+    }
+
+    function drawRouteSegments(bounds) {
+      const nodes = new Map(currentRouteNodes.map(node => [node.id, node]));
+      mapEditorCtx.lineWidth = 1;
+      mapEditorCtx.strokeStyle = "#2563eb";
+      mapEditorCtx.lineCap = "round";
+      currentRouteEdges.filter(edge => edge.isBlocked !== true).forEach(edge => {
+        const from = nodes.get(edge.fromNodeId);
+        const to = nodes.get(edge.toNodeId);
+        if (!from || !to) return;
+        mapEditorCtx.beginPath();
+        mapEditorCtx.moveTo(mapToCanvasX(from.x, bounds), mapToCanvasY(from.y, bounds));
+        mapEditorCtx.lineTo(mapToCanvasX(to.x, bounds), mapToCanvasY(to.y, bounds));
+        mapEditorCtx.stroke();
+      });
+    }
+
+    function drawRouteNodes(bounds) {
+      currentRouteNodes.forEach(node => {
+        const x = mapToCanvasX(node.x, bounds);
+        const y = mapToCanvasY(node.y, bounds);
+        mapEditorCtx.fillStyle = node.source === "admin" ? "#f59e0b" : "#64748b";
+        mapEditorCtx.beginPath();
+        mapEditorCtx.arc(x, y, 2, 0, Math.PI * 2);
+        mapEditorCtx.fill();
+      });
+    }
+
+    function drawTransitionNodes(bounds) {
+      const transitionNodeIds = new Set();
+      currentTransitions.forEach(transition => {
+        if (transition.fromFloorId === floorSelect.value) transitionNodeIds.add(transition.fromNodeId);
+        if (transition.toFloorId === floorSelect.value) transitionNodeIds.add(transition.toNodeId);
+      });
+      currentRouteNodes.filter(node => transitionNodeIds.has(node.id)).forEach(node => {
+        const x = mapToCanvasX(node.x, bounds);
+        const y = mapToCanvasY(node.y, bounds);
+        mapEditorCtx.strokeStyle = "#7c3aed";
+        mapEditorCtx.lineWidth = 1;
+        mapEditorCtx.beginPath();
+        mapEditorCtx.arc(x, y, 5, 0, Math.PI * 2);
+        mapEditorCtx.stroke();
+      });
+    }
+
+    function drawWifiPoints(bounds) {
+      if (!showWifiPointsOnMap) return;
+      mapEditorCtx.fillStyle = "rgba(20,108,99,0.7)";
+      currentPoints.forEach(point => {
+        mapEditorCtx.beginPath();
+        mapEditorCtx.arc(mapToCanvasX(point.x, bounds), mapToCanvasY(point.y, bounds), 2, 0, Math.PI * 2);
+        mapEditorCtx.fill();
+      });
+    }
+
+    function drawPlaces(bounds) {
+      if (!showPlaceMarkersOnMap) return;
+      mapEditorCtx.font = "13px Microsoft JhengHei, sans-serif";
+      currentPlaces.forEach(place => {
+        const x = mapToCanvasX(place.x, bounds);
+        const y = mapToCanvasY(place.y, bounds);
+        mapEditorCtx.fillStyle = "#dc2626";
+        mapEditorCtx.beginPath();
+        mapEditorCtx.arc(x, y, 3, 0, Math.PI * 2);
+        mapEditorCtx.fill();
+        mapEditorCtx.fillStyle = "#111827";
+        mapEditorCtx.fillText(place.name, x + 8, y - 8);
+      });
+    }
+
+    function drawRouteDraft(bounds) {
+      if (routeDraft.length === 0) return;
+      mapEditorCtx.fillStyle = "#f59e0b";
+      routeDraft.forEach(point => {
+        mapEditorCtx.beginPath();
+        mapEditorCtx.arc(mapToCanvasX(point.x, bounds), mapToCanvasY(point.y, bounds), 4, 0, Math.PI * 2);
+        mapEditorCtx.fill();
+      });
+    }
+
+    function drawRouteTest(bounds) {
+      if (routeTestRoute.length >= 2) {
+        mapEditorCtx.strokeStyle = "#0891b2";
+        mapEditorCtx.lineWidth = 2;
+        mapEditorCtx.lineCap = "round";
+        mapEditorCtx.beginPath();
+        routeTestRoute.forEach((point, index) => {
+          const x = mapToCanvasX(point.x, bounds);
+          const y = mapToCanvasY(point.y, bounds);
+          if (index === 0) mapEditorCtx.moveTo(x, y);
+          else mapEditorCtx.lineTo(x, y);
+        });
+        mapEditorCtx.stroke();
+      }
+      if (!routeTestStart) return;
+      const x = mapToCanvasX(routeTestStart.x, bounds);
+      const y = mapToCanvasY(routeTestStart.y, bounds);
+      mapEditorCtx.fillStyle = "#0891b2";
+      mapEditorCtx.beginPath();
+      mapEditorCtx.arc(x, y, 5, 0, Math.PI * 2);
+      mapEditorCtx.fill();
+      mapEditorCtx.fillStyle = "#111827";
+      mapEditorCtx.fillText("起點", x + 8, y - 8);
+    }
+
+    function drawSelectedDeleteTarget(bounds) {
+      if (!selectedDeleteTarget) return;
+      mapEditorCtx.strokeStyle = "#dc2626";
+      mapEditorCtx.lineWidth = 2;
+      if (selectedDeleteTarget.type === "node") {
+        const node = selectedDeleteTarget.value;
+        mapEditorCtx.strokeRect(mapToCanvasX(node.x, bounds) - 7, mapToCanvasY(node.y, bounds) - 7, 14, 14);
+        return;
+      }
+      if (selectedDeleteTarget.type === "place") {
+        const place = selectedDeleteTarget.value;
+        mapEditorCtx.strokeRect(mapToCanvasX(place.x, bounds) - 9, mapToCanvasY(place.y, bounds) - 9, 18, 18);
+        return;
+      }
+      if (selectedDeleteTarget.type === "zone") {
+        const zone = selectedDeleteTarget.value;
+        drawZonePath(zone, bounds);
+        mapEditorCtx.stroke();
+        return;
+      }
+      const edge = selectedDeleteTarget.value;
+      const nodes = new Map(currentRouteNodes.map(node => [node.id, node]));
+      const from = nodes.get(edge.fromNodeId);
+      const to = nodes.get(edge.toNodeId);
+      if (!from || !to) return;
+      mapEditorCtx.beginPath();
+      mapEditorCtx.moveTo(mapToCanvasX(from.x, bounds), mapToCanvasY(from.y, bounds));
+      mapEditorCtx.lineTo(mapToCanvasX(to.x, bounds), mapToCanvasY(to.y, bounds));
+      mapEditorCtx.stroke();
+    }
+
+    function drawSelectedMoveTarget(bounds) {
+      if (!selectedMoveTarget) return;
+      const item = selectedMoveTarget.value;
+      if (!item) return;
+      mapEditorCtx.save();
+      mapEditorCtx.strokeStyle = "#2563eb";
+      mapEditorCtx.lineWidth = 3;
+      mapEditorCtx.setLineDash([6, 4]);
+      mapEditorCtx.strokeRect(mapToCanvasX(item.x, bounds) - 10, mapToCanvasY(item.y, bounds) - 10, 20, 20);
+      mapEditorCtx.restore();
+    }
+
+    async function createZonesFromColor(point, zoneType) {
+      const zones = detectColorConnectedZones(point);
+      if (zones.length === 0) {
+        setEditorInfo("沒有建立框框：可能點到整張背景、太小的文字，或不明顯的色塊。請點要框區域的中間。");
+        return;
+      }
+      await runAdminAction(`已依色階新增 ${zones.length} 個${zoneTypeText(zoneType)}`, async () => {
+        for (const zone of zones) {
+          await postJson("/api/route-zones", {
+            mapId: mapSelect.value,
+            floorId: floorSelect.value,
+            zoneType,
+            x: zone.x,
+            y: zone.y,
+            width: zone.width,
+            height: zone.height,
+            label: `色階${zoneTypeText(zoneType)}`,
+          });
+        }
+        await loadDashboard();
+      });
+    }
+
+    function detectColorConnectedZones(point) {
+      if (!mapEditorImage) return [];
+      const floor = currentFloors.find(item => item.id === floorSelect.value) || {};
+      const floorWidth = Number(floor.width || floor.imageNaturalWidth || mapEditorImage.naturalWidth);
+      const floorHeight = Number(floor.height || floor.imageNaturalHeight || mapEditorImage.naturalHeight);
+      const naturalWidth = mapEditorImage.naturalWidth;
+      const naturalHeight = mapEditorImage.naturalHeight;
+      const seedX = clampInt(Math.round((point.x / floorWidth) * naturalWidth), 0, naturalWidth - 1);
+      const seedY = clampInt(Math.round((point.y / floorHeight) * naturalHeight), 0, naturalHeight - 1);
+      const canvas = document.createElement("canvas");
+      canvas.width = naturalWidth;
+      canvas.height = naturalHeight;
+      const ctx = canvas.getContext("2d", { willReadFrequently: true });
+      ctx.drawImage(mapEditorImage, 0, 0);
+      const image = ctx.getImageData(0, 0, naturalWidth, naturalHeight);
+      const seed = pixelAt(image.data, naturalWidth, seedX, seedY);
+      const step = naturalWidth * naturalHeight > 1_800_000 ? 2 : 1;
+      const detectRadius = Math.max(40, Math.min(180, naturalWidth * 0.08));
+      const scanLeft = clampInt(seedX - detectRadius, 0, naturalWidth - 1);
+      const scanTop = clampInt(seedY - detectRadius, 0, naturalHeight - 1);
+      const scanRight = clampInt(seedX + detectRadius, 0, naturalWidth - 1);
+      const scanBottom = clampInt(seedY + detectRadius, 0, naturalHeight - 1);
+      const gridWidth = Math.ceil((scanRight - scanLeft + 1) / step);
+      const gridHeight = Math.ceil((scanBottom - scanTop + 1) / step);
+      const matches = new Uint8Array(gridWidth * gridHeight);
+      const colorThreshold = 18;
+      const channelThreshold = 12;
+      for (let gy = 0; gy < gridHeight; gy += 1) {
+        for (let gx = 0; gx < gridWidth; gx += 1) {
+          const x = Math.min(scanRight, scanLeft + gx * step);
+          const y = Math.min(scanBottom, scanTop + gy * step);
+          const color = pixelAt(image.data, naturalWidth, x, y);
+          if (sameColorBand(seed, color, colorThreshold, channelThreshold)) matches[gy * gridWidth + gx] = 1;
+        }
+      }
+      const minSamples = 18;
+      const minMapArea = 120;
+      const seedGridX = clampInt(Math.floor((seedX - scanLeft) / step), 0, gridWidth - 1);
+      const seedGridY = clampInt(Math.floor((seedY - scanTop) / step), 0, gridHeight - 1);
+      const seedIndex = seedGridY * gridWidth + seedGridX;
+      if (!matches[seedIndex]) return [];
+      const component = floodColorComponent(seedGridX, seedGridY, matches, new Uint8Array(gridWidth * gridHeight), gridWidth, gridHeight);
+      if (component.count < minSamples) return [];
+      const left = ((scanLeft + component.minX * step) / naturalWidth) * floorWidth;
+      const top = ((scanTop + component.minY * step) / naturalHeight) * floorHeight;
+      const right = (Math.min(scanRight + 1, scanLeft + (component.maxX + 1) * step) / naturalWidth) * floorWidth;
+      const bottom = (Math.min(scanBottom + 1, scanTop + (component.maxY + 1) * step) / naturalHeight) * floorHeight;
+      const width = right - left;
+      const height = bottom - top;
+      if (width * height < minMapArea || width < 4 || height < 4) return [];
+      return [{ x: left, y: top, width, height }];
+    }
+
+    function floodColorComponent(startX, startY, matches, visited, gridWidth, gridHeight) {
+      const stack = [[startX, startY]];
+      let count = 0;
+      let minX = startX;
+      let maxX = startX;
+      let minY = startY;
+      let maxY = startY;
+      while (stack.length > 0) {
+        const [x, y] = stack.pop();
+        if (x < 0 || y < 0 || x >= gridWidth || y >= gridHeight) continue;
+        const index = y * gridWidth + x;
+        if (!matches[index] || visited[index]) continue;
+        visited[index] = 1;
+        count += 1;
+        minX = Math.min(minX, x);
+        maxX = Math.max(maxX, x);
+        minY = Math.min(minY, y);
+        maxY = Math.max(maxY, y);
+        stack.push([x + 1, y], [x - 1, y], [x, y + 1], [x, y - 1]);
+      }
+      return { count, minX, maxX, minY, maxY };
+    }
+
+    function pixelAt(data, width, x, y) {
+      const index = (y * width + x) * 4;
+      return [data[index], data[index + 1], data[index + 2]];
+    }
+
+    function colorDistance(left, right) {
+      return Math.hypot(left[0] - right[0], left[1] - right[1], left[2] - right[2]);
+    }
+
+    function sameColorBand(left, right, totalThreshold, channelThreshold) {
+      return Math.abs(left[0] - right[0]) <= channelThreshold
+        && Math.abs(left[1] - right[1]) <= channelThreshold
+        && Math.abs(left[2] - right[2]) <= channelThreshold
+        && colorDistance(left, right) <= totalThreshold;
+    }
+
+    function clampInt(value, min, max) {
+      return Math.max(min, Math.min(max, value));
+    }
+
+    async function handleMapEditorClick(event) {
+      if (!mapEditorBounds || !mapEditorImage) return;
+      if (isZoneMode(editorMode)) return;
+      const rect = mapEditorCanvas.getBoundingClientRect();
+      const canvasX = event.clientX - rect.left;
+      const canvasY = event.clientY - rect.top;
+      const point = canvasToMapPoint(canvasX, canvasY, mapEditorBounds);
+      if (!point) return;
+      document.querySelector("#newPlaceX").value = point.x.toFixed(1);
+      document.querySelector("#newPlaceY").value = point.y.toFixed(1);
+      if (editorMode === "colorWalkableZone" || editorMode === "colorBlockedZone" || editorMode === "colorCautionZone") {
+        const zoneType = editorMode === "colorWalkableZone" ? "walkable" : editorMode === "colorCautionZone" ? "caution" : "blocked";
+        await createZonesFromColor(point, zoneType);
+        return;
+      }
+      if (editorMode === "place") {
+        const place = nearestPlace(point);
+        if (place) {
+          openPlaceEditorForPlace(place);
+          setEditorInfo("已載入既有點位資料，可直接修改後儲存。");
+          return;
+        }
+        openPlaceEditorForPoint(point);
+        setEditorInfo("請輸入名稱、關鍵詞、分類設施、備註；儲存後會同時建立標記與導航節點。");
+        return;
+      }
+      if (editorMode === "mark") {
+        const node = nearestAnyRouteNode(point);
+        if (!node) {
+          setEditorInfo("請先按標點建立節點，再用標記填資料。");
+          return;
+        }
+        const linkedPlace = currentPlaces.find(place => place.routeNodeId === node.id)
+          || nearestPlace({ x: node.x, y: node.y });
+        if (linkedPlace) {
+          openPlaceEditorForPlace(linkedPlace, node);
+        } else {
+          openPlaceEditorForNode(node);
+        }
+        setEditorInfo("已選節點，請在彈框輸入名稱、關鍵詞、分類設施、備註。");
+        return;
+      }
+      if (editorMode === "deletePlace") {
+        const place = nearestPlace(point);
+        if (place) {
+          selectedDeleteTarget = { type: "place", value: place };
+          renderMapEditor();
+          showDeleteDialog("刪除點位", `${place.name}，座標 ${Number(place.x).toFixed(1)}, ${Number(place.y).toFixed(1)}`);
+          return;
+        }
+        const node = nearestAnyRouteNode(point);
+        if (node) {
+          selectedDeleteTarget = { type: "node", value: node };
+          renderMapEditor();
+          showDeleteDialog("刪除點位", `${node.label || node.nodeType || node.id}，座標 ${Number(node.x).toFixed(1)}, ${Number(node.y).toFixed(1)}`);
+          return;
+        }
+        setEditorInfo("附近沒有點位可刪除。");
+        return;
+      }
+      if (editorMode === "movePlace") {
+        if (!selectedMoveTarget) {
+          const place = nearestPlace(point);
+          const node = place ? null : nearestAnyRouteNode(point);
+          if (!place && !node) {
+            setEditorInfo("附近沒有點位可移動。");
+            return;
+          }
+          selectedMoveTarget = place ? { type: "place", value: place } : { type: "node", value: node };
+          renderMapEditor();
+          setEditorInfo(`已選 ${place?.name || node?.label || node?.nodeType || node?.id}，請點新位置儲存座標。`);
+          return;
+        }
+        await moveSelectedPointTo(point);
+        return;
+      }
+      if (editorMode === "routeTest") {
+        await handleRouteTestClick(point);
+        return;
+      }
+      if (editorMode === "deleteNode") {
+        const node = nearestAnyRouteNode(point);
+        if (!node) {
+          setEditorInfo("附近沒有節點可刪除。");
+          return;
+        }
+        selectedDeleteTarget = { type: "node", value: node };
+        renderMapEditor();
+        showDeleteDialog("刪除節點", `${node.label || node.nodeType || node.id}，座標 ${Number(node.x).toFixed(1)}, ${Number(node.y).toFixed(1)}`);
+        return;
+      }
+      if (editorMode === "deleteEdge") {
+        const edge = nearestRouteEdge(point);
+        if (!edge) {
+          setEditorInfo("附近沒有路線可刪除。");
+          return;
+        }
+        selectedDeleteTarget = { type: "edge", value: edge };
+        renderMapEditor();
+        showDeleteDialog("刪除路線", `${edge.fromNodeId} -> ${edge.toNodeId}`);
+        return;
+      }
+      if (editorMode === "deleteZone") {
+        const zone = routeZoneAt(point);
+        if (!zone) {
+          setEditorInfo("這裡沒有框框可刪除。");
+          return;
+        }
+        selectedDeleteTarget = { type: "zone", value: zone };
+        renderMapEditor();
+        showDeleteDialog("刪除框框", `${zoneTypeText(zone.zoneType)}，位置 ${Number(zone.x).toFixed(1)}, ${Number(zone.y).toFixed(1)}`);
+        return;
+      }
+      if (editorMode === "resizeZone") {
+        const zone = routeZoneAt(point);
+        if (!zone) {
+          selectedRouteZone = null;
+          renderMapEditor();
+          setEditorInfo("請點要調整的框框。");
+          return;
+        }
+        selectedRouteZone = zone;
+        renderMapEditor();
+        setEditorInfo("已選取框框，請拖框線附近任一位置拉伸。");
+        return;
+      }
+      if (editorMode === "transition") {
+        const node = nearestAnyRouteNode(point);
+        if (!node) {
+          setEditorInfo("請點在節點附近，才能建立樓層連接。");
+          return;
+        }
+        selectedTransitionFromNode = node;
+        document.querySelector("#transitionEditorForm").classList.remove("hidden");
+        document.querySelector("#transitionFromNode").value = `${floorName(node.floorId)} / ${node.label || node.nodeType || node.id}`;
+        renderTransitionTargets(node);
+        setEditorInfo("已選本樓層節點，請選另一張地圖上的對應節點後儲存。");
+        return;
+      }
+      if (editorMode !== "route") return;
+      routeDraft.push(point);
+      if (routeDraft.length < 2) {
+        renderMapEditor();
+        setEditorInfo("已選路線起點，請再點終點。");
+        return;
+      }
+      const [from, to] = routeDraft;
+      await runAdminAction("已新增路段", async () => {
+        await postJson("/api/route-segments", {
+          mapId: mapSelect.value,
+          floorId: floorSelect.value,
+          from,
+          to,
+          name: document.querySelector("#newPlaceDescription").value.trim(),
+        });
+        routeDraft = [];
+        await loadDashboard();
+      });
+    }
+
+    function handleMapPointerDown(event) {
+      if (editorMode === "resizeZone") {
+        beginZoneResize(event);
+        return;
+      }
+      if (!mapEditorBounds || !isZoneMode(editorMode)) return;
+      const point = pointerMapPoint(event);
+      if (!point) return;
+      isDrawingZone = true;
+      zoneDraft = { x: point.x, y: point.y, width: 0, height: 0 };
+      mapEditorCanvas.setPointerCapture(event.pointerId);
+      event.preventDefault();
+    }
+
+    function handleMapPointerMove(event) {
+      if (zoneResizeState) {
+        updateZoneResize(event);
+        return;
+      }
+      if (!isDrawingZone || !zoneDraft || !isZoneMode(editorMode)) return;
+      const point = pointerMapPoint(event);
+      if (!point) return;
+      zoneDraft.width = point.x - zoneDraft.x;
+      zoneDraft.height = point.y - zoneDraft.y;
+      renderMapEditor();
+      event.preventDefault();
+    }
+
+    async function handleMapPointerUp(event) {
+      if (zoneResizeState) {
+        await finishZoneResize(event);
+        return;
+      }
+      if (!isDrawingZone || !zoneDraft || !isZoneMode(editorMode)) return;
+      const draft = zoneDraft;
+      cancelZoneDraft();
+      const zoneType = editorMode === "blockedZone" ? "blocked" : editorMode === "cautionZone" ? "caution" : "walkable";
+      if (Math.abs(draft.width) < 3 || Math.abs(draft.height) < 3) {
+        setEditorInfo("框框太小，請拖拉出一個區域。");
+        return;
+      }
+      await runAdminAction(`已新增${zoneTypeText(zoneType)}`, async () => {
+        const result = await postJson("/api/route-zones", {
+          mapId: mapSelect.value,
+          floorId: floorSelect.value,
+          zoneType,
+          x: draft.x,
+          y: draft.y,
+          width: draft.width,
+          height: draft.height,
+        });
+        await loadDashboard();
+        if (!currentRouteZones.some(zone => zone.id === result.zone?.id)) {
+          throw new Error("框框已送出但重新讀取不到，請重新整理後再確認。");
+        }
+      });
+      event.preventDefault();
+    }
+
+    function cancelZoneDraft() {
+      isDrawingZone = false;
+      zoneDraft = null;
+      zoneResizeState = null;
+      renderMapEditor();
+    }
+
+    function pointerMapPoint(event) {
+      const rect = mapEditorCanvas.getBoundingClientRect();
+      return canvasToMapPoint(event.clientX - rect.left, event.clientY - rect.top, mapEditorBounds);
+    }
+
+    function isZoneMode(mode) {
+      return mode === "walkableZone" || mode === "blockedZone" || mode === "cautionZone";
+    }
+
+    function beginZoneResize(event) {
+      if (!mapEditorBounds) return;
+      const point = pointerMapPoint(event);
+      if (!point) return;
+      const zone = routeZoneAt(point) || (selectedRouteZone ? currentRouteZones.find(item => item.id === selectedRouteZone.id) : null);
+      if (!zone) {
+        setEditorInfo("請先點要調整的框框。");
+        return;
+      }
+      selectedRouteZone = zone;
+      const handle = nearestZoneResizeHandle(point, zone);
+      if (!handle) {
+        renderMapEditor();
+        setEditorInfo("已選取框框，請按框內任一位置拖拉調整。");
+        return;
+      }
+      zoneResizeState = {
+        zoneId: zone.id,
+        handle,
+        original: { ...zone },
+      };
+      mapEditorCanvas.setPointerCapture(event.pointerId);
+      event.preventDefault();
+    }
+
+    function updateZoneResize(event) {
+      const point = pointerMapPoint(event);
+      if (!point || !zoneResizeState) return;
+      const next = resizedZoneFromPoint(zoneResizeState.original, zoneResizeState.handle, point);
+      currentRouteZones = currentRouteZones.map(zone => zone.id === zoneResizeState.zoneId ? next : zone);
+      selectedRouteZone = next;
+      renderMapEditor();
+      event.preventDefault();
+    }
+
+    async function finishZoneResize(event) {
+      const state = zoneResizeState;
+      zoneResizeState = null;
+      const zone = currentRouteZones.find(item => item.id === state.zoneId);
+      if (!zone) return;
+      await runAdminAction("已調整框框", async () => {
+        await putJson(`/api/route-zones?zoneId=${encodeURIComponent(zone.id)}`, {
+          x: zone.x,
+          y: zone.y,
+          width: zone.width,
+          height: zone.height,
+          points: zone.points,
+        });
+        await loadDashboard();
+      });
+      event.preventDefault();
+    }
+
+    function resizedZoneFromPoint(zone, handleName, point) {
+      if (typeof handleName === "object" && handleName.kind) return resizedPolygonZoneFromPoint(zone, handleName, point);
+      const handle = typeof handleName === "object" ? handleName.name : handleName;
+      const minSize = 3;
+      let left = Number(zone.x);
+      let top = Number(zone.y);
+      let right = left + Number(zone.width);
+      let bottom = top + Number(zone.height);
+      if (handle.includes("w")) left = Math.min(point.x, right - minSize);
+      if (handle.includes("e")) right = Math.max(point.x, left + minSize);
+      if (handle.includes("n")) top = Math.min(point.y, bottom - minSize);
+      if (handle.includes("s")) bottom = Math.max(point.y, top + minSize);
+      return {
+        ...zone,
+        x: left,
+        y: top,
+        width: right - left,
+        height: bottom - top,
+      };
+    }
+
+    function resizedPolygonZoneFromPoint(zone, handle, point) {
+      const points = zonePolygonPoints(zone);
+      if (handle.kind === "vertex") {
+        points[handle.index] = { x: point.x, y: point.y };
+      }
+      if (handle.kind === "edge") {
+        points.splice(handle.index + 1, 0, { x: point.x, y: point.y });
+        handle.kind = "vertex";
+        handle.index = handle.index + 1;
+      }
+      return zoneFromPolygonPoints(zone, points);
+    }
+
+    function nearestZoneVertex(point, zone) {
+      const radius = zoneEditHitTolerance();
+      const points = zonePolygonPoints(zone)
+        .map((candidate, index) => ({ kind: "vertex", index, hitDistance: distance(point.x, point.y, candidate.x, candidate.y) }))
+        .filter(candidate => candidate.hitDistance <= radius)
+        .sort((left, right) => left.hitDistance - right.hitDistance);
+      return points[0] || null;
+    }
+
+    function nearestZoneEdge(point, zone) {
+      const radius = zoneEditHitTolerance();
+      const points = zonePolygonPoints(zone);
+      const edges = points.map((from, index) => {
+        const to = points[(index + 1) % points.length];
+        return { kind: "edge", index, hitDistance: distanceToSegment(point, from, to) };
+      }).filter(edge => edge.hitDistance <= radius)
+        .sort((left, right) => left.hitDistance - right.hitDistance);
+      return edges[0] || null;
+    }
+
+    function zoneFromPolygonPoints(zone, points) {
+      const xs = points.map(point => point.x);
+      const ys = points.map(point => point.y);
+      const left = Math.min(...xs);
+      const top = Math.min(...ys);
+      const right = Math.max(...xs);
+      const bottom = Math.max(...ys);
+      return {
+        ...zone,
+        x: left,
+        y: top,
+        width: right - left,
+        height: bottom - top,
+        points,
+      };
+    }
+
+    function nearestZoneResizeHandle(point, zone) {
+      const vertex = nearestZoneVertex(point, zone);
+      if (vertex) return vertex;
+      const edge = nearestZoneEdge(point, zone);
+      if (edge) return edge;
+      return zoneResizeHandleFromInterior(point, zone);
+    }
+
+    function zoneResizeHandleFromEdges(point, zone) {
+      const left = Number(zone.x);
+      const top = Number(zone.y);
+      const right = left + Number(zone.width);
+      const bottom = top + Number(zone.height);
+      const tolerance = zoneEdgeHitTolerance();
+      const nearLeft = Math.abs(point.x - left) <= tolerance && point.y >= top - tolerance && point.y <= bottom + tolerance;
+      const nearRight = Math.abs(point.x - right) <= tolerance && point.y >= top - tolerance && point.y <= bottom + tolerance;
+      const nearTop = Math.abs(point.y - top) <= tolerance && point.x >= left - tolerance && point.x <= right + tolerance;
+      const nearBottom = Math.abs(point.y - bottom) <= tolerance && point.x >= left - tolerance && point.x <= right + tolerance;
+      const horizontal = nearLeft ? "w" : nearRight ? "e" : "";
+      const vertical = nearTop ? "n" : nearBottom ? "s" : "";
+      if (!horizontal && !vertical) return null;
+      return { name: `${vertical}${horizontal}` || horizontal || vertical, x: point.x, y: point.y, hitDistance: 0 };
+    }
+
+    function zoneResizeHandleFromInterior(point, zone) {
+      const left = Number(zone.x);
+      const top = Number(zone.y);
+      const right = left + Number(zone.width);
+      const bottom = top + Number(zone.height);
+      if (point.x < left || point.x > right || point.y < top || point.y > bottom) return null;
+      const distances = [
+        { side: "w", value: Math.abs(point.x - left) },
+        { side: "e", value: Math.abs(point.x - right) },
+        { side: "n", value: Math.abs(point.y - top) },
+        { side: "s", value: Math.abs(point.y - bottom) },
+      ].sort((a, b) => a.value - b.value);
+      const primary = distances[0].side;
+      const secondary = distances[1].value <= distances[0].value * 1.25 ? distances[1].side : "";
+      const vertical = [primary, secondary].find(side => side === "n" || side === "s") || "";
+      const horizontal = [primary, secondary].find(side => side === "w" || side === "e") || "";
+      return { name: `${vertical}${horizontal}` || primary, x: point.x, y: point.y, hitDistance: 0 };
+    }
+
+    function zoneEdgeHitTolerance() {
+      return zoneEditHitTolerance();
+    }
+
+    function zoneEditHitTolerance() {
+      const floor = currentFloors.find(item => item.id === floorSelect.value) || {};
+      const width = Number(floor.width || floor.imageNaturalWidth || mapEditorImage?.naturalWidth || 1);
+      return Math.max(14, width / 70);
+    }
+
+    function resetPlaceEditorForm() {
+      selectedPlaceNode = null;
+      document.querySelector("#newPlaceName").value = "";
+      renderPlaceCategoryOptions("未分類");
+      document.querySelector("#newPlaceCategoryAdd").value = "";
+      document.querySelector("#newPlaceKeywords").value = "";
+      document.querySelector("#newPlaceDescription").value = "";
+      document.querySelector("#newPlaceOpeningHours").value = "";
+      document.querySelector("#newPlaceIsTransition").checked = false;
+      document.querySelector("#newPlaceTransitionTarget").innerHTML = "";
+      document.querySelector("#newPlaceTransitionType").value = "escalator";
+      syncPlaceTransitionFieldsVisibility();
+      document.querySelector("#newPlaceX").value = "";
+      document.querySelector("#newPlaceY").value = "";
+    }
+
+    function syncPlaceTransitionFieldsVisibility() {
+      document.querySelector("#newPlaceTransitionFields").classList.toggle(
+        "hidden",
+        !document.querySelector("#newPlaceIsTransition").checked,
+      );
+    }
+
+    function placeCategoryValues() {
+      const saved = allPlaces
+        .map(place => String(place.category || "").trim())
+        .filter(Boolean);
+      return Array.from(new Set(defaultPlaceCategories.concat(saved)))
+        .sort((left, right) => {
+          const leftIndex = defaultPlaceCategories.indexOf(left);
+          const rightIndex = defaultPlaceCategories.indexOf(right);
+          if (leftIndex >= 0 && rightIndex >= 0) return leftIndex - rightIndex;
+          if (leftIndex >= 0) return -1;
+          if (rightIndex >= 0) return 1;
+          return left.localeCompare(right);
+        });
+    }
+
+    function renderPlaceCategoryOptions(selectedValue = document.querySelector("#newPlaceCategory")?.value || "未分類") {
+      const select = document.querySelector("#newPlaceCategory");
+      const values = placeCategoryValues();
+      const selected = String(selectedValue || "未分類").trim();
+      if (selected && !values.includes(selected)) values.push(selected);
+      select.innerHTML = values
+        .map(value => `<option value="${escapeHtml(value)}">${escapeHtml(value)}</option>`)
+        .join("");
+      select.value = values.includes(selected) ? selected : "未分類";
+    }
+
+    function setPlaceCategoryValue(value) {
+      renderPlaceCategoryOptions(String(value || "未分類").trim());
+    }
+
+    function addPlaceCategoryFromInput() {
+      const input = document.querySelector("#newPlaceCategoryAdd");
+      const value = input.value.trim();
+      if (!value) return;
+      setPlaceCategoryValue(value);
+      input.value = "";
+    }
+
+    function openPlaceEditorForPoint(point) {
+      resetPlaceEditorForm();
+      selectedPlaceNode = { x: point.x, y: point.y };
+      document.querySelector("#newPlaceX").value = Number(point.x).toFixed(1);
+      document.querySelector("#newPlaceY").value = Number(point.y).toFixed(1);
+      preparePlaceEditorTransitionTargets();
+      document.querySelector("#placeEditorForm").showModal();
+    }
+
+    function openPlaceEditorForNode(node) {
+      resetPlaceEditorForm();
+      selectedPlaceNode = node;
+      document.querySelector("#newPlaceName").value = node.label || "";
+      setPlaceCategoryValue(node.nodeType || "未分類");
+      document.querySelector("#newPlaceX").value = Number(node.x).toFixed(1);
+      document.querySelector("#newPlaceY").value = Number(node.y).toFixed(1);
+      preparePlaceEditorTransitionTargets();
+      applyExistingTransitionToPlaceEditor(node.id);
+      document.querySelector("#placeEditorForm").showModal();
+    }
+
+    function openPlaceEditorForPlace(place, routeNode = null) {
+      resetPlaceEditorForm();
+      const node = routeNode || allRouteNodes.find(item => item.id === place.routeNodeId) || null;
+      selectedPlaceNode = {
+        ...(node || {}),
+        x: Number(place.x),
+        y: Number(place.y),
+        id: place.routeNodeId || node?.id || adminPointId("node", place.x, place.y),
+        placeId: place.id,
+      };
+      document.querySelector("#newPlaceName").value = place.name || "";
+      setPlaceCategoryValue(place.category || "未分類");
+      document.querySelector("#newPlaceKeywords").value = place.keywords || "";
+      document.querySelector("#newPlaceDescription").value = place.description || "";
+      document.querySelector("#newPlaceOpeningHours").value = place.openingHours || "";
+      document.querySelector("#newPlaceX").value = Number(place.x).toFixed(1);
+      document.querySelector("#newPlaceY").value = Number(place.y).toFixed(1);
+      preparePlaceEditorTransitionTargets();
+      applyExistingTransitionToPlaceEditor(place.routeNodeId || node?.id || "", place);
+      document.querySelector("#placeEditorForm").showModal();
+    }
+
+    function applyExistingTransitionToPlaceEditor(routeNodeId, place = null) {
+      const transition = routeNodeId
+        ? currentTransitions.find(item => item.fromNodeId === routeNodeId || item.toNodeId === routeNodeId)
+        : null;
+      if (!transition && !place?.isTransitionConnector) return;
+      document.querySelector("#newPlaceIsTransition").checked = true;
+      syncPlaceTransitionFieldsVisibility();
+      if (!transition) {
+        document.querySelector("#newPlaceTransitionType").value = place.transitionType || "escalator";
+        setTransitionSelectValue(place.transitionTargetValue || (place.transitionTargetNodeId ? `node:${place.transitionTargetNodeId}` : ""));
+        return;
+      }
+      const targetNodeId = transition.fromNodeId === routeNodeId ? transition.toNodeId : transition.fromNodeId;
+      document.querySelector("#newPlaceTransitionType").value = transition.transitionType || "escalator";
+      setTransitionSelectValue(`node:${targetNodeId}`);
+    }
+
+    function setTransitionSelectValue(value) {
+      if (!value) return;
+      const select = document.querySelector("#newPlaceTransitionTarget");
+      if ([...select.options].some(option => option.value === value)) {
+        select.value = value;
+      }
+    }
+
+    function preparePlaceEditorTransitionTargets() {
+      const targets = transitionTargetOptions(floorSelect.value);
+      document.querySelector("#newPlaceTransitionTarget").innerHTML = targets
+        .map(target => `<option value="${escapeHtml(target.value)}">${escapeHtml(target.label)}</option>`)
+        .join("") || `<option value="">沒有其他樓層點位，請先切到 F2 建立手扶梯/樓梯點</option>`;
+    }
+
+    async function createTransitionFromPlaceForm(routeNodeId, name, category, resolvedTargetNodeId = "") {
+      await deleteExistingTransitionsForNode(routeNodeId);
+      if (!document.querySelector("#newPlaceIsTransition").checked) return;
+      const targetValue = document.querySelector("#newPlaceTransitionTarget").value;
+      const toNodeId = resolvedTargetNodeId || await resolveTransitionTargetNodeId(targetValue);
+      if (!toNodeId) throw new Error("沒有可連結的另一層點位，請先在 F2 建立對應手扶梯/樓梯點。");
+      await postJson("/api/floor-transitions", {
+        mapId: mapSelect.value,
+        fromNodeId: routeNodeId,
+        toNodeId,
+        transitionType: document.querySelector("#newPlaceTransitionType").value || categoryToNodeType(category),
+        name: name ? `${floorName(floorSelect.value)} ${name}` : "樓層連接點",
+      });
+    }
+
+    async function deleteExistingTransitionsForNode(routeNodeId) {
+      if (!routeNodeId) return;
+      const transitionIds = Array.from(new Set(currentTransitions
+        .filter(item => item.fromNodeId === routeNodeId || item.toNodeId === routeNodeId)
+        .map(item => item.id)
+        .filter(Boolean)));
+      for (const transitionId of transitionIds) {
+        await deleteJsonIfExists(`/api/floor-transitions?transitionId=${encodeURIComponent(transitionId)}`);
+      }
+    }
+
+    async function moveSelectedPointTo(point) {
+      const target = selectedMoveTarget;
+      if (!target) return;
+      await runAdminAction("已移動點位", async () => {
+        if (target.type === "place") {
+          await movePlaceTo(target.value, point);
+        } else {
+          await moveRouteNodeTo(target.value, point);
+          const linkedPlace = currentPlaces.find(place => place.routeNodeId === target.value.id)
+            || nearestPlace({ x: target.value.x, y: target.value.y });
+          if (linkedPlace) await movePlaceTo({ ...linkedPlace, routeNodeId: target.value.id }, point, false);
+        }
+        selectedMoveTarget = null;
+        await loadDashboard();
+      });
+    }
+
+    async function movePlaceTo(place, point, updateNode = true) {
+      const routeNode = routeNodeForPlace(place);
+      const routeNodeId = place.routeNodeId || routeNode?.id || adminPointId("node", point.x, point.y);
+      if (updateNode) {
+        await moveRouteNodeTo({
+          ...(routeNode || {}),
+          id: routeNodeId,
+          mapId: place.mapId || mapSelect.value,
+          floorId: place.floorId || floorSelect.value,
+          nodeType: place.nodeType || categoryToNodeType(place.category),
+          label: place.name || "點位",
+        }, point);
+      }
+      await postJson("/api/places", {
+        ...place,
+        id: place.id,
+        mapId: place.mapId || mapSelect.value,
+        floorId: place.floorId || floorSelect.value,
+        name: place.name || "點位",
+        category: place.category || "未分類",
+        description: place.description || "",
+        keywords: place.keywords || "",
+        x: point.x,
+        y: point.y,
+        routeNodeId,
+        nodeType: place.nodeType || categoryToNodeType(place.category),
+        isNavigationNode: place.isNavigationNode !== false,
+        searchable: place.searchable !== false,
+        businessStatus: place.businessStatus || "unset",
+      });
+    }
+
+    async function moveRouteNodeTo(node, point) {
+      await postJson("/api/route-nodes", {
+        id: node.id,
+        mapId: node.mapId || mapSelect.value,
+        floorId: node.floorId || floorSelect.value,
+        x: point.x,
+        y: point.y,
+        nodeType: node.nodeType || "poi",
+        label: node.label || node.name || "點位",
+      });
+    }
+
+    function routeNodeForPlace(place) {
+      if (place.routeNodeId) {
+        const exact = allRouteNodes.find(node => node.id === place.routeNodeId);
+        if (exact) return exact;
+      }
+      return allRouteNodes
+        .filter(node => node.mapId === place.mapId && node.floorId === place.floorId)
+        .map(node => ({ ...node, hitDistance: distance(Number(place.x), Number(place.y), Number(node.x), Number(node.y)) }))
+        .filter(node => node.hitDistance <= 24)
+        .sort((left, right) => left.hitDistance - right.hitDistance)[0] || null;
+    }
+
+    async function resolveTransitionTargetNodeId(value) {
+      const [kind, id] = String(value || "").split(":");
+      if (kind === "node" && id) return id;
+      if (kind !== "place" || !id) return "";
+      const place = allPlaces.find(item => item.id === id);
+      if (!place) return "";
+      if (place.routeNodeId) return place.routeNodeId;
+      const nodeId = adminPointId("node", place.x, place.y);
+      await postJson("/api/route-nodes", {
+        id: nodeId,
+        mapId: place.mapId,
+        floorId: place.floorId,
+        x: Number(place.x),
+        y: Number(place.y),
+        nodeType: categoryToNodeType(place.category),
+        label: place.name || place.category || "樓層連接點",
+      });
+      return nodeId;
+    }
+
+    async function createSelectedTransition() {
+      if (!selectedTransitionFromNode) {
+        setEditorInfo("請先在地圖上點一個本樓層節點。");
+        return;
+      }
+      const toNodeId = await resolveTransitionTargetNodeId(document.querySelector("#transitionToNode").value);
+      if (!toNodeId) {
+        setEditorInfo("請選擇另一層的對應節點。");
+        return;
+      }
+      await runAdminAction("已建立樓層連接", async () => {
+        await postJson("/api/floor-transitions", {
+          mapId: mapSelect.value,
+          fromNodeId: selectedTransitionFromNode.id,
+          toNodeId,
+          transitionType: document.querySelector("#transitionType").value,
+          name: document.querySelector("#transitionName").value.trim() || "樓層連接點",
+        });
+        selectedTransitionFromNode = null;
+        document.querySelector("#transitionEditorForm").classList.add("hidden");
+        await loadDashboard();
+      });
+    }
+
+    function renderTransitionTargets(fromNode) {
+      const options = transitionTargetOptions(fromNode.floorId)
+        .map(target => `<option value="${escapeHtml(target.value)}">${escapeHtml(target.label)}</option>`)
+        .join("");
+      document.querySelector("#transitionToNode").innerHTML = options || `<option value="">沒有其他樓層節點</option>`;
+    }
+
+    function transitionTargetOptions(fromFloorId) {
+      const routeNodeTargets = allRouteNodes
+        .filter(node => node.floorId !== fromFloorId)
+        .map(node => ({
+          value: `node:${node.id}`,
+          floorId: node.floorId,
+          label: `${floorName(node.floorId)} / ${node.label || node.nodeType || node.id} / ${Number(node.x).toFixed(0)},${Number(node.y).toFixed(0)}`,
+        }));
+      const routeNodeIds = new Set(allRouteNodes.map(node => node.id));
+      const placeTargets = allPlaces
+        .filter(place => place.floorId !== fromFloorId)
+        .filter(place => !place.routeNodeId || !routeNodeIds.has(place.routeNodeId))
+        .map(place => ({
+          value: `place:${place.id}`,
+          floorId: place.floorId,
+          label: `${floorName(place.floorId)} / ${place.name || place.category || place.id} / ${Number(place.x).toFixed(0)},${Number(place.y).toFixed(0)}`,
+        }));
+      return routeNodeTargets.concat(placeTargets)
+        .sort((left, right) => left.floorId.localeCompare(right.floorId) || left.label.localeCompare(right.label));
+    }
+
+    function setEditorMode(mode) {
+      editorMode = mode;
+      routeDraft = [];
+      routeTestStart = null;
+      routeTestRoute = [];
+      selectedTransitionFromNode = null;
+      selectedDeleteTarget = null;
+      selectedMoveTarget = null;
+      if (document.querySelector("#placeEditorForm").open) document.querySelector("#placeEditorForm").close();
+      document.querySelector("#transitionEditorForm").classList.add("hidden");
+      if (mode === "routeTest") {
+        showPlaceMarkersOnMap = true;
+        document.querySelector("#togglePlaceMarkersButton").textContent = "隱藏地點標記";
+        document.querySelector("#togglePlaceMarkersButton").classList.add("active");
+        document.querySelector("#togglePlaceMarkersButton").classList.remove("secondary");
+      }
+      [
+        ["placeModeButton", "place"],
+        ["markModeButton", "mark"],
+        ["deletePlaceModeButton", "deletePlace"],
+        ["routeModeButton", "routeTest"],
+        ["deleteEdgeModeButton", "deleteEdge"],
+        ["movePlaceModeButton", "movePlace"],
+        ["walkableZoneModeButton", "walkableZone"],
+        ["colorWalkableZoneModeButton", "colorWalkableZone"],
+        ["blockedZoneModeButton", "blockedZone"],
+        ["colorBlockedZoneModeButton", "colorBlockedZone"],
+        ["cautionZoneModeButton", "cautionZone"],
+        ["colorCautionZoneModeButton", "colorCautionZone"],
+        ["resizeZoneModeButton", "resizeZone"],
+        ["deleteZoneModeButton", "deleteZone"],
+      ].forEach(([id, value]) => {
+        document.querySelector(`#${id}`).classList.toggle("active", mode === value);
+        document.querySelector(`#${id}`).classList.toggle("secondary", mode !== value);
+      });
+      renderMapEditor();
+      const messages = {
+        place: "點地圖新增標記節點：同時可搜尋、可導航、可跨樓層連接。",
+        mark: "點舊節點後補名稱、關鍵詞、分類設施、備註；儲存後會與標記合併。",
+        deletePlace: "點標記節點或舊節點後會先框起來，確認後刪除該點位。",
+        movePlace: "先點要移動的點位，藍框出現後再點新位置，座標會立即儲存。",
+        routeTest: "測試導航路線：先點地圖當目前位置，再點紅色地點標記當目的地；只測試，不新增路線資料。",
+        deleteNode: "點節點後會先框起來，確認後刪除。",
+        deleteEdge: "點路線後會先框起來，確認後刪除。",
+        transition: "點本樓層的手扶梯、樓梯或電梯節點，再選另一層對應節點。",
+        walkableZone: "拖拉建立淺綠色可走區；不畫綠框時，整張地圖會預設為可走區。",
+        colorWalkableZone: "局部色階：只在點擊位置附近建立同色相連綠框，不會掃整張地圖。",
+        blockedZone: "拖拉建立紅色不可進入區，導航會避開。",
+        colorBlockedZone: "局部色階：只在點擊位置附近建立同色相連紅框，不會掃整張地圖。",
+        cautionZone: "拖拉建立橘色待確認區，導航可走但會提高成本。",
+        colorCautionZone: "局部色階：只在點擊位置附近建立同色相連橘框，不會掃整張地圖。",
+        resizeZone: "拖框框節點可變形；拖節點之間的框線會新增節點並拉出去。",
+        deleteZone: "點框框後會先選取，確認後刪除。",
+      };
+      setEditorInfo(messages[mode] || "");
+    }
+
+    function showDeleteDialog(title, text) {
+      document.querySelector("#deleteConfirmTitle").textContent = title;
+      document.querySelector("#deleteConfirmText").textContent = text;
+      document.querySelector("#deleteConfirmDialog").showModal();
+    }
+
+    async function handleRouteTestClick(point) {
+      if (!routeTestStart) {
+        routeTestStart = point;
+        routeTestRoute = [];
+        renderMapEditor();
+        document.querySelector("#routeTestResult").textContent = `測試起點：${Number(point.x).toFixed(1)}, ${Number(point.y).toFixed(1)}。請再點紅色地點標記當目的地。`;
+        setEditorInfo("已設定測試起點，請點紅色地點標記作為目的地。");
+        return;
+      }
+      const destination = nearestPlace(point);
+      if (!destination) {
+        setEditorInfo("請點紅色地點標記作為目的地；如果看不到紅點，先按「顯示地點標記」。");
+        return;
+      }
+      await runAdminAction("測試導航路線完成", async () => {
+        const result = await retryAdminRequest(() => postJson("/api/routes", {
+          mapId: mapSelect.value,
+          startFloorId: floorSelect.value,
+          targetFloorId: destination.floorId,
+          startX: routeTestStart.x,
+          startY: routeTestStart.y,
+          destinationPlaceId: destination.id,
+        }));
+        routeTestRoute = Array.isArray(result.routePoints) ? result.routePoints : [];
+        const transitionText = result.floorTransitions?.length
+          ? `，換樓層：${result.floorTransitions.map(item => item.name).join("、")}`
+          : "";
+        document.querySelector("#routeTestResult").textContent = `目的地 ${destination.name}，距離 ${result.distance}，預估 ${result.estimatedTime} 分鐘${transitionText}`;
+        setEditorInfo("已顯示正式 API 回傳的測試路線；這不會新增路線資料。重新點地圖可設定新的起點。");
+        routeTestStart = null;
+        renderMapEditor();
+      });
+    }
+
+    async function confirmDeleteTarget() {
+      if (!selectedDeleteTarget) return;
+      const target = selectedDeleteTarget;
+      document.querySelector("#deleteConfirmDialog").close();
+      await runAdminAction(target.type === "node" || target.type === "place" ? "已刪除點位" : target.type === "edge" ? "已刪除路線" : "已刪除框框", async () => {
+        if (target.type === "node") {
+          await deleteJson(`/api/route-nodes?nodeId=${encodeURIComponent(target.value.id)}`);
+          const linkedPlace = currentPlaces.find(place => place.routeNodeId === target.value.id);
+          if (linkedPlace) await deleteJsonIfExists(`/api/places?placeId=${encodeURIComponent(linkedPlace.id)}`);
+        } else if (target.type === "edge") {
+          await deleteJson(`/api/route-edges?edgeId=${encodeURIComponent(target.value.id)}`);
+        } else if (target.type === "place") {
+          await deleteJson(placeDeletePath(target.value));
+          if (target.value.routeNodeId) await deleteJsonIfExists(`/api/route-nodes?nodeId=${encodeURIComponent(target.value.routeNodeId)}`);
+        } else {
+          await deleteJson(`/api/route-zones?zoneId=${encodeURIComponent(target.value.id)}`);
+        }
+        selectedDeleteTarget = null;
+        await loadDashboard();
+      });
+    }
+
+    function placeDeletePath(place) {
+      const params = new URLSearchParams({
+        placeId: place.id || "",
+        mapId: place.mapId || mapSelect.value || "",
+        floorId: place.floorId || floorSelect.value || "",
+        x: String(place.x ?? ""),
+        y: String(place.y ?? ""),
+        tolerance: "8",
+      });
+      return `/api/places?${params.toString()}`;
+    }
+
+    function setEditorInfo(message) {
+      document.querySelector("#mapEditorInfo").textContent = message;
+    }
+
+    async function clearCurrentFloorRouteGraph() {
+      const mapId = mapSelect.value;
+      const floorId = floorSelect.value;
+      if (!mapId || !floorId) return;
+      const confirmed = window.confirm("確定清空目前樓層的節點、路線與相關跨樓層連接？地圖、指紋、綠紅橘框不會刪除。");
+      if (!confirmed) return;
+      await runAdminAction("已清空本樓層點線", async () => {
+        await deleteJson(`/api/route-graph/floor?mapId=${encodeURIComponent(mapId)}&floorId=${encodeURIComponent(floorId)}`);
+        routeDraft = [];
+        selectedDeleteTarget = null;
+        selectedTransitionFromNode = null;
+        await loadDashboard();
+      });
+    }
+
+    function routeZoneAt(point) {
+      return currentRouteZones
+        .filter(zone => pointInZoneShape(point, zone))
+        .sort((a, b) => (a.width * a.height) - (b.width * b.height))[0] || null;
+    }
+
+    function pointInZoneShape(point, zone) {
+      const points = zonePolygonPoints(zone);
+      let inside = false;
+      for (let i = 0, j = points.length - 1; i < points.length; j = i++) {
+        const xi = points[i].x;
+        const yi = points[i].y;
+        const xj = points[j].x;
+        const yj = points[j].y;
+        const intersects = ((yi > point.y) !== (yj > point.y)) &&
+          (point.x < ((xj - xi) * (point.y - yi)) / ((yj - yi) || Number.EPSILON) + xi);
+        if (intersects) inside = !inside;
+      }
+      return inside;
+    }
+
+    function drawZonePath(zone, bounds) {
+      const points = zonePolygonPoints(zone);
+      mapEditorCtx.beginPath();
+      points.forEach((point, index) => {
+        const x = mapToCanvasX(point.x, bounds);
+        const y = mapToCanvasY(point.y, bounds);
+        if (index === 0) mapEditorCtx.moveTo(x, y);
+        else mapEditorCtx.lineTo(x, y);
+      });
+      mapEditorCtx.closePath();
+    }
+
+    function zonePolygonPoints(zone) {
+      if (Array.isArray(zone.points) && zone.points.length >= 3) {
+        return zone.points.map(point => ({ x: Number(point.x), y: Number(point.y) }));
+      }
+      const left = Number(zone.x);
+      const top = Number(zone.y);
+      const right = left + Number(zone.width);
+      const bottom = top + Number(zone.height);
+      return [
+        { x: left, y: top },
+        { x: right, y: top },
+        { x: right, y: bottom },
+        { x: left, y: bottom },
+      ];
+    }
+
+    function zoneTypeText(zoneType) {
+      if (zoneType === "blocked") return "紅框禁入";
+      if (zoneType === "caution") return "橘框待確認";
+      return "綠框可走";
+    }
+
+    function nearestRouteNode(point) {
+      return currentRouteNodes
+        .filter(node => node.source === "admin")
+        .map(node => ({ ...node, hitDistance: distance(point.x, point.y, node.x, node.y) }))
+        .filter(node => node.hitDistance <= 20)
+        .sort((left, right) => left.hitDistance - right.hitDistance)[0] || null;
+    }
+
+    function nearestAnyRouteNode(point) {
+      return currentRouteNodes
+        .map(node => ({ ...node, hitDistance: distance(point.x, point.y, node.x, node.y) }))
+        .filter(node => node.hitDistance <= 24)
+        .sort((left, right) => left.hitDistance - right.hitDistance)[0] || null;
+    }
+
+    function nearestPlace(point) {
+      return currentPlaces
+        .map(place => ({ ...place, hitDistance: distance(point.x, point.y, place.x, place.y) }))
+        .filter(place => place.hitDistance <= 24)
+        .sort((left, right) => left.hitDistance - right.hitDistance)[0] || null;
+    }
+
+    function nearestRouteEdge(point) {
+      const nodes = new Map(currentRouteNodes.map(node => [node.id, node]));
+      return currentRouteEdges
+        .map(edge => {
+          const from = nodes.get(edge.fromNodeId);
+          const to = nodes.get(edge.toNodeId);
+          if (!from || !to) return null;
+          return {
+            ...edge,
+            hitDistance: distanceToSegment(point, from, to),
+          };
+        })
+        .filter(edge => edge && edge.hitDistance <= 16)
+        .sort((left, right) => left.hitDistance - right.hitDistance)[0] || null;
+    }
+
+    function distanceToSegment(point, from, to) {
+      const dx = to.x - from.x;
+      const dy = to.y - from.y;
+      if (dx === 0 && dy === 0) return distance(point.x, point.y, from.x, from.y);
+      const t = Math.max(0, Math.min(1, ((point.x - from.x) * dx + (point.y - from.y) * dy) / (dx * dx + dy * dy)));
+      return distance(point.x, point.y, from.x + t * dx, from.y + t * dy);
+    }
+
+    function distance(ax, ay, bx, by) {
+      return Math.hypot(Number(ax) - Number(bx), Number(ay) - Number(by));
+    }
+
+    function containRect(containerWidth, containerHeight, imageWidth, imageHeight) {
+      const scale = Math.min(containerWidth / imageWidth, containerHeight / imageHeight);
+      const width = imageWidth * scale;
+      const height = imageHeight * scale;
+      return {
+        x: (containerWidth - width) / 2,
+        y: (containerHeight - height) / 2,
+        width,
+        height,
+      };
+    }
+
+    function canvasToMapPoint(canvasX, canvasY, bounds) {
+      if (canvasX < bounds.x || canvasY < bounds.y || canvasX > bounds.x + bounds.width || canvasY > bounds.y + bounds.height) return null;
+      const floor = currentFloors.find(item => item.id === floorSelect.value) || {};
+      const width = Number(floor.width || floor.imageNaturalWidth || mapEditorImage.naturalWidth);
+      const height = Number(floor.height || floor.imageNaturalHeight || mapEditorImage.naturalHeight);
+      return {
+        x: ((canvasX - bounds.x) / bounds.width) * width,
+        y: ((canvasY - bounds.y) / bounds.height) * height,
+      };
+    }
+
+    function mapToCanvasX(x, bounds) {
+      const floor = currentFloors.find(item => item.id === floorSelect.value) || {};
+      const width = Number(floor.width || floor.imageNaturalWidth || mapEditorImage.naturalWidth);
+      return bounds.x + (Number(x) / width) * bounds.width;
+    }
+
+    function mapToCanvasY(y, bounds) {
+      const floor = currentFloors.find(item => item.id === floorSelect.value) || {};
+      const height = Number(floor.height || floor.imageNaturalHeight || mapEditorImage.naturalHeight);
+      return bounds.y + (Number(y) / height) * bounds.height;
+    }
+
+    async function getJson(path) {
+      const response = await fetch(path);
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      return response.json();
+    }
+
+    async function postJson(path, payload) {
+      const response = await fetch(path, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}));
+        throw new Error(body.message || `HTTP ${response.status}`);
+      }
+      return response.json();
+    }
+
+    async function putJson(path, payload) {
+      const response = await fetch(path, {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}));
+        throw new Error(body.message || `HTTP ${response.status}`);
+      }
+      return response.json();
+    }
+
+    async function deleteJson(path) {
+      const response = await fetch(path, { method: "DELETE" });
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}));
+        throw new Error(body.message || `HTTP ${response.status}`);
+      }
+      return response.json();
+    }
+
+    async function deleteJsonIfExists(path) {
+      const response = await fetch(path, { method: "DELETE" });
+      if (response.status === 404) return null;
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}));
+        throw new Error(body.message || `HTTP ${response.status}`);
+      }
+      return response.json();
+    }
+
+    async function runAdminAction(successMessage, action) {
+      const notice = document.querySelector("#adminNotice");
+      notice.textContent = "處理中";
+      notice.className = "muted";
+      try {
+        await action();
+        notice.textContent = successMessage;
+        notice.className = "muted";
+      } catch (error) {
+        notice.textContent = `失敗：${error.message}`;
+        notice.className = "bad";
+      }
+    }
+
+    async function retryAdminRequest(requestFactory, retries = 2) {
+      let lastError = null;
+      for (let attempt = 0; attempt <= retries; attempt += 1) {
+        try {
+          return await requestFactory();
+        } catch (error) {
+          lastError = error;
+          if (!/HTTP 50[0-9]|Failed to fetch|NetworkError/i.test(String(error.message || ""))) break;
+          await new Promise(resolve => setTimeout(resolve, 700 * (attempt + 1)));
+        }
+      }
+      throw lastError;
+    }
+
+    function clearRouteZoneBackups() {
+      try {
+        Object.keys(localStorage)
+          .filter(key => key.startsWith("route-zones-backup:"))
+          .forEach(key => localStorage.removeItem(key));
+      } catch {
+      }
+    }
+
+    async function testRoute(destinationPlaceId, targetFloorId) {
+      const result = await postJson("/api/routes", {
+        mapId: mapSelect.value,
+        startFloorId: floorSelect.value,
+        targetFloorId,
+        startX: 180,
+        startY: 620,
+        destinationPlaceId,
+      });
+      const transitionText = result.floorTransitions?.length
+        ? `，換樓層：${result.floorTransitions.map(item => item.name).join("、")}`
+        : "";
+      document.querySelector("#routeTestResult").textContent = `距離 ${result.distance}，預估 ${result.estimatedTime} 分鐘${transitionText}`;
+    }
+
+    function floorName(floorId) {
+      return currentFloors.find(floor => floor.id === floorId)?.floorName || floorId;
+    }
+
+    function statusText(value) {
+      return { open: "營業中", closed: "休息中", suspended: "暫停服務", unset: "未設定" }[value] || "未設定";
+    }
+
+    function adminPointId(prefix, x, y) {
+      return `${prefix}-${mapSelect.value}-${floorSelect.value}-${Date.now()}-${Math.round(x)}-${Math.round(y)}`
+        .replace(/[^a-zA-Z0-9_-]/g, "-")
+        .replace(/-+/g, "-")
+        .replace(/^-|-$/g, "");
+    }
+
+    function categoryToNodeType(category) {
+      const text = String(category || "").toLowerCase();
+      if (text.includes("電梯") || text.includes("elevator")) return "elevator";
+      if (text.includes("手扶梯") || text.includes("樓梯") || text.includes("stairs") || text.includes("escalator")) return "stair";
+      if (text.includes("出口") || text.includes("exit")) return "exit";
+      if (text.includes("店") || text.includes("商") || text.includes("store")) return "store";
+      if (text.includes("廁") || text.includes("toilet") || text.includes("restroom")) return "restroom";
+      return "poi";
+    }
+
+    function escapeHtml(value) {
+      return String(value ?? "").replace(/[&<>"']/g, char => ({
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+        "'": "&#039;",
+      }[char]));
+    }
+
+    function trainingTypeText(value) {
+      return {
+        initialManualFingerprint: "人工初始訓練",
+        feedbackIncrementalTraining: "回饋再訓練",
+        fullRetraining: "完整再訓練",
+      }[value] || value;
+    }
+
+    function policyActionText(value) {
+      return {
+        continueNavigation: "繼續導航",
+        reroute: "重新規劃",
+        relocalize: "重新定位",
+        guideBackToRoute: "導回路線",
+        useElevator: "使用電梯",
+        useStairs: "使用樓梯",
+      }[value] || value;
+    }
+
+    function reportTypeText(value) {
+      return {
+        blockedRoute: "路線不通",
+        closedPlace: "地點關閉",
+        obstacle: "障礙物",
+        wrongPlace: "地點錯誤",
+        sos: "SOS求助",
+      }[value] || value;
+    }
+  </script>
+</body>
+</html>

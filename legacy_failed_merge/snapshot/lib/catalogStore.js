@@ -1,0 +1,176 @@
+const fs = require("fs");
+const path = require("path");
+const demoData = require("./demoData");
+
+const dataDir = process.env.NAV_DATA_DIR || path.join(__dirname, "..", "data");
+const catalogPath = path.join(dataDir, "catalog_records.json");
+
+function readCatalog() {
+  ensureDataDir();
+  if (!fs.existsSync(catalogPath)) return emptyCatalog();
+  const raw = fs.readFileSync(catalogPath, "utf8").trim();
+  if (!raw) return emptyCatalog();
+  const parsed = JSON.parse(raw);
+  return {
+    maps: Array.isArray(parsed.maps) ? parsed.maps : [],
+    floors: Array.isArray(parsed.floors) ? parsed.floors : [],
+    places: Array.isArray(parsed.places) ? parsed.places : [],
+  };
+}
+
+function readMaps() {
+  const dynamic = readCatalog().maps;
+  return mergeById(demoData.maps, dynamic);
+}
+
+function readFloors() {
+  const dynamic = readCatalog().floors;
+  return mergeById(demoData.floors, dynamic);
+}
+
+function readCatalogPlaces() {
+  const dynamic = readCatalog().places;
+  return mergeById(demoData.places, dynamic);
+}
+
+function createMap(body) {
+  const now = new Date().toISOString();
+  const id = safeId(body.id || `map-${Date.now()}`);
+  const record = {
+    id,
+    name: String(body.name || id).trim(),
+    description: String(body.description || "").trim(),
+    createdAt: now,
+    updatedAt: now,
+  };
+  if (!record.name) throw new Error("name is required");
+  writeCollection("maps", record);
+  return record;
+}
+
+function createFloor(body) {
+  const now = new Date().toISOString();
+  const mapId = String(body.mapId || "").trim();
+  if (!mapId) throw new Error("mapId is required");
+  const id = safeId(body.id || `${mapId}-floor-${Date.now()}`);
+  const existing = readFloors().find((floor) => floor.id === id && floor.mapId === mapId) || {};
+  const record = {
+    ...existing,
+    id,
+    mapId,
+    floorName: String(body.floorName || body.name || id).trim(),
+    floorLevel: Number(body.floorLevel || 0),
+    imageUrl: body.imageUrl || existing.imageUrl || null,
+    width: Number(body.width ?? existing.width ?? 0),
+    height: Number(body.height ?? existing.height ?? 0),
+    scaleValue: Number(body.scale ?? body.scaleValue ?? existing.scaleValue ?? 1),
+    imageLeft: numericOrExisting(body.imageLeft, existing.imageLeft),
+    imageTop: numericOrExisting(body.imageTop, existing.imageTop),
+    imageWidth: numericOrExisting(body.imageWidth, existing.imageWidth),
+    imageHeight: numericOrExisting(body.imageHeight, existing.imageHeight),
+    imageNaturalWidth: numericOrExisting(body.imageNaturalWidth, existing.imageNaturalWidth),
+    imageNaturalHeight: numericOrExisting(body.imageNaturalHeight, existing.imageNaturalHeight),
+    coordinateUnit: String(body.coordinateUnit || existing.coordinateUnit || "").trim(),
+    mapHeadingOffsetDegrees: numericOrExisting(body.mapHeadingOffsetDegrees, existing.mapHeadingOffsetDegrees),
+    createdAt: existing.createdAt || now,
+    updatedAt: now,
+  };
+  if (!record.floorName) throw new Error("floorName is required");
+  writeCollection("floors", record);
+  return record;
+}
+
+function numericOrExisting(value, existing) {
+  if (value === undefined || value === null || value === "") return existing;
+  const number = Number(value);
+  return Number.isFinite(number) ? number : existing;
+}
+
+function createPlace(body) {
+  const now = new Date().toISOString();
+  const mapId = String(body.mapId || "").trim();
+  const floorId = String(body.floorId || "").trim();
+  if (!mapId || !floorId) throw new Error("mapId and floorId are required");
+  const id = safeId(body.id || `place-${Date.now()}`);
+  const existing = readCatalogPlaces().find((place) => place.id === id) || {};
+  const record = {
+    ...existing,
+    id,
+    mapId,
+    floorId,
+    name: String(body.name || id).trim(),
+    category: String(body.category || "未分類").trim(),
+    x: Number(body.x),
+    y: Number(body.y),
+    description: String(body.description || "").trim(),
+    keywords: String(body.keywords || "").trim(),
+    routeNodeId: String(body.routeNodeId ?? existing.routeNodeId ?? "").trim(),
+    nodeType: String(body.nodeType ?? existing.nodeType ?? "").trim(),
+    isTransitionConnector: (body.isTransitionConnector ?? existing.isTransitionConnector) === true,
+    transitionTargetValue: String(body.transitionTargetValue ?? existing.transitionTargetValue ?? "").trim(),
+    transitionTargetNodeId: String(body.transitionTargetNodeId ?? existing.transitionTargetNodeId ?? "").trim(),
+    transitionType: String(body.transitionType ?? existing.transitionType ?? "").trim(),
+    isNavigationNode: (body.isNavigationNode ?? existing.isNavigationNode) !== false,
+    searchable: (body.searchable ?? existing.searchable) !== false,
+    businessStatus: String(body.businessStatus ?? existing.businessStatus ?? "unset").trim(),
+    openingHours: String(body.openingHours ?? existing.openingHours ?? "").trim(),
+    createdAt: existing.createdAt || now,
+    updatedAt: now,
+  };
+  if (!record.name) throw new Error("name is required");
+  if (!Number.isFinite(record.x) || !Number.isFinite(record.y)) throw new Error("x and y must be numbers");
+  writeCollection("places", record);
+  return record;
+}
+
+function deletePlace(placeId) {
+  const id = safeId(placeId);
+  if (!id) return null;
+  const catalog = readCatalog();
+  const index = catalog.places.findIndex((place) => place.id === id);
+  if (index < 0) return null;
+  const [removed] = catalog.places.splice(index, 1);
+  ensureDataDir();
+  fs.writeFileSync(catalogPath, JSON.stringify(catalog, null, 2), "utf8");
+  return removed;
+}
+
+function writeCollection(collectionName, record) {
+  const catalog = readCatalog();
+  catalog[collectionName] = mergeById(catalog[collectionName], [record]);
+  ensureDataDir();
+  fs.writeFileSync(catalogPath, JSON.stringify(catalog, null, 2), "utf8");
+}
+
+function mergeById(base, dynamic) {
+  const merged = new Map();
+  base.forEach((item) => merged.set(item.id, item));
+  dynamic.forEach((item) => merged.set(item.id, item));
+  return Array.from(merged.values());
+}
+
+function safeId(value) {
+  return String(value || "")
+    .trim()
+    .replace(/[^a-zA-Z0-9_-]/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "");
+}
+
+function emptyCatalog() {
+  return { maps: [], floors: [], places: [] };
+}
+
+function ensureDataDir() {
+  fs.mkdirSync(dataDir, { recursive: true });
+}
+
+module.exports = {
+  createFloor,
+  createMap,
+  createPlace,
+  deletePlace,
+  readCatalogPlaces,
+  readFloors,
+  readMaps,
+};

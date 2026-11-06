@@ -1,0 +1,74 @@
+[
+  {
+    "id": 1,
+    "userId": "smoke-anon",
+    "mapId": "tkut-demo",
+    "floorId": "tkut-demo-ground",
+    "x": 180,
+    "y": 620,
+    "reportType": "obstacle",
+    "description": "smoke-test",
+    "status": "pending",
+    "createdAt": "2026-06-01T00:02:28.613Z"
+  },
+  {
+    "id": 2,
+    "userId": "smoke-anon",
+    "mapId": "tkut-demo",
+    "floorId": "tkut-demo-ground",
+    "x": 180,
+    "y": 620,
+    "reportType": "obstacle",
+    "description": "smoke-test",
+    "status": "pending",
+    "createdAt": "2026-06-01T00:02:57.248Z"
+  },
+  {
+    "id": 3,
+    "userId": "smoke-anon",
+    "mapId": "tkut-demo",
+    "floorId": "tkut-demo-ground",
+    "x": 180,
+    "y": 620,
+    "reportType": "obstacle",
+    "description": "smoke-test",
+    "status": "pending",
+    "createdAt": "2026-06-01T00:03:52.461Z"
+  },
+  {
+    "id": 4,
+    "userId": "smoke-anon",
+    "mapId": "tkut-demo",
+    "floorId": "tkut-demo-ground",
+    "x": 180,
+    "y": 620,
+    "reportType": "obstacle",
+    "description": "smoke-test",
+    "status": "pending",
+    "createdAt": "2026-06-01T00:05:06.399Z"
+  },
+  {
+    "id": 5,
+    "userId": "smoke-anon",
+    "mapId": "tkut-demo",
+    "floorId": "tkut-demo-ground",
+    "x": 180,
+    "y": 620,
+    "reportType": "obstacle",
+    "description": "smoke-test",
+    "status": "pending",
+    "createdAt": "2026-06-01T00:23:48.830Z"
+  },
+  {
+    "id": 6,
+    "userId": "smoke-anon",
+    "mapId": "tkut-demo",
+    "floorId": "tkut-demo-ground",
+    "x": 180,
+    "y": 620,
+    "reportType": "obstacle",
+    "description": "smoke-test",
+    "status": "pending",
+    "createdAt": "2026-06-01T00:24:18.600Z"
+  }
+]

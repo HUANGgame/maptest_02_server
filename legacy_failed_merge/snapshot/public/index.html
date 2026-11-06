@@ -1,0 +1,1801 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>地下街室內導航系統</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f5f6f7;
+      --panel: #ffffff;
+      --line: #d9dee5;
+      --text: #1f2933;
+      --muted: #667085;
+      --accent: #146c63;
+      --accent-strong: #0f5b53;
+      --blue: #2563eb;
+      --danger: #b42318;
+      --walkway: #dde4ea;
+      --route: #146c63;
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: "Noto Sans TC", "Microsoft JhengHei", system-ui, sans-serif;
+      letter-spacing: 0;
+    }
+    button, input, select {
+      font: inherit;
+      color: inherit;
+    }
+    .app {
+      min-height: 100%;
+      display: grid;
+      grid-template-rows: auto 1fr auto;
+    }
+    .topbar {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 10px;
+      padding: calc(12px + env(safe-area-inset-top)) 12px 10px;
+      background: var(--panel);
+      border-bottom: 1px solid var(--line);
+    }
+    .brand {
+      grid-column: 1 / -1;
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 12px;
+    }
+    .brand h1 {
+      margin: 0;
+      font-size: 18px;
+      line-height: 1.2;
+    }
+    .brand span {
+      color: var(--muted);
+      font-size: 13px;
+      white-space: nowrap;
+    }
+    .search {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 8px;
+    }
+    #searchInput {
+      min-width: 0;
+    }
+    input, select {
+      width: 100%;
+      min-height: 44px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+      padding: 0 12px;
+      outline: none;
+    }
+    input:focus, select:focus {
+      border-color: var(--accent);
+    }
+    button {
+      min-height: 44px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+      padding: 0 12px;
+      cursor: pointer;
+    }
+    .primary {
+      border-color: var(--blue);
+      background: var(--blue);
+      color: #fff;
+    }
+    .map-shell {
+      position: relative;
+      min-height: 460px;
+      overflow: hidden;
+      background: #fafbfc;
+    }
+    .map-shell.navigation-start canvas {
+      animation: mapStartPulse .9s ease-out;
+    }
+    .map-shell.navigation-end canvas {
+      animation: mapEndFade .65s ease-out;
+    }
+    canvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+      touch-action: none;
+    }
+    .floor-switch {
+      position: absolute;
+      left: 12px;
+      top: 76px;
+      display: grid;
+      gap: 8px;
+      padding: 8px;
+      background: rgba(255,255,255,.94);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+    }
+    .floor-switch button,
+    .map-tools button {
+      width: 48px;
+      height: 44px;
+      padding: 0;
+      font-weight: 600;
+    }
+    .map-tools button.active {
+      border-color: var(--blue);
+      background: #eff6ff;
+      color: #1d4ed8;
+    }
+    .floor-switch button.active {
+      border-color: var(--blue);
+      background: #eff6ff;
+      color: #1d4ed8;
+    }
+    .map-tools {
+      position: absolute;
+      right: 12px;
+      top: 76px;
+      display: grid;
+      gap: 8px;
+      padding: 8px;
+      background: rgba(255,255,255,.94);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+    }
+    .status-chip {
+      position: absolute;
+      left: 12px;
+      right: 12px;
+      top: 12px;
+      min-height: 40px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      flex-wrap: wrap;
+      padding: 8px 12px;
+      background: rgba(255,255,255,.96);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+    .status-chip span:last-child {
+      text-align: right;
+    }
+    .nav-flash {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%) scale(.94);
+      opacity: 0;
+      pointer-events: none;
+      min-width: 180px;
+      padding: 12px 16px;
+      border-radius: 8px;
+      background: rgba(31, 41, 51, .9);
+      color: #fff;
+      text-align: center;
+      font-weight: 700;
+      box-shadow: 0 10px 28px rgba(15, 23, 42, .18);
+    }
+    .nav-flash.show {
+      animation: flashInOut 1.25s ease both;
+    }
+    .sheet {
+      background: var(--panel);
+      border-top: 1px solid var(--line);
+      padding: 12px 12px calc(12px + env(safe-area-inset-bottom));
+    }
+    .next-step {
+      margin: 0 0 8px;
+      font-size: 18px;
+      font-weight: 700;
+    }
+    .meta {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      color: var(--muted);
+      font-size: 14px;
+      margin-bottom: 10px;
+    }
+    .actions {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+    }
+    .results {
+      max-height: 210px;
+      overflow: auto;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+      margin-top: 10px;
+    }
+    .result {
+      width: 100%;
+      display: grid;
+      gap: 2px;
+      text-align: left;
+      border: 0;
+      border-bottom: 1px solid var(--line);
+      border-radius: 0;
+      padding: 10px 12px;
+      min-height: auto;
+    }
+    .result:last-child { border-bottom: 0; }
+    .result strong { font-size: 15px; }
+    .result span { color: var(--muted); font-size: 13px; }
+    .privacy {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-top: 10px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+    .privacy input {
+      width: auto;
+      min-height: auto;
+    }
+    dialog {
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 18px;
+      width: min(420px, calc(100vw - 32px));
+      color: var(--text);
+    }
+    dialog::backdrop { background: rgba(15, 23, 42, .32); }
+    .dialog-actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-top: 12px;
+    }
+    @media (min-width: 900px) {
+      .app {
+        width: min(1180px, 100%);
+        margin: 0 auto;
+      }
+      .topbar {
+        grid-template-columns: minmax(360px, 1fr) minmax(260px, auto);
+      }
+      .map-shell { min-height: 680px; }
+      .sheet {
+        border: 1px solid var(--line);
+        border-radius: 8px 8px 0 0;
+        margin: 0 12px;
+      }
+    }
+    @keyframes flashInOut {
+      0% { opacity: 0; transform: translate(-50%, -50%) scale(.92); }
+      18% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+      78% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+      100% { opacity: 0; transform: translate(-50%, -50%) scale(.98); }
+    }
+    @keyframes mapStartPulse {
+      0% { filter: saturate(1); }
+      40% { filter: saturate(1.18) contrast(1.04); }
+      100% { filter: saturate(1); }
+    }
+    @keyframes mapEndFade {
+      0% { opacity: 1; }
+      35% { opacity: .78; }
+      100% { opacity: 1; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header class="topbar">
+      <div class="brand">
+        <h1>地下街室內導航系統</h1>
+        <span>用戶端</span>
+      </div>
+      <div class="search">
+        <input id="searchInput" type="search" placeholder="輸入地點、設施或分類">
+        <button id="searchButton" class="primary">搜尋</button>
+      </div>
+      <select id="mapSelect" aria-label="選擇地圖"></select>
+    </header>
+
+    <main class="map-shell">
+      <canvas id="mapCanvas"></canvas>
+      <div class="status-chip">
+        <span id="floorLabel">樓層</span>
+        <span id="dataStatus">讀取資料中</span>
+      </div>
+      <div id="navFlash" class="nav-flash">開始導航</div>
+      <div id="floorButtons" class="floor-switch"></div>
+      <div class="map-tools">
+        <button id="relocateButton">跟隨</button>
+        <button id="pointModeButton">顯示</button>
+        <button id="zoomInButton">+</button>
+        <button id="zoomOutButton">-</button>
+        <button id="resetButton">2D</button>
+      </div>
+    </main>
+
+    <section class="sheet">
+      <p id="nextStep" class="next-step">請搜尋目的地，或從結果中選擇地點。</p>
+      <div class="meta">
+        <span id="destinationText">目的地：尚未選擇</span>
+        <span id="distanceText">距離：-- 公尺</span>
+        <span id="timeText">時間：-- 分鐘</span>
+        <span id="headingText" hidden></span>
+      </div>
+      <div class="actions">
+        <button id="showRouteButton">顯示路線</button>
+        <button id="startButton" class="primary">開始導航</button>
+        <button id="endButton">結束導航</button>
+      </div>
+      <div id="results" class="results" hidden></div>
+      <label class="privacy">
+        <span>協助改善定位：匿名上傳必要定位狀態，不包含姓名或個人身分資料。</span>
+        <input id="feedbackSwitch" type="checkbox">
+      </label>
+    </section>
+  </div>
+
+  <dialog id="privacyDialog">
+    <h2>定位資料說明</h2>
+    <p>系統可在取得同意後，匿名上傳導航過程中的 Wi-Fi 訊號與定位狀態，用於改善定位準確度，不包含姓名、電話或個人身分資料。</p>
+    <div class="dialog-actions">
+      <button id="declinePrivacy">不同意</button>
+      <button id="acceptPrivacy" class="primary">同意</button>
+    </div>
+  </dialog>
+
+  <script>
+    const state = {
+      maps: [],
+      floors: [],
+      places: [],
+      wifiPoints: [],
+      wifiSummary: { totalRecords: 0, pointCount: 0, bssidCount: 0 },
+      floorImages: new Map(),
+      currentMapId: "k-area-airport",
+      currentFloorId: "k-area-airport-1f",
+      current: { x: 867, y: 296, floorId: "k-area-airport-1f" },
+      hasCurrentPosition: false,
+      currentWifiList: [],
+      liveLocatorTimer: null,
+      locateInFlight: false,
+      lastLocationAt: 0,
+      lastLocationConfidence: null,
+      heading: null,
+      destination: null,
+      route: [],
+      routeDistance: 0,
+      routeTime: 0,
+      zoom: 1,
+      viewOffsetX: 0,
+      viewOffsetY: 0,
+      viewFollow: false,
+      pointDisplayMode: localStorage.getItem("pointDisplayMode") || "important",
+      dragStart: null,
+      viewFocusedKey: "",
+      navigationActive: false,
+      navigationFrame: null,
+      navigationTimer: null,
+      navigationRouteIndex: 0,
+      feedbackAllowed: localStorage.getItem("feedbackAllowed") === "true",
+    };
+
+    const canvas = document.querySelector("#mapCanvas");
+    const ctx = canvas.getContext("2d");
+    const mapShell = document.querySelector(".map-shell");
+    const navFlash = document.querySelector("#navFlash");
+    const mapSelect = document.querySelector("#mapSelect");
+    const searchInput = document.querySelector("#searchInput");
+    const results = document.querySelector("#results");
+    const floorButtons = document.querySelector("#floorButtons");
+    const floorLabel = document.querySelector("#floorLabel");
+    const dataStatus = document.querySelector("#dataStatus");
+    const nextStep = document.querySelector("#nextStep");
+    const destinationText = document.querySelector("#destinationText");
+    const distanceText = document.querySelector("#distanceText");
+    const timeText = document.querySelector("#timeText");
+    const headingText = document.querySelector("#headingText");
+    const feedbackSwitch = document.querySelector("#feedbackSwitch");
+    const privacyDialog = document.querySelector("#privacyDialog");
+
+    const world = { left: 0, top: 250, width: 900, height: 480 };
+
+    document.querySelector("#searchButton").addEventListener("click", performSearch);
+    searchInput.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") performSearch();
+    });
+    const compassButton = document.querySelector("#relocateButton");
+    compassButton.textContent = "跟隨";
+    compassButton.title = "切換跟隨模式";
+    compassButton.setAttribute("aria-label", "切換跟隨模式");
+    compassButton.addEventListener("click", toggleViewFollow);
+    const pointModeButton = document.querySelector("#pointModeButton");
+    pointModeButton.title = "切換點位顯示";
+    pointModeButton.setAttribute("aria-label", "切換點位顯示");
+    pointModeButton.addEventListener("click", cyclePointDisplayMode);
+    updatePointModeButton();
+    document.querySelector("#zoomInButton").addEventListener("click", () => setZoom(state.zoom * 1.2));
+    document.querySelector("#zoomOutButton").addEventListener("click", () => setZoom(state.zoom / 1.2));
+    document.querySelector("#resetButton").addEventListener("click", resetView);
+    document.querySelector("#showRouteButton").addEventListener("click", showRoute);
+    document.querySelector("#startButton").addEventListener("click", startNavigation);
+    document.querySelector("#endButton").addEventListener("click", endNavigation);
+    document.querySelector("#acceptPrivacy").addEventListener("click", () => setFeedbackAllowed(true));
+    document.querySelector("#declinePrivacy").addEventListener("click", () => setFeedbackAllowed(false));
+    feedbackSwitch.addEventListener("change", () => {
+      if (feedbackSwitch.checked) {
+        privacyDialog.showModal();
+      } else {
+        setFeedbackAllowed(false);
+      }
+    });
+    mapSelect.addEventListener("change", async () => {
+      state.currentMapId = mapSelect.value;
+      state.viewFocusedKey = "";
+      clearNavigationSelection();
+      searchInput.value = "";
+      await loadFloors();
+      await loadPlaces();
+      await loadWifiPoints();
+      performSearch();
+      renderAll();
+    });
+
+    window.addEventListener("resize", resizeCanvas);
+    window.addEventListener("deviceorientationabsolute", handleOrientation, true);
+    window.addEventListener("deviceorientation", handleOrientation, true);
+    window.updateIndoorWifiSignals = receiveWifiSignals;
+    window.setIndoorWifiSignals = receiveWifiSignals;
+    canvas.addEventListener("pointerdown", startPan);
+    canvas.addEventListener("pointermove", movePan);
+    canvas.addEventListener("pointerup", endPan);
+    canvas.addEventListener("pointercancel", endPan);
+    canvas.addEventListener("wheel", handleWheel, { passive: false });
+
+    init();
+
+    async function init() {
+      feedbackSwitch.checked = state.feedbackAllowed;
+      if (!localStorage.getItem("feedbackConsentAsked")) {
+        privacyDialog.showModal();
+      }
+      await loadMaps();
+      await loadFloors();
+      await loadPlaces();
+      await loadWifiPoints();
+      resizeCanvas();
+      focusOnWifiPoints();
+      performSearch();
+      startLiveLocator();
+      renderAll();
+    }
+
+    function startLiveLocator() {
+      stopLiveLocator();
+      state.liveLocatorTimer = window.setInterval(() => {
+        locateFromCurrentWifi().catch(() => {});
+      }, 2500);
+      locateFromCurrentWifi().catch(() => {});
+    }
+
+    function stopLiveLocator() {
+      if (state.liveLocatorTimer) {
+        window.clearInterval(state.liveLocatorTimer);
+        state.liveLocatorTimer = null;
+      }
+    }
+
+    function receiveWifiSignals(signals) {
+      state.currentWifiList = normalizeInjectedWifiList(signals);
+      updateDataStatus();
+      if (state.currentWifiList.length === 0) {
+        state.hasCurrentPosition = false;
+        state.lastLocationConfidence = null;
+        nextStep.textContent = "目前沒有可用 Wi-Fi 訊號，無法定位。";
+        renderAll();
+        return { accepted: false, count: 0 };
+      }
+      locateFromCurrentWifi().catch(() => {});
+      return { accepted: true, count: state.currentWifiList.length };
+    }
+
+    function normalizeInjectedWifiList(signals) {
+      let list = [];
+      if (Array.isArray(signals)) {
+        list = signals;
+      } else if (signals && typeof signals === "object" && Array.isArray(signals.signals)) {
+        list = signals.signals;
+      } else if (signals && typeof signals === "object" && signals.signals && typeof signals.signals === "object") {
+        list = Object.entries(signals.signals).map(([bssid, rssi]) => ({ bssid, rssi }));
+      } else if (signals && typeof signals === "object") {
+        list = Object.entries(signals).map(([bssid, rssi]) => ({ bssid, rssi }));
+      }
+      return list
+        .map((item) => ({
+          bssid: String(item.bssid || item.BSSID || "").trim().toLowerCase(),
+          ssid: String(item.ssid || item.SSID || "").trim(),
+          rssi: Number(item.rssi ?? item.level ?? item.RSSI),
+        }))
+        .filter((item) => item.bssid && Number.isFinite(item.rssi));
+    }
+
+    async function locateFromCurrentWifi() {
+      if (state.locateInFlight || state.currentWifiList.length === 0) return;
+      state.locateInFlight = true;
+      try {
+        const result = await postJson("/api/location/estimate", {
+          mapId: state.currentMapId,
+          floorId: state.currentFloorId,
+          currentWifiList: state.currentWifiList,
+        });
+        if (result.mapId !== state.currentMapId) {
+          state.hasCurrentPosition = false;
+          nextStep.textContent = "目前位置不在這個地圖範圍。";
+          return;
+        }
+        if (result.floorId !== state.currentFloorId) {
+          state.currentFloorId = result.floorId;
+          state.current = { x: Number(result.x), y: Number(result.y), floorId: result.floorId };
+          state.hasCurrentPosition = true;
+          state.lastLocationAt = Date.now();
+          state.lastLocationConfidence = Number(result.confidence || 0);
+          state.viewFocusedKey = "";
+          await loadWifiPoints();
+          renderFloorButtons();
+          centerOnCurrent();
+        } else {
+          state.current = { x: Number(result.x), y: Number(result.y), floorId: result.floorId };
+          state.hasCurrentPosition = true;
+          state.lastLocationAt = Date.now();
+          state.lastLocationConfidence = Number(result.confidence || 0);
+          if (state.viewFollow) centerOnCurrent();
+        }
+        if (state.navigationActive) state.navigationRouteIndex = nearestRouteIndexOnCurrentFloor();
+        nextStep.textContent = state.destination
+          ? `${nextStepText()}｜定位信心 ${state.lastLocationConfidence}%`
+          : `目前位置已更新，定位信心 ${state.lastLocationConfidence}%。`;
+        updateDataStatus();
+        renderAll();
+      } catch {
+        state.hasCurrentPosition = false;
+        state.lastLocationConfidence = null;
+        nextStep.textContent = state.wifiSummary.totalRecords > 0
+          ? "定位失敗，請確認本樓層有啟用模型，且 App 已提供即時 Wi-Fi。"
+          : "目前樓層沒有指紋資料，無法定位。";
+        updateDataStatus();
+        renderAll();
+      } finally {
+        state.locateInFlight = false;
+      }
+    }
+
+    async function loadMaps() {
+      const maps = await fetchJson("/api/maps");
+      state.maps = maps.length ? maps : [{ id: "tkut-demo", name: "淡江大學淡水校園 Demo" }];
+      if (!state.maps.some((map) => map.id === state.currentMapId)) {
+        state.currentMapId = state.maps[0].id;
+      }
+      mapSelect.innerHTML = state.maps.map((map) => `<option value="${escapeHtml(map.id)}">${escapeHtml(map.name || map.id)}</option>`).join("");
+      mapSelect.value = state.currentMapId;
+    }
+
+    async function loadFloors() {
+      const floors = await fetchJson(`/api/floors?mapId=${encodeURIComponent(state.currentMapId)}`);
+      state.floors = floors.length ? floors : [
+        { id: "tkut-demo-ground", floorName: "地面層" },
+        { id: "tkut-demo-second", floorName: "二樓" },
+      ];
+      if (!state.floors.some((floor) => floor.id === state.currentFloorId)) {
+        state.currentFloorId = state.floors[0].id;
+        state.current.floorId = state.currentFloorId;
+      }
+      renderFloorButtons();
+    }
+
+    async function loadPlaces() {
+      const mapId = state.currentMapId;
+      const places = await fetchJson(`/api/places?mapId=${encodeURIComponent(mapId)}`);
+      if (mapId !== state.currentMapId) return;
+      state.places = places.filter((place) => place.mapId === state.currentMapId);
+      updateDataStatus();
+    }
+
+    async function loadWifiPoints() {
+      try {
+        updateWorldFromData();
+        const [data, summary] = await Promise.all([
+          fetchJson(`/api/wifi-scans/points?mapId=${encodeURIComponent(state.currentMapId)}&floorId=${encodeURIComponent(state.currentFloorId)}`),
+          fetchJson(`/api/wifi-scans/summary?mapId=${encodeURIComponent(state.currentMapId)}&floorId=${encodeURIComponent(state.currentFloorId)}`),
+        ]);
+        state.wifiPoints = Array.isArray(data.points) ? data.points.filter((point) => point.mapId === state.currentMapId && point.floorId === state.currentFloorId) : [];
+        state.wifiSummary = {
+          totalRecords: Number(summary.totalRecords || 0),
+          pointCount: Number(summary.pointCount || 0),
+          bssidCount: Number(summary.bssidCount || 0),
+        };
+        if (!state.navigationActive) {
+          state.current = { x: world.left + world.width / 2, y: world.top + world.height / 2, floorId: state.currentFloorId };
+          state.hasCurrentPosition = false;
+        }
+        focusOnWifiPoints();
+      } catch {
+        state.wifiPoints = [];
+        state.wifiSummary = { totalRecords: 0, pointCount: 0, bssidCount: 0 };
+        state.hasCurrentPosition = false;
+      }
+      updateDataStatus();
+    }
+
+    function updateDataStatus() {
+      const summary = state.wifiSummary || {};
+      const records = Number(summary.totalRecords || 0);
+      const points = Number(summary.pointCount || state.wifiPoints.length || 0);
+      const aps = Number(summary.bssidCount || 0);
+      const locating = state.currentWifiList.length
+        ? `定位訊號 ${state.currentWifiList.length} AP`
+        : "等待 App 提供 Wi-Fi";
+      if (records > 0 || points > 0) {
+        dataStatus.textContent = `指紋 ${records.toLocaleString()} 筆｜點位 ${points}｜AP ${aps}｜${locating}`;
+      } else if (state.places.length) {
+        dataStatus.textContent = `已載入地點資料｜${locating}`;
+      } else {
+        dataStatus.textContent = `尚無本樓層指紋｜${locating}`;
+      }
+    }
+
+    function renderFloorButtons() {
+      floorButtons.innerHTML = "";
+      state.floors.forEach((floor, index) => {
+        const button = document.createElement("button");
+        button.textContent = shortFloorName(floor, index);
+        button.className = floor.id === state.currentFloorId ? "active" : "";
+        button.addEventListener("click", async () => {
+          state.currentFloorId = floor.id;
+          state.current.floorId = floor.id;
+          state.viewFocusedKey = "";
+          await loadWifiPoints();
+          performSearch();
+          renderAll();
+        });
+        floorButtons.appendChild(button);
+      });
+    }
+
+    function performSearch() {
+      const keyword = searchInput.value.trim().toLowerCase();
+      const matched = navigationTargets()
+        .filter((place) => {
+          if (place.mapId !== state.currentMapId) return false;
+          if (!keyword) return place.floorId === state.currentFloorId;
+          return [place.id, place.name, place.category, place.description].some((value) => String(value || "").toLowerCase().includes(keyword));
+        })
+        .filter((_, index) => index !== 5)
+        .slice(0, 30);
+      const exact = matched.find((place) => keyword && (String(place.id).toLowerCase() === keyword || String(place.name).toLowerCase() === keyword));
+      if (exact) selectDestination(exact.id);
+      results.hidden = matched.length === 0;
+      results.innerHTML = matched.map((place) => `
+        <button class="result" data-id="${escapeHtml(place.id)}">
+          <strong>${escapeHtml(place.name)}</strong>
+          <span>${escapeHtml(floorName(place.floorId))}｜${escapeHtml(place.category || "地點")}｜${state.hasCurrentPosition ? `${distance(place.x, place.y, state.current.x, state.current.y).toFixed(0)} 公尺` : "-- 公尺"}｜可導航</span>
+        </button>
+      `).join("");
+      results.querySelectorAll(".result").forEach((button) => {
+        button.addEventListener("click", () => selectDestination(button.dataset.id));
+      });
+      renderAll();
+    }
+
+    function selectDestination(id) {
+      state.destination = navigationTargets().find((place) => place.id === id && place.mapId === state.currentMapId) || null;
+      state.route = [];
+      if (state.destination) {
+        destinationText.textContent = `目的地：${state.destination.name}`;
+        nextStep.textContent = `${state.destination.name} 已設為目的地。`;
+      }
+      showRoute();
+      renderAll();
+    }
+
+    function clearNavigationSelection() {
+      stopAutoNavigationDemo();
+      state.destination = null;
+      state.route = [];
+      state.routeDistance = 0;
+      state.routeTime = 0;
+      state.navigationActive = false;
+      state.navigationRouteIndex = 0;
+      destinationText.textContent = "目的地：尚未選擇";
+      distanceText.textContent = "距離：-- 公尺";
+      timeText.textContent = "時間：-- 分鐘";
+      results.hidden = true;
+      results.innerHTML = "";
+    }
+
+    async function showRoute() {
+      if (!state.destination) {
+        nextStep.textContent = "請先選擇目的地。";
+        return;
+      }
+      if (!state.hasCurrentPosition) {
+        nextStep.textContent = "尚未取得目前位置，請先完成定位或切換到有定位資料的地圖。";
+        state.route = [];
+        state.routeDistance = 0;
+        state.routeTime = 0;
+        renderAll();
+        return;
+      }
+      const body = {
+        mapId: state.currentMapId,
+        startFloorId: state.current.floorId,
+        targetFloorId: state.destination.floorId,
+        startX: state.current.x,
+        startY: state.current.y,
+        destinationPlaceId: state.destination.id,
+      };
+      try {
+        if (state.destination.source === "wifiPoint") {
+          state.route = await sampledDestinationRouteFromGraph(state.destination);
+          state.routeDistance = routeDistance(state.route);
+          state.routeTime = Math.max(1, Math.ceil(state.routeDistance / 80));
+        } else {
+          const route = await postJson("/api/routes", body);
+          state.route = (route.routePoints || []).map((point) => ({
+            x: Number(point.x || 0),
+            y: Number(point.y || 0),
+            floorId: point.floorId || state.currentFloorId,
+          }));
+          state.routeDistance = Number(route.distance || 0);
+          state.routeTime = Math.max(1, Number(route.estimatedTime || 1));
+        }
+      } catch (error) {
+        if (state.destination.source === "wifiPoint") {
+          state.route = [];
+          state.routeDistance = 0;
+          state.routeTime = 0;
+          distanceText.textContent = "距離：-- 公尺";
+          timeText.textContent = "時間：-- 分鐘";
+          nextStep.textContent = "目前沒有可走路網，不能用採樣線當導航路線。";
+          renderAll();
+          return;
+        }
+        state.route = [];
+        state.routeDistance = 0;
+        state.routeTime = 0;
+        distanceText.textContent = "距離：-- 公尺";
+        timeText.textContent = "時間：-- 分鐘";
+        nextStep.textContent = "目前找不到可行路線。";
+        renderAll();
+        return;
+      }
+      distanceText.textContent = `距離：${Math.round(state.routeDistance)} 公尺`;
+      timeText.textContent = `時間：${state.routeTime} 分鐘`;
+      nextStep.textContent = nextStepText();
+      renderAll();
+    }
+
+    async function startNavigation() {
+      if (!state.destination) {
+        nextStep.textContent = "請先選擇目的地。";
+        return;
+      }
+      if (!state.hasCurrentPosition) {
+        nextStep.textContent = "尚未取得目前位置，請先完成定位或切換到有定位資料的地圖。";
+        return;
+      }
+      if (state.route.length < 2) {
+        await showRoute();
+      }
+      if (state.route.length < 2) {
+        nextStep.textContent = "目前沒有可用路線。";
+        return;
+      }
+      state.navigationActive = true;
+      state.navigationRouteIndex = nearestRouteIndexOnCurrentFloor();
+      nextStep.textContent = nextStepText();
+      playNavigationAnimation("start");
+      startAutoNavigationDemo();
+      submitFeedback(false);
+      renderAll();
+    }
+
+    function endNavigation() {
+      state.navigationActive = false;
+      stopAutoNavigationDemo();
+      nextStep.textContent = "導航已結束。";
+      playNavigationAnimation("end");
+      submitFeedback(true);
+      setTimeout(() => {
+        state.route = [];
+        renderAll();
+      }, 650);
+      renderAll();
+    }
+
+    function startAutoNavigationDemo() {
+      stopAutoNavigationDemo();
+      if (!shouldAutoAdvanceRoute()) return;
+      if (!state.hasCurrentPosition) return;
+      state.navigationTimer = window.setInterval(() => {
+        advanceNavigationPosition().catch(() => {});
+      }, 850);
+    }
+
+    function stopAutoNavigationDemo() {
+      if (state.navigationTimer) {
+        window.clearInterval(state.navigationTimer);
+        state.navigationTimer = null;
+      }
+    }
+
+    async function advanceNavigationPosition() {
+      if (!shouldAutoAdvanceRoute()) return;
+      if (!state.hasCurrentPosition) return;
+      if (!state.navigationActive || state.route.length < 2) return;
+      let nextIndex = Math.min(state.navigationRouteIndex + 1, state.route.length - 1);
+      let next = state.route[nextIndex];
+      if (!next) return;
+
+      if (next.floorId && next.floorId !== state.current.floorId) {
+        await switchToRouteFloor(next.floorId, next.x, next.y);
+        state.navigationRouteIndex = nextIndex;
+        updateRouteProgressText();
+        renderAll();
+        return;
+      }
+
+      const dx = next.x - state.current.x;
+      const dy = next.y - state.current.y;
+      const remaining = Math.hypot(dx, dy);
+      const step = Math.max(45, Math.min(130, state.routeDistance / 28 || 70));
+      if (remaining <= step) {
+        state.current = { x: next.x, y: next.y, floorId: next.floorId || state.current.floorId };
+        state.navigationRouteIndex = nextIndex;
+        const after = state.route[nextIndex + 1];
+        if (after && after.floorId && after.floorId !== state.current.floorId) {
+          await switchToRouteFloor(after.floorId, after.x, after.y);
+          state.navigationRouteIndex = nextIndex + 1;
+        }
+      } else {
+        state.current = {
+          x: state.current.x + (dx / remaining) * step,
+          y: state.current.y + (dy / remaining) * step,
+          floorId: state.current.floorId,
+        };
+      }
+
+      if (state.navigationRouteIndex >= state.route.length - 1) {
+        state.navigationActive = false;
+        stopAutoNavigationDemo();
+        nextStep.textContent = "已抵達目的地。";
+        submitFeedback(true);
+      } else {
+        updateRouteProgressText();
+      }
+      renderAll();
+    }
+
+    function shouldAutoAdvanceRoute() {
+      if (state.currentMapId === "coordinate-demo") return true;
+      return state.route.some((point, index) => {
+        const next = state.route[index + 1];
+        return next && point.floorId && next.floorId && point.floorId !== next.floorId;
+      });
+    }
+
+    async function switchToRouteFloor(floorId, x, y) {
+      state.currentFloorId = floorId;
+      state.current = { x, y, floorId };
+      state.hasCurrentPosition = true;
+      state.viewFocusedKey = "";
+      await loadWifiPoints();
+      renderFloorButtons();
+      centerOnCurrent();
+      nextStep.textContent = `已切換到 ${floorName(floorId)}，請繼續沿路線前進。`;
+    }
+
+    function nearestRouteIndexOnCurrentFloor() {
+      const sameFloor = state.route
+        .map((point, index) => ({ point, index, distance: point.floorId === state.current.floorId ? distance(point.x, point.y, state.current.x, state.current.y) : Infinity }))
+        .sort((left, right) => left.distance - right.distance)[0];
+      return Number.isFinite(sameFloor?.distance) ? sameFloor.index : 0;
+    }
+
+    function updateRouteProgressText() {
+      const next = state.route[Math.min(state.navigationRouteIndex + 1, state.route.length - 1)];
+      if (!next) return;
+      if (next.floorId && next.floorId !== state.current.floorId) {
+        nextStep.textContent = `請前往樓梯，準備切換到 ${floorName(next.floorId)}。`;
+      } else {
+        nextStep.textContent = state.destination ? `沿著路線前進，目的地是 ${state.destination.name}。` : "沿著路線前進。";
+      }
+    }
+
+    function toggleViewFollow() {
+      state.viewFollow = !state.viewFollow;
+      compassButton.classList.toggle("active", state.viewFollow);
+      compassButton.textContent = "跟隨";
+      renderAll();
+    }
+
+    function cyclePointDisplayMode() {
+      const order = ["current", "important", "all"];
+      const nextIndex = (order.indexOf(state.pointDisplayMode) + 1) % order.length;
+      state.pointDisplayMode = order[nextIndex] || "important";
+      localStorage.setItem("pointDisplayMode", state.pointDisplayMode);
+      updatePointModeButton();
+      drawMap();
+    }
+
+    function updatePointModeButton() {
+      if (!pointModeButton) return;
+      const titles = {
+        current: "只顯示我的所在地",
+        important: "只顯示重要點",
+        all: "顯示全部點",
+      };
+      pointModeButton.textContent = "顯示";
+      pointModeButton.title = titles[state.pointDisplayMode] || titles.important;
+      pointModeButton.classList.toggle("active", state.pointDisplayMode !== "current");
+    }
+
+    function renderAll() {
+      renderFloorButtons();
+      floorLabel.textContent = floorName(state.currentFloorId);
+      destinationText.textContent = state.destination ? `目的地：${state.destination.name}` : "目的地：尚未選擇";
+      drawMap();
+    }
+
+    function resizeCanvas() {
+      const rect = canvas.getBoundingClientRect();
+      const ratio = window.devicePixelRatio || 1;
+      canvas.width = Math.max(1, Math.round(rect.width * ratio));
+      canvas.height = Math.max(1, Math.round(rect.height * ratio));
+      ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+      if (!fitFloorImage()) focusOnWifiPoints();
+      drawMap();
+    }
+
+    function drawMap() {
+      const rect = canvas.getBoundingClientRect();
+      ctx.clearRect(0, 0, rect.width, rect.height);
+      ctx.fillStyle = "#fafbfc";
+      ctx.fillRect(0, 0, rect.width, rect.height);
+      drawFloorImage();
+      drawWalkways();
+      drawWifiSampleMap();
+      drawRoute();
+      drawPlaces();
+      drawCurrent();
+    }
+
+    function drawWalkways() {
+      if (state.currentMapId === "coordinate-demo") {
+        drawCoordinateDemoWalkways();
+        return;
+      }
+      if (state.currentMapId !== "tkut-demo") return;
+      ctx.lineWidth = 28;
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
+      ctx.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue("--walkway").trim();
+      if (isSecondFloor(state.currentFloorId)) {
+        drawPolyline([{ x: 610, y: 500 }, { x: 610, y: 390 }, { x: 610, y: 300 }]);
+        drawPolyline([{ x: 610, y: 390 }, { x: 700, y: 390 }]);
+      } else {
+        drawPolyline([{ x: 120, y: 680 }, { x: 250, y: 570 }, { x: 390, y: 500 }, { x: 610, y: 500 }, { x: 790, y: 360 }]);
+        drawPolyline([{ x: 390, y: 500 }, { x: 430, y: 420 }, { x: 520, y: 330 }]);
+      }
+    }
+
+    function drawCoordinateDemoWalkways() {
+      ctx.save();
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
+      if (state.currentFloorId === "coordinate-demo-f2") {
+        drawCoordinateSecondFloor();
+        ctx.strokeStyle = "#d8e0e7";
+        ctx.lineWidth = 28;
+        drawPolyline([
+          { x: 300, y: 390 },
+          { x: 300, y: 250 },
+          { x: 560, y: 250 },
+          { x: 820, y: 250 },
+          { x: 1080, y: 250 },
+          { x: 1340, y: 250 },
+          { x: 1600, y: 250 },
+        ]);
+        ctx.strokeStyle = "#7b8794";
+        ctx.lineWidth = 4;
+        drawPolyline([
+          { x: 300, y: 390 },
+          { x: 300, y: 250 },
+          { x: 1600, y: 250 },
+        ]);
+        ctx.fillStyle = "#1f2933";
+        ctx.font = "700 16px Microsoft JhengHei, sans-serif";
+        const stair = screen(300, 390);
+        ctx.fillText("樓梯", stair.x + 14, stair.y - 10);
+      } else {
+        ctx.strokeStyle = "rgba(216, 224, 231, .78)";
+        ctx.lineWidth = 18;
+        drawPolyline([
+          { x: 20, y: 282 },
+          { x: 225, y: 282 },
+          { x: 520, y: 282 },
+          { x: 880, y: 282 },
+          { x: 1138, y: 282 },
+          { x: 1500, y: 282 },
+          { x: 1970, y: 282 },
+        ]);
+        drawPolyline([{ x: 225, y: 282 }, { x: 225, y: 445 }, { x: 225, y: 600 }]);
+        drawPolyline([{ x: 988, y: 282 }, { x: 988, y: 445 }, { x: 988, y: 600 }]);
+        drawPolyline([{ x: 1500, y: 282 }, { x: 1735, y: 445 }, { x: 1735, y: 600 }]);
+        drawPolyline([{ x: 1138, y: 282 }, { x: 1138, y: 135 }]);
+      }
+      ctx.restore();
+    }
+
+    function drawCoordinateSecondFloor() {
+      const bounds = [
+        { x: 220, y: 185 },
+        { x: 1680, y: 185 },
+        { x: 1680, y: 325 },
+        { x: 380, y: 325 },
+        { x: 380, y: 440 },
+        { x: 220, y: 440 },
+      ].map((point) => screen(point.x, point.y));
+      ctx.fillStyle = "#f5efe2";
+      ctx.beginPath();
+      bounds.forEach((point, index) => {
+        if (index === 0) ctx.moveTo(point.x, point.y);
+        else ctx.lineTo(point.x, point.y);
+      });
+      ctx.closePath();
+      ctx.fill();
+      ctx.strokeStyle = "#c9b79c";
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      ctx.fillStyle = "#eef2f6";
+      [
+        [430, 205, 140, 80],
+        [690, 205, 140, 80],
+        [950, 205, 140, 80],
+        [1210, 205, 140, 80],
+        [1470, 205, 140, 80],
+      ].forEach(([x, y, width, height]) => {
+        const topLeft = screen(x, y);
+        const bottomRight = screen(x + width, y + height);
+        ctx.fillRect(topLeft.x, topLeft.y, bottomRight.x - topLeft.x, bottomRight.y - topLeft.y);
+        ctx.strokeRect(topLeft.x, topLeft.y, bottomRight.x - topLeft.x, bottomRight.y - topLeft.y);
+      });
+    }
+
+    function drawFloorImage() {
+      const floor = currentFloor();
+      if (!floor?.imageUrl) return;
+      const image = floorImage(floor.imageUrl);
+      if (!image.complete || image.naturalWidth === 0) return;
+      const bounds = floorImageBounds(floor) || world;
+      const topLeft = baseScreen(bounds.left, bounds.top);
+      const bottomRight = baseScreen(bounds.left + bounds.width, bounds.top + bounds.height);
+      ctx.save();
+      applyFollowRotation();
+      ctx.globalAlpha = .92;
+      ctx.drawImage(image, topLeft.x, topLeft.y, bottomRight.x - topLeft.x, bottomRight.y - topLeft.y);
+      ctx.globalAlpha = 1;
+      ctx.restore();
+    }
+
+    function drawRoute() {
+      const visible = state.route.filter((point) => !point.floorId || point.floorId === state.currentFloorId);
+      if (visible.length < 2) return;
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
+      ctx.lineWidth = state.destination?.source === "wifiPoint" ? 12 : 18;
+      ctx.strokeStyle = "#ffffff";
+      drawSmoothPolyline(visible);
+      ctx.lineWidth = state.destination?.source === "wifiPoint" ? 6 : 10;
+      ctx.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue("--route").trim();
+      if (state.navigationActive) {
+        ctx.setLineDash([18, 14]);
+        ctx.lineDashOffset = -((Date.now() / 45) % 32);
+      }
+      drawSmoothPolyline(visible);
+      ctx.setLineDash([]);
+      if (state.navigationActive) drawDestinationMarker();
+    }
+
+    function drawPlaces() {
+      ctx.font = "14px Microsoft JhengHei, sans-serif";
+      ctx.textBaseline = "middle";
+      state.places.filter((place) => place.floorId === state.currentFloorId).forEach((place) => {
+        const point = screen(place.x, place.y);
+        const selected = state.destination && state.destination.id === place.id;
+        ctx.fillStyle = selected ? "#b42318" : "#55606c";
+        ctx.beginPath();
+        ctx.arc(point.x, point.y, selected ? 7 : 5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = "#1f2933";
+        ctx.fillText(place.name, point.x + 10, point.y - 8);
+      });
+    }
+
+    function drawWifiSampleMap() {
+      if (state.places.some((place) => place.floorId === state.currentFloorId) || state.wifiPoints.length === 0) return;
+      if (state.pointDisplayMode === "current") {
+        if (state.navigationActive) drawDestinationMarker();
+        return;
+      }
+      if (state.navigationActive) {
+        drawDestinationMarker();
+        return;
+      }
+      let points = state.wifiPoints
+        .filter((point) => point.floorId === state.currentFloorId)
+        .slice()
+        .sort((left, right) => String(left.pointId).localeCompare(String(right.pointId), undefined, { numeric: true }));
+      if (points.length === 0) return;
+
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
+      if (state.pointDisplayMode === "all") {
+        ctx.strokeStyle = "#d8e0e7";
+        ctx.lineWidth = 18;
+        drawPolyline(points);
+        ctx.strokeStyle = "#146c63";
+        ctx.lineWidth = 4;
+        drawPolyline(points);
+      } else {
+        points = points.filter((point, index) => isImportantPoint(point, index, points.length));
+      }
+
+      ctx.font = "12px Microsoft JhengHei, sans-serif";
+      ctx.textBaseline = "middle";
+      points.forEach((sample, index) => {
+        const point = screen(sample.x, sample.y);
+        const radius = Math.max(4, Math.min(9, Math.sqrt(Number(sample.scanCount || 1)) / 2.8));
+        ctx.fillStyle = "#ffffff";
+        ctx.beginPath();
+        ctx.arc(point.x, point.y, radius + 3, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = index === 0 ? "#2563eb" : "#146c63";
+        ctx.beginPath();
+        ctx.arc(point.x, point.y, radius, 0, Math.PI * 2);
+        ctx.fill();
+        if (state.pointDisplayMode === "important" || index % 4 === 0 || points.length <= 20) {
+          ctx.fillStyle = "#1f2933";
+          ctx.fillText(sample.pointId, point.x + 10, point.y - 8);
+        }
+      });
+    }
+
+    function isImportantPoint(point, index, total) {
+      const numeric = Number(String(point.pointId || "").replace(/\D/g, ""));
+      if (index === 0 || index === total - 1) return true;
+      if (state.destination && point.pointId === state.destination.id) return true;
+      if (Number.isFinite(numeric) && numeric % 4 === 1) return true;
+      return false;
+    }
+
+    function drawDestinationMarker() {
+      if (!state.destination || state.destination.floorId !== state.currentFloorId) return;
+      const point = screen(state.destination.x, state.destination.y);
+      ctx.save();
+      ctx.fillStyle = "rgba(180, 35, 24, .14)";
+      ctx.beginPath();
+      ctx.arc(point.x, point.y, 30, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = "#b42318";
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.arc(point.x, point.y, 18, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.fillStyle = "#b42318";
+      ctx.beginPath();
+      ctx.arc(point.x, point.y, 8, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#ffffff";
+      ctx.beginPath();
+      ctx.arc(point.x, point.y, 3, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#1f2933";
+      ctx.font = "700 15px Microsoft JhengHei, sans-serif";
+      ctx.textBaseline = "middle";
+      ctx.fillText(`目的地：${state.destination.name}`, point.x + 24, point.y - 2);
+      ctx.restore();
+    }
+
+    function drawCurrent() {
+      if (!state.hasCurrentPosition) return;
+      const point = screen(state.current.x, state.current.y);
+      ctx.fillStyle = "#ffffff";
+      ctx.beginPath();
+      ctx.arc(point.x, point.y, 14, 0, Math.PI * 2);
+      ctx.fill();
+      if (state.navigationActive) {
+        const pulse = 18 + Math.sin(Date.now() / 180) * 4;
+        ctx.strokeStyle = "rgba(37, 99, 235, .24)";
+        ctx.lineWidth = 5;
+        ctx.beginPath();
+        ctx.arc(point.x, point.y, pulse, 0, Math.PI * 2);
+        ctx.stroke();
+        scheduleNavigationFrame();
+      }
+      if (state.heading == null) {
+        ctx.fillStyle = "#2563eb";
+        ctx.beginPath();
+        ctx.arc(point.x, point.y, 8, 0, Math.PI * 2);
+        ctx.fill();
+      } else {
+        const rad = state.viewFollow ? 0 : state.heading * Math.PI / 180;
+        const tip = { x: point.x + Math.sin(rad) * 20, y: point.y - Math.cos(rad) * 20 };
+        const leftRad = rad + 140 * Math.PI / 180;
+        const rightRad = rad - 140 * Math.PI / 180;
+        ctx.fillStyle = "#2563eb";
+        ctx.strokeStyle = "#ffffff";
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(tip.x, tip.y);
+        ctx.lineTo(point.x + Math.sin(leftRad) * 13, point.y - Math.cos(leftRad) * 13);
+        ctx.lineTo(point.x, point.y);
+        ctx.lineTo(point.x + Math.sin(rightRad) * 13, point.y - Math.cos(rightRad) * 13);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+      }
+      ctx.fillStyle = "#1f2933";
+      ctx.font = "14px Microsoft JhengHei, sans-serif";
+      ctx.fillText("目前位置", point.x + 18, point.y + 4);
+    }
+
+    function drawPolyline(points) {
+      ctx.beginPath();
+      points.forEach((point, index) => {
+        const next = screen(point.x, point.y);
+        if (index === 0) ctx.moveTo(next.x, next.y);
+        else ctx.lineTo(next.x, next.y);
+      });
+      ctx.stroke();
+    }
+
+    function drawSmoothPolyline(points) {
+      if (points.length < 3) {
+        drawPolyline(points);
+        return;
+      }
+      const projected = points.map((point) => screen(point.x, point.y));
+      ctx.beginPath();
+      ctx.moveTo(projected[0].x, projected[0].y);
+      for (let index = 1; index < projected.length - 1; index += 1) {
+        const current = projected[index];
+        const next = projected[index + 1];
+        const mid = {
+          x: (current.x + next.x) / 2,
+          y: (current.y + next.y) / 2,
+        };
+        ctx.quadraticCurveTo(current.x, current.y, mid.x, mid.y);
+      }
+      const last = projected[projected.length - 1];
+      ctx.lineTo(last.x, last.y);
+      ctx.stroke();
+    }
+
+    function playNavigationAnimation(type) {
+      const className = type === "start" ? "navigation-start" : "navigation-end";
+      navFlash.textContent = type === "start" ? "開始導航" : "結束導航";
+      mapShell.classList.remove("navigation-start", "navigation-end");
+      navFlash.classList.remove("show");
+      void mapShell.offsetWidth;
+      mapShell.classList.add(className);
+      navFlash.classList.add("show");
+      setTimeout(() => mapShell.classList.remove(className), 900);
+      setTimeout(() => navFlash.classList.remove("show"), 1300);
+    }
+
+    function scheduleNavigationFrame() {
+      if (state.navigationFrame) return;
+      state.navigationFrame = requestAnimationFrame(() => {
+        state.navigationFrame = null;
+        if (state.navigationActive) drawMap();
+      });
+    }
+
+    function baseScreen(x, y) {
+      const rect = canvas.getBoundingClientRect();
+      const padding = 28;
+      const viewportWidth = Math.max(1, rect.width - padding * 2);
+      const viewportHeight = Math.max(1, rect.height - padding * 2);
+      const scale = Math.min(viewportWidth / Math.max(1, world.width), viewportHeight / Math.max(1, world.height));
+      const drawnWidth = world.width * scale;
+      const drawnHeight = world.height * scale;
+      const originX = padding + (viewportWidth - drawnWidth) / 2;
+      const originY = padding + (viewportHeight - drawnHeight) / 2;
+      const sx = originX + (x - world.left) * scale;
+      const sy = originY + (y - world.top) * scale;
+      return {
+        x: rect.width / 2 + (sx - rect.width / 2) * state.zoom + state.viewOffsetX,
+        y: rect.height / 2 + (sy - rect.height / 2) * state.zoom + state.viewOffsetY,
+      };
+    }
+
+    function screen(x, y) {
+      const point = baseScreen(x, y);
+      const rad = followRotationRadians();
+      if (!rad) return point;
+      if (!state.hasCurrentPosition) return point;
+      const center = baseScreen(state.current.x, state.current.y);
+      const dx = point.x - center.x;
+      const dy = point.y - center.y;
+      return {
+        x: center.x + dx * Math.cos(rad) - dy * Math.sin(rad),
+        y: center.y + dx * Math.sin(rad) + dy * Math.cos(rad),
+      };
+    }
+
+    function followRotationRadians() {
+      if (!state.viewFollow || state.heading == null) return 0;
+      const heading = Number(state.heading);
+      if (!Number.isFinite(heading)) return 0;
+      return -heading * Math.PI / 180;
+    }
+
+    function applyFollowRotation() {
+      const rad = followRotationRadians();
+      if (!rad) return;
+      if (!state.hasCurrentPosition) return;
+      const center = baseScreen(state.current.x, state.current.y);
+      ctx.translate(center.x, center.y);
+      ctx.rotate(rad);
+      ctx.translate(-center.x, -center.y);
+    }
+
+    function centerOnCurrent() {
+      if (!state.hasCurrentPosition) {
+        nextStep.textContent = "尚未取得目前位置，請先完成定位或切換到有定位資料的地圖。";
+        return;
+      }
+      const rect = canvas.getBoundingClientRect();
+      const savedX = state.viewOffsetX;
+      const savedY = state.viewOffsetY;
+      state.viewOffsetX = 0;
+      state.viewOffsetY = 0;
+      const point = baseScreen(state.current.x, state.current.y);
+      state.viewOffsetX = savedX;
+      state.viewOffsetY = savedY;
+      state.viewOffsetX = rect.width / 2 - point.x;
+      state.viewOffsetY = rect.height / 2 - point.y;
+    }
+
+    function updateWorldFromData() {
+      const floor = currentFloor();
+      const imageBounds = floorImageBounds(floor);
+      if (imageBounds) {
+        world.left = imageBounds.left;
+        world.top = imageBounds.top;
+        world.width = imageBounds.width;
+        world.height = imageBounds.height;
+        floorImage(floor.imageUrl);
+        return;
+      }
+      const candidates = state.places
+        .filter((place) => place.floorId === state.currentFloorId)
+        .concat(state.wifiPoints.filter((point) => point.floorId === state.currentFloorId));
+      if (candidates.length === 0) {
+        world.left = 0;
+        world.top = 250;
+        world.width = 900;
+        world.height = 480;
+        return;
+      }
+      const xs = candidates.map((item) => Number(item.x)).filter(Number.isFinite);
+      const ys = candidates.map((item) => Number(item.y)).filter(Number.isFinite);
+      const minX = Math.min(...xs);
+      const maxX = Math.max(...xs);
+      const minY = Math.min(...ys);
+      const maxY = Math.max(...ys);
+      const margin = 30;
+      world.left = minX - margin;
+      world.top = minY - margin;
+      world.width = Math.max(60, maxX - minX + margin * 2);
+      world.height = Math.max(60, maxY - minY + margin * 2);
+      if (floor?.imageUrl) floorImage(floor.imageUrl);
+    }
+
+    function floorImageBounds(floor) {
+      if (!floor?.imageUrl) return null;
+      const left = Number(floor.imageLeft);
+      const top = Number(floor.imageTop);
+      let width = Number(floor.imageWidth || floor.width);
+      let height = Number(floor.imageHeight || floor.height);
+      const image = state.floorImages.get(floor.imageUrl);
+      const naturalWidth = Number(floor.imageNaturalWidth || image?.naturalWidth);
+      const naturalHeight = Number(floor.imageNaturalHeight || image?.naturalHeight);
+      if (Number.isFinite(naturalWidth) && Number.isFinite(naturalHeight) && naturalWidth > 0 && naturalHeight > 0) {
+        const naturalAspect = naturalWidth / naturalHeight;
+        if (Number.isFinite(width) && width > 0) {
+          height = width / naturalAspect;
+        } else if (Number.isFinite(height) && height > 0) {
+          width = height * naturalAspect;
+        }
+      }
+      if ([left, top, width, height].every(Number.isFinite) && width > 0 && height > 0) {
+        return { left, top, width, height };
+      }
+      return null;
+    }
+
+    function currentFloor() {
+      return state.floors.find((floor) => floor.id === state.currentFloorId) || null;
+    }
+
+    function floorImage(url) {
+      if (!state.floorImages.has(url)) {
+        const image = new Image();
+        image.onload = () => {
+          updateWorldFromData();
+          if (!fitFloorImage(true)) focusOnWifiPoints(true);
+          drawMap();
+        };
+        image.src = url;
+        state.floorImages.set(url, image);
+      }
+      return state.floorImages.get(url);
+    }
+
+    function setZoom(value) {
+      state.zoom = Math.max(0.55, Math.min(5, value));
+      drawMap();
+    }
+
+    function resetView() {
+      if (!fitFloorImage(true) && !focusOnWifiPoints(true)) {
+        state.zoom = 1;
+        state.viewOffsetX = 0;
+        state.viewOffsetY = 0;
+      }
+      drawMap();
+    }
+
+    function fitFloorImage(force = false) {
+      const floor = currentFloor();
+      const bounds = floorImageBounds(floor);
+      if (!bounds) return false;
+      const key = `image:${state.currentMapId}:${state.currentFloorId}:${bounds.width}:${bounds.height}`;
+      if (!force && state.viewFocusedKey === key) return true;
+      const rect = canvas.getBoundingClientRect();
+      if (rect.width <= 0 || rect.height <= 0 || world.width <= 0 || world.height <= 0) return false;
+
+      const baseWidth = (bounds.width / world.width) * Math.max(1, rect.width - 56);
+      const baseHeight = (bounds.height / world.height) * Math.max(1, rect.height - 56);
+      const usableWidth = Math.max(1, rect.width - 160);
+      const usableHeight = Math.max(1, rect.height - 130);
+      const fitZoom = Math.min(usableWidth / baseWidth, usableHeight / baseHeight);
+      state.zoom = Math.max(0.55, Math.min(2.2, fitZoom));
+      state.viewOffsetX = 0;
+      state.viewOffsetY = 0;
+      const center = baseScreen(bounds.left + bounds.width / 2, bounds.top + bounds.height / 2);
+      state.viewOffsetX = rect.width / 2 - center.x;
+      state.viewOffsetY = rect.height / 2 - center.y;
+      state.viewFocusedKey = key;
+      return true;
+    }
+
+    function focusOnWifiPoints(force = false) {
+      if (currentFloor()?.imageUrl) return fitFloorImage(force);
+      const key = `${state.currentMapId}:${state.currentFloorId}:${state.wifiPoints.length}`;
+      if (!force && state.viewFocusedKey === key) return false;
+      const points = state.wifiPoints
+        .filter((point) => point.floorId === state.currentFloorId)
+        .map((point) => ({ x: Number(point.x), y: Number(point.y) }))
+        .filter((point) => Number.isFinite(point.x) && Number.isFinite(point.y));
+      if (points.length < 2) return false;
+      const rect = canvas.getBoundingClientRect();
+      if (rect.width <= 0 || rect.height <= 0 || world.width <= 0 || world.height <= 0) return false;
+
+      const xs = points.map((point) => point.x);
+      const ys = points.map((point) => point.y);
+      const minX = Math.min(...xs);
+      const maxX = Math.max(...xs);
+      const minY = Math.min(...ys);
+      const maxY = Math.max(...ys);
+      const focusPadding = 30;
+      const targetWidth = Math.max(1, maxX - minX + focusPadding * 2);
+      const targetHeight = Math.max(1, maxY - minY + focusPadding * 2);
+      const baseWidth = (targetWidth / world.width) * Math.max(1, rect.width - 56);
+      const baseHeight = (targetHeight / world.height) * Math.max(1, rect.height - 56);
+      const usableWidth = Math.max(1, rect.width - 120);
+      const usableHeight = Math.max(1, rect.height - 150);
+      const fitZoom = Math.min(usableWidth / baseWidth, usableHeight / baseHeight);
+      const preferredZoom = fitZoom;
+      const nextZoom = Math.max(1, Math.min(6, preferredZoom));
+
+      state.zoom = nextZoom;
+      state.viewOffsetX = 0;
+      state.viewOffsetY = 0;
+      const center = baseScreen((minX + maxX) / 2, (minY + maxY) / 2);
+      state.viewOffsetX = rect.width / 2 - center.x;
+      state.viewOffsetY = rect.height / 2 - center.y;
+      state.viewFocusedKey = key;
+      return true;
+    }
+
+    function startPan(event) {
+      state.dragStart = {
+        pointerId: event.pointerId,
+        x: event.clientX,
+        y: event.clientY,
+        offsetX: state.viewOffsetX,
+        offsetY: state.viewOffsetY,
+      };
+      canvas.setPointerCapture(event.pointerId);
+    }
+
+    function movePan(event) {
+      if (!state.dragStart || state.dragStart.pointerId !== event.pointerId) return;
+      state.viewOffsetX = state.dragStart.offsetX + event.clientX - state.dragStart.x;
+      state.viewOffsetY = state.dragStart.offsetY + event.clientY - state.dragStart.y;
+      drawMap();
+    }
+
+    function endPan(event) {
+      if (state.dragStart?.pointerId === event.pointerId) {
+        state.dragStart = null;
+      }
+    }
+
+    function handleWheel(event) {
+      event.preventDefault();
+      const factor = event.deltaY < 0 ? 1.12 : 0.88;
+      setZoom(state.zoom * factor);
+    }
+
+    function handleOrientation(event) {
+      const alpha = Number(event.alpha);
+      if (Number.isFinite(alpha)) {
+        const offset = Number(currentFloor()?.mapHeadingOffsetDegrees || 0);
+        state.heading = normalizeDegrees(alpha + (Number.isFinite(offset) ? offset : 0));
+        drawMap();
+      }
+    }
+
+    function normalizeDegrees(value) {
+      const normalized = value % 360;
+      return normalized < 0 ? normalized + 360 : normalized;
+    }
+
+    async function submitFeedback(arrivedDestination) {
+      if (!state.feedbackAllowed || !state.destination || !state.hasCurrentPosition) return;
+      await postJson("/api/navigation-feedback", {
+        anonymousUserId: anonymousId(),
+        mapId: state.currentMapId,
+        floorId: state.currentFloorId,
+        estimatedX: state.current.x,
+        estimatedY: state.current.y,
+        currentRouteId: "web-demo-route",
+        nearestRouteNodeId: "web-demo",
+        currentWifiList: [],
+        heading: state.heading,
+        stepDelta: 0,
+        confidence: 35,
+        estimatedError: 20,
+        isOffRoute: false,
+        relocalizeCount: 0,
+        arrivedDestination,
+        deviceInfo: navigator.userAgent,
+        collectedAt: Date.now(),
+      }).catch(() => {});
+    }
+
+    function nextStepText() {
+      if (!state.destination) return "請搜尋目的地，或從結果中選擇地點。";
+      if (state.destination.floorId !== state.current.floorId) {
+        return `請先前往樓層連接點，再切換到 ${floorName(state.destination.floorId)}。`;
+      }
+      if (state.destination.source === "wifiPoint") {
+        return `沿著路線前進，目的地是 ${state.destination.name}。`;
+      }
+      return `沿著路線前進，目的地是 ${state.destination.name}。`;
+    }
+
+    function navigationTargets() {
+      const wifiTargets = state.wifiPoints.map((point) => ({
+        id: point.pointId,
+        name: point.pointId,
+        mapId: point.mapId,
+        floorId: point.floorId,
+        category: "定位點",
+        x: Number(point.x),
+        y: Number(point.y),
+        description: `掃描 ${point.scanCount || 0} 筆，AP ${point.bssidCount || 0} 個`,
+        searchable: true,
+        businessStatus: "unset",
+        source: "wifiPoint",
+      }));
+      return state.places
+        .concat(wifiTargets)
+        .filter((target) => target.mapId === state.currentMapId);
+    }
+
+    function orderedWifiPoints() {
+      return state.wifiPoints
+        .filter((point) => point.floorId === state.currentFloorId)
+        .slice()
+        .sort((left, right) => String(left.pointId).localeCompare(String(right.pointId), undefined, { numeric: true }));
+    }
+
+    function sampledRouteToDestination() {
+      if (!state.destination || state.destination.source !== "wifiPoint") return [];
+      if (!state.hasCurrentPosition) return [];
+      const points = orderedWifiPoints();
+      if (points.length === 0) return [];
+      const startIndex = nearestPointIndex(points, state.current);
+      const endIndex = points.findIndex((point) => point.pointId === state.destination.id);
+      if (startIndex < 0 || endIndex < 0) return [];
+      const from = Math.min(startIndex, endIndex);
+      const to = Math.max(startIndex, endIndex);
+      const segment = points.slice(from, to + 1);
+      const ordered = startIndex <= endIndex ? segment : segment.reverse();
+      return ordered.map((point) => ({
+        id: point.pointId,
+        x: Number(point.x),
+        y: Number(point.y),
+        floorId: point.floorId,
+      }));
+    }
+
+    async function sampledDestinationRouteFromGraph(destination) {
+      const graph = await fetchJson(`/api/data/export?mapId=${encodeURIComponent(state.currentMapId)}&floorId=${encodeURIComponent(state.currentFloorId)}`);
+      const nodes = Array.isArray(graph.routeNodes) ? graph.routeNodes.filter((node) => node.floorId === state.currentFloorId) : [];
+      const edges = Array.isArray(graph.routeEdges) ? graph.routeEdges.filter((edge) => edge.floorId === state.currentFloorId && edge.isBlocked !== true) : [];
+      if (nodes.length < 2 || edges.length < 1) throw new Error("missing route graph");
+      const start = nearestGraphNode(nodes, state.current.x, state.current.y);
+      const target = nearestGraphNode(nodes, destination.x, destination.y);
+      const ids = routeNodeIds(start.id, target.id, nodes, edges);
+      if (!ids.length) throw new Error("no graph route");
+      return ids.map((id) => {
+        const node = nodes.find((item) => item.id === id);
+        return { x: Number(node.x), y: Number(node.y), floorId: node.floorId };
+      });
+    }
+
+    function nearestGraphNode(nodes, x, y) {
+      return nodes
+        .map((node) => ({ ...node, score: distance(Number(node.x), Number(node.y), x, y) }))
+        .sort((left, right) => left.score - right.score)[0];
+    }
+
+    function routeNodeIds(startId, targetId, nodes, edges) {
+      const nodeById = new Map(nodes.map((node) => [node.id, node]));
+      const open = new Set([startId]);
+      const cameFrom = new Map();
+      const gScore = new Map([[startId, 0]]);
+      const fScore = new Map([[startId, distance(Number(nodeById.get(startId)?.x), Number(nodeById.get(startId)?.y), Number(nodeById.get(targetId)?.x), Number(nodeById.get(targetId)?.y))]]);
+      while (open.size) {
+        const current = Array.from(open).sort((a, b) => (fScore.get(a) ?? Infinity) - (fScore.get(b) ?? Infinity))[0];
+        if (current === targetId) return reconstructNodeIds(cameFrom, current);
+        open.delete(current);
+        edges
+          .filter((edge) => edge.fromNodeId === current || edge.toNodeId === current)
+          .forEach((edge) => {
+            const neighbor = edge.fromNodeId === current ? edge.toNodeId : edge.fromNodeId;
+            if (!nodeById.has(neighbor)) return;
+            const tentative = (gScore.get(current) ?? Infinity) + Number(edge.distance || 0);
+            if (tentative < (gScore.get(neighbor) ?? Infinity)) {
+              cameFrom.set(neighbor, current);
+              gScore.set(neighbor, tentative);
+              const node = nodeById.get(neighbor);
+              const target = nodeById.get(targetId);
+              fScore.set(neighbor, tentative + distance(Number(node.x), Number(node.y), Number(target.x), Number(target.y)));
+              open.add(neighbor);
+            }
+          });
+      }
+      return [];
+    }
+
+    function reconstructNodeIds(cameFrom, current) {
+      const route = [current];
+      while (cameFrom.has(current)) {
+        current = cameFrom.get(current);
+        route.push(current);
+      }
+      return route.reverse();
+    }
+
+    function nearestPointIndex(points, current) {
+      let bestIndex = -1;
+      let bestDistance = Infinity;
+      points.forEach((point, index) => {
+        const nextDistance = distance(Number(point.x), Number(point.y), Number(current.x), Number(current.y));
+        if (nextDistance < bestDistance) {
+          bestDistance = nextDistance;
+          bestIndex = index;
+        }
+      });
+      return bestIndex;
+    }
+
+    function setFeedbackAllowed(allowed) {
+      state.feedbackAllowed = allowed;
+      feedbackSwitch.checked = allowed;
+      localStorage.setItem("feedbackConsentAsked", "true");
+      localStorage.setItem("feedbackAllowed", String(allowed));
+      privacyDialog.close();
+    }
+
+    function floorName(id) {
+      const floor = state.floors.find((item) => item.id === id);
+      return floor ? (floor.floorName || floor.name || floor.id) : id;
+    }
+
+    function shortFloorName(floor, index) {
+      const name = floor.floorName || floor.name || floor.id;
+      if (/ground|地面|一樓|1f/i.test(`${floor.id} ${name}`)) return "1F";
+      if (/second|二樓|2f|2/i.test(`${floor.id} ${name}`)) return "2F";
+      return name.length <= 3 ? name : `${index + 1}F`;
+    }
+
+    function isSecondFloor(id) {
+      return /second|2|二樓/i.test(`${id} ${floorName(id)}`);
+    }
+
+    function routeDistance(points) {
+      return points.slice(1).reduce((sum, point, index) => sum + distance(point.x, point.y, points[index].x, points[index].y), 0);
+    }
+
+    function distance(x1, y1, x2, y2) {
+      return Math.hypot(x1 - x2, y1 - y2);
+    }
+
+    async function fetchJson(url) {
+      const response = await fetch(url);
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      return response.json();
+    }
+
+    async function postJson(url, body) {
+      const response = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      return response.json();
+    }
+
+    function anonymousId() {
+      let id = localStorage.getItem("anonymousUserId");
+      if (!id) {
+        id = crypto.randomUUID ? crypto.randomUUID() : `web-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+        localStorage.setItem("anonymousUserId", id);
+      }
+      return id;
+    }
+
+    function escapeHtml(value) {
+      return String(value ?? "").replace(/[&<>"']/g, (char) => ({
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        "\"": "&quot;",
+        "'": "&#039;",
+      }[char]));
+    }
+  </script>
+</body>
+</html>
