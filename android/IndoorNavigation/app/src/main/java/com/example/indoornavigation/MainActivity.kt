@@ -326,6 +326,7 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
                         null
                     )
 
+                    applyAppUiPreferences()
                     startAutoLocation()
                 }
             }
@@ -333,6 +334,130 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
         navigationWebView.loadUrl(
             webUrl
         )
+    }
+
+    private fun applyAppUiPreferences() {
+        val js = """
+            (() => {
+              const removeSelectors = [
+                '[id*="treasure" i]',
+                '[class*="treasure" i]',
+                '[id*="daily-task" i]',
+                '[class*="daily-task" i]',
+                '[id*="dailyMission" i]',
+                '[class*="dailyMission" i]'
+              ];
+
+              removeSelectors.forEach((selector) => {
+                document.querySelectorAll(selector).forEach((element) => element.remove());
+              });
+
+              document.querySelectorAll('button, a').forEach((element) => {
+                const text = (element.textContent || '').trim();
+                if (text.includes('寶藏') || text.includes('每日任務')) {
+                  element.remove();
+                }
+              });
+
+              const sosButton = document.getElementById('sosButton');
+              if (!sosButton) return;
+
+              const key = 'sosEnabled';
+              const isEnabled = () => localStorage.getItem(key) === 'true';
+              const syncSos = () => {
+                sosButton.hidden = !isEnabled();
+              };
+
+              let settingsButton =
+                document.getElementById('appSettingsButton') ||
+                document.getElementById('settingsButton');
+
+              let settingsDialog =
+                document.getElementById('appSettingsDialog') ||
+                document.getElementById('settingsDialog');
+
+              if (!settingsButton) {
+                settingsButton = document.createElement('button');
+                settingsButton.id = 'appSettingsButton';
+                settingsButton.type = 'button';
+                settingsButton.textContent = '⚙';
+                settingsButton.setAttribute('aria-label', '設定');
+                settingsButton.style.position = 'fixed';
+                settingsButton.style.right = '16px';
+                settingsButton.style.top = '16px';
+                settingsButton.style.zIndex = '9998';
+                settingsButton.style.width = '44px';
+                settingsButton.style.height = '44px';
+                settingsButton.style.borderRadius = '12px';
+                settingsButton.style.border = '1px solid #e2e8f0';
+                settingsButton.style.background = '#fff';
+                settingsButton.style.fontSize = '20px';
+                document.body.appendChild(settingsButton);
+              }
+
+              if (!settingsDialog) {
+                settingsDialog = document.createElement('dialog');
+                settingsDialog.id = 'appSettingsDialog';
+                settingsDialog.style.border = 'none';
+                settingsDialog.style.borderRadius = '20px';
+                settingsDialog.style.padding = '24px';
+                settingsDialog.style.width = 'min(420px, calc(100vw - 32px))';
+                settingsDialog.innerHTML =
+                  '<h2 style="margin-top:0">設定</h2>' +
+                  '<label style="display:flex;align-items:center;justify-content:space-between;gap:16px;padding:14px 0">' +
+                  '<span><strong style="display:block;margin-bottom:4px">SOS 緊急警報</strong><small>開啟後才會在主畫面顯示 SOS。</small></span>' +
+                  '<input id="appSosEnabledSwitch" type="checkbox" style="width:22px;height:22px"></label>' +
+                  '<button id="appSettingsCloseButton" type="button" style="width:100%;min-height:44px;margin-top:16px">完成</button>';
+                document.body.appendChild(settingsDialog);
+              }
+
+              const switchEl =
+                document.getElementById('appSosEnabledSwitch') ||
+                document.getElementById('sosEnabledSwitch');
+
+              const closeButton =
+                document.getElementById('appSettingsCloseButton') ||
+                document.getElementById('closeSettingsButton');
+
+              const openSettings = () => {
+                if (switchEl) switchEl.checked = isEnabled();
+                if (typeof settingsDialog.showModal === 'function') {
+                  settingsDialog.showModal();
+                } else {
+                  settingsDialog.setAttribute('open', '');
+                }
+              };
+
+              if (!settingsButton.dataset.nativeSettingsBound) {
+                settingsButton.dataset.nativeSettingsBound = '1';
+                settingsButton.addEventListener('click', openSettings);
+              }
+
+              if (switchEl && !switchEl.dataset.nativeSettingsBound) {
+                switchEl.dataset.nativeSettingsBound = '1';
+                switchEl.checked = isEnabled();
+                switchEl.addEventListener('change', () => {
+                  localStorage.setItem(key, String(switchEl.checked));
+                  syncSos();
+                });
+              }
+
+              if (closeButton && !closeButton.dataset.nativeSettingsBound) {
+                closeButton.dataset.nativeSettingsBound = '1';
+                closeButton.addEventListener('click', () => {
+                  if (typeof settingsDialog.close === 'function') {
+                    settingsDialog.close();
+                  } else {
+                    settingsDialog.removeAttribute('open');
+                  }
+                });
+              }
+
+              syncSos();
+            })();
+        """.trimIndent()
+
+        navigationWebView.evaluateJavascript(js, null)
     }
 
     private fun startAutoLocation() {
