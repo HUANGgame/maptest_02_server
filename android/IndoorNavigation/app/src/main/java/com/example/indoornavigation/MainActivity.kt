@@ -221,7 +221,7 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
 
         rotationVectorSensor =
             sensorManager.getDefaultSensor(
-                Sensor.TYPE_GAME_ROTATION_VECTOR
+                Sensor.TYPE_ROTATION_VECTOR
             )
         linearAccelerationSensor =
             sensorManager.getDefaultSensor(
@@ -1122,13 +1122,16 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
                 }
             }
 
-            Sensor.TYPE_GAME_ROTATION_VECTOR -> {
+            Sensor.TYPE_ROTATION_VECTOR -> {
 
                 val rotationMatrix =
                     FloatArray(9)
 
                 val adjustedMatrix =
                     FloatArray(9)
+
+                val orientation =
+                    FloatArray(3)
 
                 SensorManager.getRotationMatrixFromVector(
                     rotationMatrix,
@@ -1141,7 +1144,6 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
                 when (screenRotation) {
 
                     Surface.ROTATION_0 -> {
-
                         System.arraycopy(
                             rotationMatrix,
                             0,
@@ -1152,7 +1154,6 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
                     }
 
                     Surface.ROTATION_90 -> {
-
                         SensorManager.remapCoordinateSystem(
                             rotationMatrix,
                             SensorManager.AXIS_Y,
@@ -1162,7 +1163,6 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
                     }
 
                     Surface.ROTATION_180 -> {
-
                         SensorManager.remapCoordinateSystem(
                             rotationMatrix,
                             SensorManager.AXIS_MINUS_X,
@@ -1172,7 +1172,6 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
                     }
 
                     Surface.ROTATION_270 -> {
-
                         SensorManager.remapCoordinateSystem(
                             rotationMatrix,
                             SensorManager.AXIS_MINUS_Y,
@@ -1182,84 +1181,47 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
                     }
                 }
 
+                SensorManager.getOrientation(
+                    adjustedMatrix,
+                    orientation
+                )
 
-                val topEast =
-                    adjustedMatrix[1]
-
-                val topNorth =
-                    adjustedMatrix[4]
-
-                val topHorizontal =
-                    kotlin.math.sqrt(
-                        (
-                                topEast * topEast +
-                                        topNorth * topNorth
-                                ).toDouble()
+                var heading =
+                    Math.toDegrees(
+                        orientation[0].toDouble()
                     ).toFloat()
-
-
-                val screenForwardEast =
-                    -adjustedMatrix[2]
-
-                val screenForwardNorth =
-                    -adjustedMatrix[5]
-
-                val screenForwardHorizontal =
-                    kotlin.math.sqrt(
-                        (
-                                screenForwardEast * screenForwardEast +
-                                        screenForwardNorth * screenForwardNorth
-                                ).toDouble()
-                    ).toFloat()
-
-
-                val headingEast: Float
-                val headingNorth: Float
-                val headingMode: String
-
-                if (
-                    topHorizontal >=
-                    screenForwardHorizontal
-                ) {
-
-                    headingEast =
-                        topEast
-
-                    headingNorth =
-                        topNorth
-
-                    headingMode =
-                        "TOP_EDGE"
-
-                } else {
-
-                    headingEast =
-                        screenForwardEast
-
-                    headingNorth =
-                        screenForwardNorth
-
-                    headingMode =
-                        "SCREEN_NORMAL"
-                }
-
-
-                var heading = Math.toDegrees(
-                    Math.atan2(headingEast.toDouble(), -headingNorth.toDouble())
-                ).toFloat()
 
                 if (heading < 0f) {
                     heading += 360f
                 }
 
-                currentHeadingDeg =
-                    heading
+                currentHeadingDeg = heading
+
+                val now =
+                    SystemClock.elapsedRealtime()
+
+                if (
+                    webPageReady &&
+                    now - lastHeadingSentAt >= 200L
+                ) {
+                    lastHeadingSentAt = now
+
+                    val js =
+                        "if (typeof window.setNativeHeading === 'function') {" +
+                                "window.setNativeHeading(" +
+                                currentHeadingDeg.toString() +
+                                ");" +
+                                "}"
+
+                    navigationWebView.evaluateJavascript(
+                        js,
+                        null
+                    )
+                }
 
                 android.util.Log.d(
                     "PDR_HEADING",
-                    "mode=$headingMode heading=$heading " +
-                            "topH=$topHorizontal " +
-                            "screenH=$screenForwardHorizontal"
+                    "absolute heading=$heading"
                 )
             }
             Sensor.TYPE_LINEAR_ACCELERATION -> {
