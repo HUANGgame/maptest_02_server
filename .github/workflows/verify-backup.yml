@@ -57,13 +57,13 @@ jobs:
 
       - name: Publish test APK to backup branch
         run: |
-          cp android/IndoorNavigation/app/build/outputs/apk/debug/app-debug.apk public/NaviTaipei_BACKUP_TEST_v1.1.apk
+          cp android/IndoorNavigation/app/build/outputs/apk/debug/app-debug.apk public/NaviTaipei_BACKUP_TEST_v1.2.apk
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add public/NaviTaipei_BACKUP_TEST_v1.1.apk
+          git add public/NaviTaipei_BACKUP_TEST_v1.2.apk
           if git diff --cached --quiet; then
             echo "APK unchanged"
           else
-            git commit -m "Publish backup test APK v1.1"
+            git commit -m "Publish backup test APK v1.2"
             git push
           fi
