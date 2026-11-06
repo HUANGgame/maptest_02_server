@@ -25,6 +25,20 @@ jobs:
           ! grep -q 'id="gridOverlayButton"' public/index_dqn_integrated_pdr_test_v19_idcompat.html
           ! grep -q 'const GRID_DATA' public/index_dqn_integrated_pdr_test_v19_idcompat.html
 
+      - name: Verify JavaScript syntax
+        run: |
+          python - <<'PY'
+          import re, pathlib
+          html = pathlib.Path("public/index_dqn_integrated_pdr_test_v19_idcompat.html").read_text(encoding="utf-8")
+          scripts = re.findall(r"<script[^>]*>([\s\S]*?)</script>", html, flags=re.I)
+          out = pathlib.Path("/tmp/js-check")
+          out.mkdir(exist_ok=True)
+          for i, script in enumerate(scripts):
+              (out / f"script-{i}.js").write_text(script, encoding="utf-8")
+          print(f"extracted {len(scripts)} scripts")
+          PY
+          for f in /tmp/js-check/*.js; do node --check "$f"; done
+
       - name: Set up Java
         uses: actions/setup-java@v4
         with:
