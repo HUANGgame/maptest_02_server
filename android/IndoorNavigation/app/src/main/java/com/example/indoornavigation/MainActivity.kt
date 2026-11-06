@@ -96,6 +96,7 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
     private var hybridDeliveredSteps = 0
     private var hybridCounterActive = false
     private var hybridSessionStarted = false
+    private var lastDetectorStepAtMs = 0L
 
     private val linearHighThreshold = 1.8f
     private val linearLowThreshold = 0.7f
@@ -506,6 +507,7 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
         hybridDeliveredSteps = 0
         hybridCounterActive = false
         hybridSessionStarted = true
+        lastDetectorStepAtMs = 0L
 
         if (webPageReady) {
 
@@ -877,6 +879,21 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
                 stopNativeSos()
             }
         }
+
+        @JavascriptInterface
+        fun startPdrSession() {
+            runOnUiThread {
+                resetHybridPdrBaseline()
+            }
+        }
+
+        @JavascriptInterface
+        fun stopPdrSession() {
+            runOnUiThread {
+                hybridSessionStarted = false
+                hybridCounterActive = false
+            }
+        }
     }
 
     private fun startNativeSos() {
@@ -1203,6 +1220,11 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
                     "PDR_TEST",
                     "STEP count=$testStepCount time=$now heading=$currentHeadingDeg"
                 )
+
+                if (hybridSessionStarted) {
+                    lastDetectorStepAtMs = now
+                    sendHybridPdrStep()
+                }
             }
 
             Sensor.TYPE_STEP_COUNTER -> {
@@ -1384,10 +1406,9 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
 
                     if (
                         hybridSessionStarted &&
-                        !hybridCounterActive &&
-                        hybridDeliveredSteps < 5
+                        stepDetectorSensor == null &&
+                        !hybridCounterActive
                     ) {
-
                         sendHybridPdrStep()
                     }
                 }
