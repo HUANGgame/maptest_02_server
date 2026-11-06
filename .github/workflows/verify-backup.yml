@@ -1,0 +1,38 @@
+name: verify-backup-branch
+
+on:
+  push:
+    branches:
+      - backup-stinnnnn-20261106
+    paths:
+      - "app_v4_integrated.py"
+      - "public/index_dqn_integrated_pdr_test_v19_idcompat.html"
+      - "android/IndoorNavigation/**"
+      - "render.yaml"
+      - ".github/workflows/verify-backup.yml"
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify Python syntax
+        run: python -m py_compile app_v4_integrated.py wifi_locator_v3.py wifi_locator_v4.py route_safe_engine.py anchor_to_dqn.py
+
+      - name: Verify removed grid UI
+        run: |
+          ! grep -q 'id="gridOverlayButton"' public/index_dqn_integrated_pdr_test_v19_idcompat.html
+          ! grep -q 'const GRID_DATA' public/index_dqn_integrated_pdr_test_v19_idcompat.html
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Build Android debug APK
+        working-directory: android/IndoorNavigation
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug
