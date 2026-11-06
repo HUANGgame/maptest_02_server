@@ -1271,7 +1271,16 @@ function drawPdrCalStop() {
 
         if (keyword) {
           matched = matched.filter((place) =>
-            [place.id, place.name, place.category, categoryText(place.category), place.description].some(
+            [
+              place.id,
+              place.name,
+              place.category,
+              ...(Array.isArray(place.categories) ? place.categories : []),
+              categoryText(place.category),
+              place.description,
+              place.keywords,
+              place.notes,
+            ].some(
               (value) => String(value || "").toLowerCase().includes(keyword)
             )
           );
@@ -2540,8 +2549,9 @@ drawCurrent();
       }
       function navigationTargets() {
         const wifiTargets = state.wifiPoints.map((point) => ({
-          id: point.pointId,
-          name: point.pointId,
+          id: `wifi:${point.floorId || "floor"}:${point.pointId}`,
+          pointId: point.pointId,
+          name: point.name || point.pointId,
           mapId: point.mapId,
           floorId: point.floorId,
           category: "定位點",
